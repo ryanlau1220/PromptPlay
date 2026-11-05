@@ -30,7 +30,7 @@ For a local container setup, run `docker compose up --build`. The faucet and liv
 
 The operator-funded demo rate is 5 PCC for one non-transferable gateway unit. Internally, one unit is 1,000,000 microunits. A unit's maximum funded inference cost and the model's input/output prices must be configured from verified provider terms before activation; this is a demo allowance, not a PCC cash peg or a provider-issued credit. The project-wide limit includes both issued allowance and pending redemption intents. Expired or uncertain unpaid intents remain reserved until reconciled, so they can exhaust the demo allocation.
 
-Live operation requires an authorized, funded provider, a server-only provider key, confirmed model pricing/context limits, and the explicit live, authorization and funding flags in `apps/server/.env.example`. The server also checks that the provider advertises the configured model before enabling redemption. Those conditions are **not currently verified**. The mock is for tests and an offline demonstration only:
+Live operation requires an authorized, funded provider, a server-only provider key, confirmed model pricing/context limits, an explicit Testnet wallet allowlist, and the live, authorization and funding flags in `apps/server/.env.example`. The server also checks that the provider advertises the configured model before enabling redemption. Those conditions are **not currently verified**. The mock is for tests and an offline demonstration only:
 
 ```sh
 cd apps/server
