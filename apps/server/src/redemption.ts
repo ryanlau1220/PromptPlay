@@ -18,9 +18,15 @@ export class Redemption {
     if (!account.endsWith('.testnet') || !Number.isSafeInteger(units) || units < 1 || units > 100) throw new Error('Invalid redemption')
     const id=randomBytes(24).toString('base64url'); const memo=`promptplay:${randomBytes(24).toString('base64url')}`
     const created=Date.now(), expires=created+TTL_MS, amount=(BigInt(units)*PCC_PER_UNIT).toString()
-    this.db.query('INSERT INTO redemption_intents (id,account_id,amount,units,memo,created,expires) VALUES (?,?,?,?,?,?,?)').run(id,account,amount,units,memo,created,expires)
+    this.db.transaction(()=>{
+      const {issued}=this.db.query('SELECT COALESCE(SUM(amount),0) AS issued FROM receipts').get() as {issued:number}
+      const {pending}=this.db.query('SELECT COALESCE(SUM(units),0) AS pending FROM redemption_intents WHERE receipt_id IS NULL').get() as {pending:number}
+      if (!Number.isSafeInteger(issued + (pending + units)*1_000_000) || issued + (pending + units)*1_000_000 > this.ledger.issuanceLimit()) throw new Error('Demo funding is fully allocated')
+      this.db.query('INSERT INTO redemption_intents (id,account_id,amount,units,memo,created,expires) VALUES (?,?,?,?,?,?,?)').run(id,account,amount,units,memo,created,expires)
+    }).immediate()
     return {id,account,amount,units,memo,created,expires,token:TOKEN,treasury:TREASURY}
   }
+  list(account:string) { return this.db.query('SELECT id, account_id, amount, units, memo, created, expires, receipt_id, tx_hash FROM redemption_intents WHERE account_id=? ORDER BY created DESC LIMIT 50').all(account) }
   get(id:string, account:string) {
     return this.db.query('SELECT id, account_id, amount, units, memo, created, expires, receipt_id, tx_hash FROM redemption_intents WHERE id=? AND account_id=?').get(id,account) as {id:string;account_id:string;amount:string;units:number;memo:string;created:number;expires:number;receipt_id:string|null;tx_hash:string|null}|null
   }

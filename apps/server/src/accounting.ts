@@ -56,6 +56,7 @@ export class Accounting {
       this.db.query("UPDATE accounts SET balance = balance + ? WHERE id = ?").run(req.reserved - used, req.account_id);
     }).immediate();
   }
+  issuanceLimit(): number { return this.spendingCap }
   usage(accountId: string) {
     return this.db.query("SELECT id, reserved, charged, input_tokens, output_tokens, state FROM requests WHERE account_id = ? ORDER BY rowid DESC LIMIT 100").all(accountId)
   }
