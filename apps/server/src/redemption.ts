@@ -39,7 +39,7 @@ export class Redemption {
     return this.db.transaction(()=>{
       const current=this.get(id,account); if (!current) throw new Error('Unknown intent')
       if (current.receipt_id) { if(current.tx_hash!==hash) throw new Error('Intent already used'); return {credited:false,receiptId:current.receipt_id} }
-      const credited=this.ledger.creditReceipt(receiptId,id,account,intent.units)
+      const credited=this.ledger.creditReceipt(receiptId,id,account,intent.units * 1_000_000)
       this.db.query('UPDATE redemption_intents SET receipt_id=?, tx_hash=? WHERE id=? AND receipt_id IS NULL').run(receiptId,hash,id)
       return {credited,receiptId}
     }).immediate()

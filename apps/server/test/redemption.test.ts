@@ -13,6 +13,6 @@ test('finalized matching payment credits once and supports delayed verification'
   expect(results.filter(r=>r.credited)).toHaveLength(1)
   expect(results.every(r=>r.receiptId==='receipt')).toBe(true)
   expect(await redemption.verify(intent.id,'alice.testnet',hash)).toEqual({credited:false,receiptId:'receipt'})
-  expect(ledger.balance('alice.testnet')).toBe(2)
+  expect(ledger.balance('alice.testnet')).toBe(2_000_000)
   await expect(redemption.verify(intent.id,'bob.testnet',hash)).rejects.toThrow('Unknown intent')
 })
