@@ -20,10 +20,12 @@ const redemption=new Redemption(db,ledger,rpc)
 const keys=new GatewayKeys(db)
 const live=process.env.PROMPTPLAY_LIVE_INFERENCE==='true' && process.env.PROMPTPLAY_PROVIDER_AUTHORIZED==='true' && process.env.PROMPTPLAY_PROVIDER_FUNDED==='true'
 const config=providerConfig(process.env)
+const redemptionAllowlist=new Set((process.env.REDEMPTION_ALLOWLIST ?? '').split(',').map(s=>s.trim()).filter(Boolean))
 const pricing={inputMicrosPerMillion:Number(process.env.INPUT_MICROS_PER_MILLION),outputMicrosPerMillion:Number(process.env.OUTPUT_MICROS_PER_MILLION),microsPerUnit:Number(process.env.MICROS_PER_UNIT),contextTokens:Number(process.env.MAX_CONTEXT_TOKENS),maxOutputTokens:Number(process.env.MAX_OUTPUT_TOKENS)}
 let gateway:Gateway|null=null
 if(live) {
   try {
+    if(redemptionAllowlist.size===0 || [...redemptionAllowlist].some(id=>!id.endsWith('.testnet'))) throw new Error('A Testnet demo allowlist is required')
     await verifyProviderModel(config)
     const candidate=new Gateway(ledger,keys,createProvider(config),config.model,pricing)
     freezeEconomy(db,{model:config.model,endpoint:config.endpoint,cap,...pricing})
@@ -45,6 +47,6 @@ if(process.env.PROMPTPLAY_FAUCET_ENABLED==='true') {
     return result.transaction.hash
   })
 }
-const app=createApp({auth,redemption,ledger,keys,gateway,faucet,allowRedemption:gateway !== null,origin:process.env.APP_ORIGIN ?? 'http://localhost:3000'})
+const app=createApp({auth,redemption,ledger,keys,gateway,faucet,redemptionAllowlist,allowRedemption:gateway !== null,origin:process.env.APP_ORIGIN ?? 'http://localhost:3000'})
 app.listen({hostname:process.env.HOST ?? '127.0.0.1',port:Number(process.env.PORT ?? '3001')})
 console.log(`PromptPlay server listening on ${app.server?.port}`)
