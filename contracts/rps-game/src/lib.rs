@@ -422,6 +422,51 @@ mod tests {
         assert_eq!(m.players[0].claim.0, 10);
     }
     #[test]
+    fn missing_commit_or_reveals_refund_both() {
+        let mut c = setup();
+        fund(&mut c);
+        ctx(accounts(0), 3, NearToken::from_yoctonear(0));
+        c.commit_move(U64(0), hash(0, &accounts(0), 0, &[5; 32]));
+        ctx(accounts(2), PHASE_NS + 2, NearToken::from_yoctonear(0));
+        c.resolve_timeout(U64(0));
+        let m = c.get_match(U64(0)).unwrap();
+        assert_eq!((m.players[0].claim.0, m.players[1].claim.0), (10, 10));
+
+        let mut c = setup();
+        fund(&mut c);
+        for who in [accounts(0), accounts(1)] {
+            ctx(who.clone(), 3, NearToken::from_yoctonear(0));
+            c.commit_move(U64(0), hash(0, &who, 0, &[5; 32]));
+        }
+        ctx(accounts(2), PHASE_NS + 3, NearToken::from_yoctonear(0));
+        c.resolve_timeout(U64(0));
+        let m = c.get_match(U64(0)).unwrap();
+        assert_eq!((m.players[0].claim.0, m.players[1].claim.0), (10, 10));
+    }
+    #[test]
+    #[should_panic(expected = "Commitment mismatch")]
+    fn wrong_secret_rejected() {
+        let mut c = setup();
+        fund(&mut c);
+        for who in [accounts(0), accounts(1)] {
+            ctx(who.clone(), 3, NearToken::from_yoctonear(0));
+            c.commit_move(U64(0), hash(0, &who, 0, &[5; 32]));
+        }
+        ctx(accounts(0), 4, NearToken::from_yoctonear(0));
+        c.reveal_move(U64(0), 0, Base64VecU8(vec![6; 32]));
+    }
+    #[test]
+    #[should_panic(expected = "Nothing claimable")]
+    fn duplicate_pending_claim_rejected() {
+        let mut c = setup();
+        deposit(&mut c, accounts(4), accounts(0), 10);
+        ctx(accounts(2), PHASE_NS + 1, NearToken::from_yoctonear(0));
+        c.resolve_timeout(U64(0));
+        ctx(accounts(0), PHASE_NS + 2, NearToken::from_yoctonear(1));
+        let _ = c.claim_payout(U64(0));
+        let _ = c.claim_payout(U64(0));
+    }
+    #[test]
     #[should_panic(expected = "Reveal phase closed")]
     fn early_reveal_rejected() {
         let mut c = setup();
