@@ -27,6 +27,12 @@
   },
   "redemptionTreasury": {
     "accountId": "treasury.ryanlau1220.testnet",
-    "registrationTransaction": "7aZDgUCvyoGiXQgdw29YJTBBJjjBqUWtxqhB8cSU8oFJ"
+    "registrationTransaction": "7aZDgUCvyoGiXQgdw29YJTBBJjjBqUWtxqhB8cSU8oFJ",
+    "accountingSmokeTest": {
+      "transferTransaction": "Urq21z7wv6NuWQ5jgCaYPQQku9cq4gLPmDKgqmEyC8p",
+      "receiptId": "EAzCovWCEqWGdyHenmE9pvaZBTaaPkR39YoEWogxSfNE",
+      "amountBaseUnits": "5000000",
+      "scope": "isolated local test database; no inference"
+    }
   }
 }
