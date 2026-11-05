@@ -1,0 +1,11 @@
+{
+  "network": "testnet",
+  "computeCredit": {
+    "accountId": "token.ryanlau1220.testnet",
+    "issuer": "ryanlau1220.testnet",
+    "decimals": 6,
+    "deploymentTransaction": "AruzAdNzrvdPqtMtsZhaHoMsDyGVfBQApaG4nDA7Xmrf",
+    "initialMintTransaction": "7X7EswKoc69xJqKBtNeoBcfj5p8WMYGWwoXGc8Si1xQ1",
+    "wasmSha256": "46b18a90e20241b2cd7bde1c5ea20bc9619c5cb26e928e2a57c4c3ba20832d2d"
+  }
+}
