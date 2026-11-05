@@ -5,7 +5,7 @@ PromptPlay is a Testnet multiplayer game and planned inference redemption demo. 
 ## Current implementation
 
 - `contracts/compute-credit`: NEP-141 test credits and restricted minting. See `deployments/testnet.json` for the deployed Testnet token.
-- `contracts/rps-game`: single-round escrow, commit–reveal, timeouts and payout claims. Not deployed yet.
+- `contracts/rps-game`: single-round escrow, commit–reveal, timeouts and payout claims. A controlled two-account match has been verified on Testnet.
 - `apps/server`: internal allowance accounting and a gated provider adapter. No HTTP interface or chain verifier is implemented.
 
 PCC is a Testnet demo asset. A configured mock is not real inference. Live inference is disabled by default and must only be enabled after funding and authorization are confirmed.
