@@ -1,5 +1,5 @@
 export type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
-export type Completion = { text: string; inputTokens: number; outputTokens: number };
+export type Completion = { text: string; inputTokens: number; outputTokens: number; finishReason: string };
 export interface InferenceProvider { complete(messages: ChatMessage[], maxTokens: number): Promise<Completion>; }
 
 export function providerConfig(env: Record<string, string | undefined>) {
@@ -25,17 +25,18 @@ export function createProvider(config: { liveEnabled: boolean; endpoint: string;
         signal: AbortSignal.timeout(30_000),
       });
       if (!res.ok) throw new Error(`Provider returned HTTP ${res.status}`);
-      const data = await res.json() as {choices?: Array<{message?: {content?: unknown}}>; usage?: {prompt_tokens?: unknown; completion_tokens?: unknown}};
+      const data = await res.json() as {choices?: Array<{message?: {content?: unknown}; finish_reason?: unknown}>; usage?: {prompt_tokens?: unknown; completion_tokens?: unknown}};
       const text = data.choices?.[0]?.message?.content;
+      const finishReason = data.choices?.[0]?.finish_reason;
       const inputTokens = data.usage?.prompt_tokens;
       const outputTokens = data.usage?.completion_tokens;
-      if (typeof text !== "string" || !Number.isSafeInteger(inputTokens) || !Number.isSafeInteger(outputTokens) || (inputTokens as number) < 0 || (outputTokens as number) < 0) throw new Error("Provider response lacks valid text or usage");
-      return {text, inputTokens: inputTokens as number, outputTokens: outputTokens as number};
+      if (typeof text !== "string" || typeof finishReason !== "string" || !Number.isSafeInteger(inputTokens) || !Number.isSafeInteger(outputTokens) || (inputTokens as number) < 0 || (outputTokens as number) < 0) throw new Error("Provider response lacks valid text or usage");
+      return {text, inputTokens: inputTokens as number, outputTokens: outputTokens as number, finishReason};
     },
   };
 }
 
 /** Deterministic offline test double; never exposed as a real inference provider. */
 export function mockProvider(): InferenceProvider {
-  return { async complete() { return {text: "Mock response", inputTokens: 2, outputTokens: 2}; } };
+  return { async complete() { return {text: "Mock response", inputTokens: 2, outputTokens: 2, finishReason: "stop"}; } };
 }
