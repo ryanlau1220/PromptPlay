@@ -9,3 +9,6 @@ skills-lock.json
 *.sqlite-shm
 *.sqlite-wal
 node_modules/
+!README.md
+!docs/
+!docs/*.md

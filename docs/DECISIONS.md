@@ -1,0 +1,9 @@
+# Decisions and open work
+
+- PCC uses the official NEAR fungible-token implementation. The issuer is restricted, but a rate-limited faucet is not implemented.
+- The game is single-round. Choices are 0 rock, 1 paper, 2 scissors. Each commitment is SHA-256 over `PromptPlay:RPS:v1`, the contract account and player account each prefixed by a little-endian u32 byte length, the match ID as little-endian u64, round 1 as little-endian u32, one choice byte and a 32-byte random secret. Base64 encodes the hash and secret for contract calls. The sandbox test independently computes this encoding.
+- Matches name both accounts at creation. The 0.01 NEAR creation deposit funds contract storage; the contract needs a separate storage registration on the PCC token. This has not been audited or deployed.
+- Allowance accounting currently uses Bun's built-in SQLite binding directly for immediate transactions; there are no external routes to credit receipts. On-chain receipt validation, wallet authentication, redemption intents, API keys, actual usage pricing and crash recovery are not yet implemented.
+- The provider adapter defaults to NEAR AI Cloud and `zai-org/GLM-5.1-FP8` through environment configuration. Provider access, model availability, funding and authorization are unverified. The live flag defaults to false; the mock is explicitly test-only. No live request has been made.
+- `FINAL` transaction status and the particular successful token receipt must be verified before any real allowance is credited. A transaction hash alone is insufficient.
+- Required before release: full contract adversarial and sandbox tests, wallet and room UI, game deployment, receipt verification, gateway authentication, cost metering and spending limits, and an authorized real inference demonstration.
