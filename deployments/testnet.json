@@ -23,6 +23,16 @@
       "winner": "ryanlau1220.testnet",
       "stakeBaseUnits": "5000000",
       "claimTransaction": "2TFvTTXewMxJbeejauoHZ1juojVcm5ahnVcAHG2M2ZCk"
+    },
+    "browserVerifiedMatch": {
+      "id": "2",
+      "players": [
+        "ryanlau1220.testnet",
+        "player.ryanlau1220.testnet"
+      ],
+      "winner": "ryanlau1220.testnet",
+      "stakeBaseUnits": "5000000",
+      "testMethod": "two isolated browser contexts using locally controlled test wallet adapters; refresh before reveal"
     }
   },
   "redemptionTreasury": {
