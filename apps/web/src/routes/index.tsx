@@ -1,29 +1,33 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { NearProvider, useNearWallet } from 'near-connect-hooks'
 import { useEffect, useState } from 'react'
+import { GameRoom } from '../components/GameRoom'
+import { TOKEN } from '../lib/game'
 
 export const Route = createFileRoute('/')({ component: Home })
-const TOKEN = 'token.ryanlau1220.testnet'
 
 function Home() {
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
+  return mounted ? <NearProvider config={{ network: 'testnet' }}><Content /></NearProvider> : <main><header><a className="brand" href="/">PromptPlay</a></header></main>
+}
+
+function Content() {
+  const { signedAccountId } = useNearWallet()
   return <main>
     <header><a className="brand" href="/" aria-label="PromptPlay home"><span className="brand-mark">P<span>✳</span></span> PromptPlay</a><span className="network"><i /> NEAR TESTNET</span></header>
     <div className="hero">
       <section className="intro">
-        <p className="eyebrow">THE DEVELOPER ARCADE <span> / 01</span></p>
         <h1>While your<br />agent works,<br /><em>play.</em></h1>
         <p className="lede">A quick game of rock, paper, scissors. Real players, verifiable moves, and credits that keep moving.</p>
-        {mounted ? <NearProvider config={{ network: 'testnet' }}><Wallet /></NearProvider> : <div className="wallet-loading">Preparing wallet…</div>}
-        <p className="note">Testnet demo credits · Game rooms in development</p>
+        <Wallet />
+        <p className="note">Testnet demo credits</p>
       </section>
       <aside className="arena" aria-label="Rock paper scissors game preview">
-        <div className="arena-top"><span>THE ARENA</span><span>ROUND 01 <b>●</b></span></div>
-        <div className="orbit"><div className="hand">ROCK<span>01</span></div><span className="vs">VS</span><div className="hand second">SCISSORS<span>03</span></div></div>
-        <div className="arena-bottom"><span>YOUR MOVE IS<br /><strong>YOURS ALONE.</strong></span><span className="stamp">P<span>✳</span>P</span></div>
+        <div className="orbit"><div className="hand">ROCK</div><span className="vs">VS</span><div className="hand second">SCISSORS</div></div>
       </aside>
     </div>
+    {signedAccountId && <GameRoom />}
     <footer><span>BUILT FOR THE WAIT.</span><a href={`https://testnet.nearblocks.io/address/${TOKEN}`} target="_blank" rel="noreferrer">VIEW PCC CONTRACT ↗</a></footer>
   </main>
 }
