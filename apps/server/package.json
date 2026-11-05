@@ -1,1 +1,1 @@
-{"name":"@promptplay/server","private":true,"type":"module","scripts":{"test":"bun test"}}
+{"name":"@promptplay/server","private":true,"type":"module","scripts":{"test":"bun test"},"dependencies":{"elysia":"^1.4.30","near-api-js":"^7.4.0"}}
