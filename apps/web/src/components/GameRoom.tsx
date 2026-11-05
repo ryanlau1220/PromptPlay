@@ -1,15 +1,16 @@
 import { useNearWallet } from 'near-connect-hooks'
+import { getTransactionLastResult } from 'near-api-js'
 import { useEffect, useRef, useState } from 'react'
 import { GAME, TOKEN, amount, base64, commitment, fromBase64, pcc, secretKey, type Match, type Secret } from '../lib/game'
 import { useSession } from './Session'
 
 export function GameRoom() {
-  const { signedAccountId: account, callFunction, viewFunction } = useNearWallet()
+  const { signedAccountId: account, callFunctionRaw, viewFunction } = useNearWallet()
   const {config,token,login,request}=useSession()
   const [opponent, setOpponent] = useState(''); const [stake, setStake] = useState('5')
   const [id, setId] = useState(() => new URLSearchParams(window.location.search).get('match') ?? '')
   const socket = useRef<WebSocket | null>(null)
-  const [room, setRoom] = useState<Match | null>(null); const [pending, setPending] = useState(false); const [message, setMessage] = useState('')
+  const [room, setRoom] = useState<Match | null>(null); const [pending, setPending] = useState(false); const [message, setMessage] = useState(''); const [txHash,setTxHash]=useState('')
   const [registered, setRegistered] = useState<boolean | null>(null); const [now, setNow] = useState(Date.now())
   async function checkRegistration() { const value = await viewFunction({contractId:TOKEN,method:'storage_balance_of',args:{account_id:account}}); setRegistered(value !== null) }
   useEffect(() => { setRegistered(null); void checkRegistration().catch(()=>setMessage('Could not check PCC registration.')); const timer = window.setInterval(()=>setNow(Date.now()),1000); return ()=>clearInterval(timer) }, [account])
@@ -37,15 +38,21 @@ export function GameRoom() {
     }
     connect();return()=>{stopped=true;if(reconnect)clearTimeout(reconnect);socket.current?.close();socket.current=null}
   }, [id, account])
+  async function callFunction(params:Parameters<typeof callFunctionRaw>[0]) {
+    const outcome=await callFunctionRaw(params)
+    if(outcome.transaction?.hash)setTxHash(outcome.transaction.hash)
+    if(!outcome.status || typeof outcome.status!=='object' || !('SuccessValue' in outcome.status)) throw new Error('Transaction was not confirmed. Check the explorer and refresh the match before retrying.')
+    return getTransactionLastResult(outcome)
+  }
   async function action(fn:()=>Promise<void>, refreshAfter=true) {
-    setPending(true); setMessage('Waiting for wallet and network confirmation…')
+    setPending(true); setTxHash(''); setMessage('Waiting for wallet and network confirmation…')
     try { await fn(); window.dispatchEvent(new Event('promptplay:balance')); if(socket.current?.readyState===WebSocket.OPEN) socket.current.send(JSON.stringify({type:'resync'})); setMessage('Transaction submitted. Checking on-chain status.'); if(refreshAfter) await refresh() }
     catch (err) { setMessage(err instanceof Error ? err.message : 'Transaction was not completed.') }
     finally { setPending(false) }
   }
   async function claimFaucet() {
-    setPending(true); setMessage('Waiting for wallet authentication…')
-    try { const auth=token || await login(); const previous=await request('/api/faucet','GET',undefined,auth); if(previous.claim){setMessage(previous.claim.state==='complete' ? 'Your faucet claim was already completed.' : 'Faucet claim is pending.');return} const result=await request('/api/faucet','POST',undefined,auth); window.dispatchEvent(new Event('promptplay:balance')); setMessage(result.claim?.state==='complete' ? '10 PCC sent.' : 'Faucet claim is pending. Do not submit another request.') }
+    setPending(true); setTxHash(''); setMessage('Waiting for wallet authentication…')
+    try { const auth=token || await login(); const previous=await request('/api/faucet','GET',undefined,auth); if(previous.claim){if(previous.claim.tx_hash)setTxHash(previous.claim.tx_hash);setMessage(previous.claim.state==='complete' ? 'Your faucet claim was already completed.' : 'Faucet claim is pending.');return} const result=await request('/api/faucet','POST',undefined,auth); if(result.claim?.tx_hash)setTxHash(result.claim.tx_hash); window.dispatchEvent(new Event('promptplay:balance')); setMessage(result.claim?.state==='complete' ? '10 PCC sent.' : 'Faucet claim is pending. Do not submit another request.') }
     catch (err) { setMessage(err instanceof Error ? err.message : 'Faucet request failed.') }
     finally { setPending(false) }
   }
@@ -89,6 +96,6 @@ export function GameRoom() {
       {me && BigInt(me.claim) > 0n && <button className="primary" disabled={pending || me.pending} onClick={()=>void action(()=>callFunction({contractId:GAME,method:'claim_payout',args:{match_id:room.id},gas:'70000000000000',deposit:'1'}).then(()=>{}))}>Claim {pcc(me.claim)} PCC</button>}
       {['Funding','Committing','Revealing'].includes(room.phase) && now >= Number(BigInt(room.deadline)/1000000n) && <button disabled={pending} onClick={()=>void action(()=>callFunction({contractId:GAME,method:'resolve_timeout',args:{match_id:room.id},gas:'50000000000000'}).then(()=>{}))}>Resolve timeout</button>}
       {!me && <small>Only the invited accounts can play this match.</small>}</> : id && /^\d+$/.test(id) ? <p>Match not found.</p> : null}</div>
-    </div>{message && <p className="status" role="status">{message}</p>}
+    </div>{message && <p className="status" role="status">{message} {txHash && <a href={`https://testnet.nearblocks.io/txns/${txHash}`} target="_blank" rel="noreferrer">View transaction ↗</a>}</p>}
   </section>
 }
