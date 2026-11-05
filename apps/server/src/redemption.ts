@@ -28,11 +28,12 @@ export class Redemption {
     const intent=this.get(id,account); if (!intent) throw new Error('Unknown intent')
     if (!/^[1-9A-HJ-NP-Za-km-z]{32,50}$/.test(hash)) throw new Error('Invalid transaction hash')
     if (intent.receipt_id) { if (intent.tx_hash !== hash) throw new Error('Intent already used'); return {credited:false,receiptId:intent.receipt_id} }
+    if (await this.rpc.getNetworkId() !== 'testnet') throw new Error('Unexpected NEAR network')
     const result=await this.rpc.viewTransactionStatus({txHash:hash,accountId:account,waitUntil:'FINAL'})
     const receiptId=inspectTransfer(result,{transactionHash:hash,sender:account,token:TOKEN,treasury:TREASURY,amount:intent.amount,memo:intent.memo})
     const receipt=(result.receipts_outcome as Array<{id:string;block_hash:string}>).find(r=>r.id===receiptId)
     if (!receipt?.block_hash) throw new Error('Missing transfer block')
-    const block=await this.rpc.viewBlock({block_id:receipt.block_hash})
+    const block=await this.rpc.viewBlock({blockId:receipt.block_hash})
     const executed=BigInt(block.header.timestamp_nanosec)
     if (executed < BigInt(intent.created)*1_000_000n || executed > BigInt(intent.expires)*1_000_000n) throw new Error('Transfer outside intent window; contact support')
     return this.db.transaction(()=>{
