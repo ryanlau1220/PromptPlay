@@ -11,7 +11,7 @@ export function SessionProvider({children}:{children:ReactNode}){
   useEffect(()=>{let active=true;setToken('');fetch(`${API}/config`).then(r=>r.json()).then(c=>{if(active)setConfig(c)}).catch(()=>{if(active)setConfig(null)});return()=>{active=false}},[account])
   async function request(path:string,method='GET',body?:unknown,auth=token){
     const res=await fetch(`${API}${path}`,{method,headers:{...(body?{'content-type':'application/json'}:{}),...(auth?{authorization:`Bearer ${auth}`}:{})},body:body?JSON.stringify(body):undefined})
-    const data=await res.json();if(!res.ok)throw new Error(typeof data.error==='string'?data.error:'Request failed.');return data
+    const data=await res.json();if(!res.ok)throw new Error(typeof data.error==='string'?data.error:typeof data.error?.message==='string'?data.error.message:'Request failed.');return data
   }
   async function login(){
     const c=await request('/api/auth/challenge','POST');const signed=await signNEP413Message({message:c.message,recipient:c.recipient,nonce:fromBase64(c.nonce)})

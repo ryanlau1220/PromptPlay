@@ -10,7 +10,7 @@ import { createProvider, providerConfig } from './provider'
 import { Faucet } from './faucet'
 import { freezeEconomy } from './economy'
 
-const cap=Number(process.env.INFERENCE_SPENDING_CAP_UNITS ?? '1000000')
+const cap=Number(process.env.INFERENCE_CAP_MICROUNITS ?? '1000000')
 const db=new Database(process.env.DATABASE_PATH ?? 'promptplay.sqlite', {create:true})
 const rpc=new JsonRpcProvider({url:process.env.NEAR_RPC_URL ?? 'https://test.rpc.fastnear.com'})
 if (await rpc.getNetworkId() !== 'testnet') throw new Error('Configured RPC is not NEAR Testnet')
