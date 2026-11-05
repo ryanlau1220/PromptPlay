@@ -43,6 +43,11 @@
       "receiptId": "EAzCovWCEqWGdyHenmE9pvaZBTaaPkR39YoEWogxSfNE",
       "amountBaseUnits": "5000000",
       "scope": "isolated local test database; no inference"
+    },
+    "mockGatewaySmokeTest": {
+      "transferTransaction": "J18gzkvmNmmWJLKemfK7gt9LdGa5TNKEoEXmUtbZVUFr",
+      "amountBaseUnits": "5000000",
+      "scope": "real finalized Testnet transfer and wallet auth with simulated inference in isolated local database; no live provider"
     }
   },
   "faucet": {
