@@ -46,3 +46,7 @@ For a transfer that was submitted but not credited, sign in with the same wallet
 Build both contracts from their directories with `cargo near build non-reproducible-wasm`. Run `cargo test --lib` in `contracts/compute-credit` and `cargo test` in `contracts/rps-game`; the sandbox test expects both WASM builds in their respective `target/near` directories. Run `bun test` and `pnpm exec tsc` in `apps/server`, and `bun test test/game.test.ts`, `pnpm exec tsc --noEmit` and `pnpm build` in `apps/web`.
 
 Testnet contract accounts, deployment transactions and controlled transaction evidence are in `deployments/testnet.json`. The sandbox covers a tie, callback spoof rejection, failed payout and retry. Timeout rules have unit tests but have not yet been verified using realistic sandbox timestamps. The contracts have not been audited; real inference, a third-party browser-wallet flow, and a complete provider-funded end-to-end demo remain unverified.
+
+## Submission
+
+The internal target is 13 November 2026. The [official deadline](https://nearhackathon.com/) is 14 November 2026 at 23:59 UTC (15 November at 07:59 Singapore time). The organizer requires a public repository and a public X demo post tagged `@NEARProtocol` and `#NEARHackathon`, with both links submitted through the official form. Publication, the demo post and submission remain pending; no changes have been pushed.
