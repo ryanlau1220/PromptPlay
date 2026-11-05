@@ -24,5 +24,9 @@
       "stakeBaseUnits": "5000000",
       "claimTransaction": "2TFvTTXewMxJbeejauoHZ1juojVcm5ahnVcAHG2M2ZCk"
     }
+  },
+  "redemptionTreasury": {
+    "accountId": "treasury.ryanlau1220.testnet",
+    "registrationTransaction": "7aZDgUCvyoGiXQgdw29YJTBBJjjBqUWtxqhB8cSU8oFJ"
   }
 }
