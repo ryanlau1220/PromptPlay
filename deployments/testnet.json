@@ -34,5 +34,12 @@
       "amountBaseUnits": "5000000",
       "scope": "isolated local test database; no inference"
     }
+  },
+  "faucet": {
+    "accountId": "faucet.ryanlau1220.testnet",
+    "fundedBaseUnits": "100000000",
+    "fundingTransaction": "7BVMywPsmpjCrUhAweNUGhA3JmyYd32daN85H63gLhBc",
+    "verifiedClaimTransaction": "K5dDJwE2fdSMUPSsYn2unieK3GY1wN9Mi5uxEqS6WdC",
+    "verifiedRecipient": "player.ryanlau1220.testnet"
   }
 }
