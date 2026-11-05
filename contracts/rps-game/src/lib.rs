@@ -467,6 +467,32 @@ mod tests {
         let _ = c.claim_payout(U64(0));
     }
     #[test]
+    fn creation_deposit_covers_completed_match_storage() {
+        let alice: AccountId = format!("{}.testnet", "a".repeat(56)).parse().unwrap();
+        let bob: AccountId = format!("{}.testnet", "b".repeat(56)).parse().unwrap();
+        ctx(alice.clone(), 1, STORAGE_DEPOSIT);
+        let mut c = Contract::new(accounts(4));
+        let before = env::storage_usage();
+        c.create_match(bob.clone(), U128(u128::MAX / 2));
+        for who in [alice.clone(), bob.clone()] {
+            ctx(accounts(4), 2, NearToken::from_yoctonear(0));
+            let _ = c.ft_on_transfer(who, U128(u128::MAX / 2), "0".into());
+        }
+        for (who, choice) in [(alice.clone(), 0), (bob.clone(), 2)] {
+            ctx(who.clone(), 3, NearToken::from_yoctonear(0));
+            c.commit_move(U64(0), hash(0, &who, choice, &[4; 32]));
+        }
+        for (who, choice) in [(alice, 0), (bob, 2)] {
+            ctx(who, 4, NearToken::from_yoctonear(0));
+            c.reveal_move(U64(0), choice, Base64VecU8(vec![4; 32]));
+        }
+        let bytes = env::storage_usage() - before;
+        assert!(
+            u128::from(bytes) * env::storage_byte_cost().as_yoctonear()
+                <= STORAGE_DEPOSIT.as_yoctonear()
+        );
+    }
+    #[test]
     #[should_panic(expected = "Players must differ")]
     fn rejects_self_match() {
         ctx(accounts(0), 1, STORAGE_DEPOSIT);
