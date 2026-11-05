@@ -27,3 +27,24 @@ describe("allowance accounting", () => {
     expect(() => l.release("one")).toThrow();
   });
 });
+
+test("two processes cannot reserve the same allowance", async () => {
+  const { mkdtempSync, rmSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const dir = mkdtempSync(join(tmpdir(), "promptplay-ledger-"));
+  const path = join(dir, "ledger.sqlite");
+  try {
+    const db = new Database(path);
+    new Accounting(db, 100).creditReceipt("r", "i", "alice", 100);
+    db.close();
+    const modulePath = new URL("../src/accounting.ts", import.meta.url).pathname;
+    const script = `import { Database } from 'bun:sqlite'; import { Accounting } from ${JSON.stringify(modulePath)}; const db = new Database(process.argv[1]); db.exec('PRAGMA busy_timeout = 5000'); try { new Accounting(db, 100).reserve(process.argv[2], 'alice', 60); } catch { process.exit(2); }`;
+    const processes = ["one", "two"].map((request) => Bun.spawn([process.execPath, "-e", script, path, request], {stdout:"ignore", stderr:"ignore"}));
+    const results = await Promise.all(processes.map((p) => p.exited));
+    expect(results.filter((code) => code === 0)).toHaveLength(1);
+    const check = new Database(path);
+    expect(new Accounting(check, 100).balance("alice")).toBe(40);
+    check.close();
+  } finally { rmSync(dir, {recursive:true, force:true}); }
+});
