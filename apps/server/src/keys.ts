@@ -13,5 +13,6 @@ export class GatewayKeys {
     if(!/^pp_[A-Za-z0-9_-]{43}$/.test(key)) return null
     return this.db.query('SELECT id,account_id,quota FROM gateway_keys WHERE key_hash=? AND revoked=0').get(hash(key)) as {id:string;account_id:string;quota:number}|null
   }
+  list(account:string) { return this.db.query('SELECT id, quota, revoked FROM gateway_keys WHERE account_id=? ORDER BY rowid DESC LIMIT 50').all(account) }
   revoke(account:string,id:string) { return this.db.query('UPDATE gateway_keys SET revoked=1 WHERE account_id=? AND id=? AND revoked=0').run(account,id).changes===1 }
 }

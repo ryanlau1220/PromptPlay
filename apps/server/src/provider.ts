@@ -15,6 +15,7 @@ export function providerConfig(env: Record<string, string | undefined>) {
 export function createProvider(config: { liveEnabled: boolean; endpoint: string; model: string; apiKey: string }): InferenceProvider {
   if (!config.liveEnabled) throw new Error("Live inference is disabled");
   const base = new URL(config.endpoint);
+  if (base.username || base.password || base.search || base.hash) throw new Error("Invalid provider URL");
   if (base.protocol !== "https:" && base.hostname !== "localhost" && base.hostname !== "127.0.0.1") throw new Error("Provider must use HTTPS or localhost");
   if (!config.apiKey || !config.model) throw new Error("Provider credentials and model are required");
   return {
@@ -22,7 +23,7 @@ export function createProvider(config: { liveEnabled: boolean; endpoint: string;
       const res = await fetch(`${config.endpoint.replace(/\/$/, "")}/chat/completions`, {
         method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${config.apiKey}` },
         body: JSON.stringify({model: config.model, messages, max_tokens: maxTokens, stream: false}),
-        signal: AbortSignal.timeout(30_000),
+        signal: AbortSignal.timeout(30_000), redirect: "error",
       });
       if (!res.ok) throw new Error(`Provider returned HTTP ${res.status}`);
       const data = await res.json() as {choices?: Array<{message?: {content?: unknown}; finish_reason?: unknown}>; usage?: {prompt_tokens?: unknown; completion_tokens?: unknown}};

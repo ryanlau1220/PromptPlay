@@ -22,3 +22,12 @@ test('uncertain provider failure keeps the reservation',async()=>{
  await expect(g.complete(key.key,'model',[{role:'user',content:'hello'}],10)).rejects.toThrow()
  expect(ledger.balance('alice')).toBe(880);expect(ledger.usage('alice')[0]).toMatchObject({reserved:120,state:'reserved'})
 })
+test('simultaneous requests cannot spend the same key quota',async()=>{
+ const db=new Database(':memory:'),ledger=new Accounting(db,1000),keys=new GatewayKeys(db)
+ ledger.creditReceipt('r','i','alice',1000);const key=keys.create('alice',120)
+ let release!:()=>void;const waiting=new Promise<void>(resolve=>{release=resolve})
+ const g=new Gateway(ledger,keys,{complete:async()=>{await waiting;return {text:'Mock response',inputTokens:2,outputTokens:2,finishReason:'stop'}}},'model',pricing)
+ const first=g.complete(key.key,'model',[{role:'user',content:'a'}],10)
+ await expect(g.complete(key.key,'model',[{role:'user',content:'b'}],10)).rejects.toThrow('quota')
+ release();await first;expect(ledger.balance('alice')).toBe(994)
+})

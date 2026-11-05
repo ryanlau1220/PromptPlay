@@ -11,6 +11,8 @@ export class Gateway {
   constructor(private ledger:Accounting, private keys:GatewayKeys, private provider:InferenceProvider, readonly model:string, private pricing:Pricing) {
     if (!model || !Object.values(pricing).every(positive) || pricing.maxOutputTokens > pricing.contextTokens) throw new Error('Invalid gateway pricing or token limits')
   }
+  get maxUnitCostMicros() { return this.pricing.microsPerUnit }
+  get maxOutputTokens() { return this.pricing.maxOutputTokens }
   private cost(input:number,output:number) {
     const p=this.pricing
     const micros=ceil(BigInt(input)*BigInt(p.inputMicrosPerMillion),1_000_000n)+ceil(BigInt(output)*BigInt(p.outputMicrosPerMillion),1_000_000n)
