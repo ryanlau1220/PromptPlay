@@ -467,6 +467,47 @@ mod tests {
         let _ = c.claim_payout(U64(0));
     }
     #[test]
+    #[should_panic(expected = "Players must differ")]
+    fn rejects_self_match() {
+        ctx(accounts(0), 1, STORAGE_DEPOSIT);
+        let mut c = Contract::new(accounts(4));
+        c.create_match(accounts(0), U128(10));
+    }
+    #[test]
+    #[should_panic(expected = "Commit phase closed")]
+    fn rejects_commit_at_deadline() {
+        let mut c = setup();
+        fund(&mut c);
+        ctx(accounts(0), PHASE_NS + 2, NearToken::from_yoctonear(0));
+        c.commit_move(U64(0), hash(0, &accounts(0), 0, &[4; 32]));
+    }
+    #[test]
+    #[should_panic(expected = "Already committed")]
+    fn rejects_duplicate_commitment() {
+        let mut c = setup();
+        fund(&mut c);
+        ctx(accounts(0), 3, NearToken::from_yoctonear(0));
+        c.commit_move(U64(0), hash(0, &accounts(0), 0, &[4; 32]));
+        c.commit_move(U64(0), hash(0, &accounts(0), 0, &[4; 32]));
+    }
+    #[test]
+    #[should_panic(expected = "Commitment mismatch")]
+    fn commitment_cannot_be_replayed_for_another_match() {
+        let mut c = setup();
+        ctx(accounts(0), 1, STORAGE_DEPOSIT);
+        c.create_match(accounts(1), U128(10));
+        for who in [accounts(0), accounts(1)] {
+            ctx(accounts(4), 2, NearToken::from_yoctonear(0));
+            let _ = c.ft_on_transfer(who, U128(10), "1".into());
+        }
+        for who in [accounts(0), accounts(1)] {
+            ctx(who.clone(), 3, NearToken::from_yoctonear(0));
+            c.commit_move(U64(1), hash(0, &who, 0, &[4; 32]));
+        }
+        ctx(accounts(0), 4, NearToken::from_yoctonear(0));
+        c.reveal_move(U64(1), 0, Base64VecU8(vec![4; 32]));
+    }
+    #[test]
     #[should_panic(expected = "Reveal phase closed")]
     fn early_reveal_rejected() {
         let mut c = setup();

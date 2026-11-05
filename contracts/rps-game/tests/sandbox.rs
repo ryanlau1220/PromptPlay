@@ -152,6 +152,16 @@ async fn escrow_settles_a_two_player_tie() -> testresult::TestResult<()> {
         .await?
         .assert_success();
     }
+    // External callers must not be able to spoof the payout callback.
+    game.call_function(
+        "on_payout",
+        json!({"match_id":"0","player":1,"amount":"10"}),
+    )
+    .transaction()
+    .with_signer(alice.clone(), signer.clone())
+    .send_to(&network)
+    .await?
+    .assert_failure();
     // Force a real FT transfer failure: Bob unregisters after depositing his entire balance.
     token
         .call_function("storage_unregister", json!({"force":false}))
