@@ -41,3 +41,12 @@ export function createProvider(config: { liveEnabled: boolean; endpoint: string;
 export function mockProvider(): InferenceProvider {
   return { async complete() { return {text: "Mock response", inputTokens: 2, outputTokens: 2, finishReason: "stop"}; } };
 }
+
+/** Verify the configured model is advertised before accepting paid redemptions. */
+export async function verifyProviderModel(config: {liveEnabled:boolean;endpoint:string;model:string;apiKey:string}): Promise<void> {
+  createProvider(config) // validates the live gate, credentials and endpoint
+  const response=await fetch(`${config.endpoint.replace(/\/$/, '')}/models`,{headers:{authorization:`Bearer ${config.apiKey}`},signal:AbortSignal.timeout(15_000),redirect:'error'})
+  if(!response.ok) throw new Error('Provider model list is unavailable')
+  const data=await response.json() as {data?:Array<{id?:unknown}>}
+  if(!Array.isArray(data.data)||!data.data.some(model=>model.id===config.model)) throw new Error('Configured model is unavailable')
+}

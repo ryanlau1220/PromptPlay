@@ -31,3 +31,8 @@ test('simultaneous requests cannot spend the same key quota',async()=>{
  await expect(g.complete(key.key,'model',[{role:'user',content:'b'}],10)).rejects.toThrow('quota')
  release();await first;expect(ledger.balance('alice')).toBe(994)
 })
+
+test('rejects a demo rate that cannot cover the reserved request',()=>{
+ const db=new Database(':memory:'),ledger=new Accounting(db,1000000),keys=new GatewayKeys(db)
+ expect(()=>new Gateway(ledger,keys,mockProvider(),'model',{...pricing,microsPerUnit:1})).toThrow('cannot cover')
+})

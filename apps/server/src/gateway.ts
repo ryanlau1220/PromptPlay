@@ -10,6 +10,7 @@ export class Gateway {
   private rates=new Map<string,{start:number;count:number}>()
   constructor(private ledger:Accounting, private keys:GatewayKeys, private provider:InferenceProvider, readonly model:string, private pricing:Pricing) {
     if (!model || !Object.values(pricing).every(positive) || pricing.maxOutputTokens > pricing.contextTokens) throw new Error('Invalid gateway pricing or token limits')
+    if (this.cost(pricing.contextTokens,Math.min(128,pricing.maxOutputTokens)) > 1_000_000) throw new Error('One demo unit cannot cover the request reservation')
   }
   get maxUnitCostMicros() { return this.pricing.microsPerUnit }
   get maxOutputTokens() { return this.pricing.maxOutputTokens }
