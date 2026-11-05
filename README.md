@@ -30,14 +30,14 @@ For a local container setup, run `docker compose up --build`. The faucet and liv
 
 The operator-funded demo rate is 5 PCC for one non-transferable gateway unit. Internally, one unit is 1,000,000 microunits. A unit's maximum funded inference cost and the model's input/output prices must be configured from verified provider terms before activation; this is a demo allowance, not a PCC cash peg or a provider-issued credit. The project-wide limit includes both issued allowance and pending redemption intents. Expired or uncertain unpaid intents remain reserved until reconciled, so they can exhaust the demo allocation.
 
-Live operation requires an authorized, funded provider, a server-only provider key, confirmed model pricing/context limits, and the explicit live, authorization and funding flags in `apps/server/.env.example`. Those conditions are **not currently verified**. The mock is for tests and an offline demonstration only:
+Live operation requires an authorized, funded provider, a server-only provider key, confirmed model pricing/context limits, and the explicit live, authorization and funding flags in `apps/server/.env.example`. The server also checks that the provider advertises the configured model before enabling redemption. Those conditions are **not currently verified**. The mock is for tests and an offline demonstration only:
 
 ```sh
 cd apps/server
 bun run demo:mock
 ```
 
-The gateway supports `GET /v1/models` and non-streaming `POST /v1/chat/completions`; tool calling and coding-agent compatibility have not been established. Wallet sessions use signed NEP-413 challenges. API keys are shown once and stored hashed. The gateway reserves a conservative maximum before requests, reconciles provider-reported usage and retains reservations where execution is uncertain. Provider limits and prices must be accurate for the configured model; the spending guarantee depends on those limits being respected.
+The gateway supports `GET /v1/models` and non-streaming `POST /v1/chat/completions`; tool calling and coding-agent compatibility have not been established. Wallet sessions use signed NEP-413 challenges. API keys are shown once and stored hashed. The gateway reserves a conservative maximum before requests, reconciles provider-reported token usage at configured full input/output rates and retains reservations where execution is uncertain. Provider limits and prices must be accurate for the configured model; the spending guarantee depends on those limits being respected.
 
 For a transfer that was submitted but not credited, sign in with the same wallet, open the existing intent and paste the transaction hash. Verification checks the final Testnet transaction, the particular successful PCC receipt, sender, treasury, amount, memo and execution time. Do not send a second payment for the same intent.
 
