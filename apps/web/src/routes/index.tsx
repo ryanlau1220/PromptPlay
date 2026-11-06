@@ -16,6 +16,14 @@ function Home() {
 
 function Content() {
   const { signedAccountId } = useNearWallet()
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    try { const saved = localStorage.getItem('promptplay:theme'); if (saved === 'light' || saved === 'dark') return saved } catch { /* Use the system preference when storage is unavailable. */ }
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  })
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+    try { localStorage.setItem('promptplay:theme', theme) } catch { /* Theme still works for this session. */ }
+  }, [theme])
   const [view, setView] = useState(() => window.location.hash === '#play' ? 'play' : window.location.hash === '#redeem' ? 'redeem' : 'arcade')
   useEffect(() => {
     const sync = () => setView(window.location.hash === '#play' ? 'play' : window.location.hash === '#redeem' ? 'redeem' : 'arcade')
@@ -25,7 +33,7 @@ function Content() {
   return <main>
     <header><a className="brand" href="#arcade" aria-label="PromptPlay arcade">PromptPlay<span className="brand-dot">.</span></a>
       <nav aria-label="Main navigation"><a href="#arcade" aria-current={view === 'arcade' ? 'page' : undefined}>Arcade</a><a href="#redeem" aria-current={view === 'redeem' ? 'page' : undefined}>Inference</a></nav>
-      <div className="header-actions"><span className="network"><i /> TESTNET</span>{(signedAccountId || view === 'arcade') && <Wallet />}</div>
+      <div className="header-actions"><span className="network"><i /> TESTNET</span><button className="theme-toggle" type="button" onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')} aria-label={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'} title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}>{theme === 'light' ? '☾' : '☀'}</button>{(signedAccountId || view === 'arcade') && <Wallet />}</div>
     </header>
     {view === 'arcade' && <div className="lobby">
       <div className="lobby-heading"><div className="lobby-intro"><span className="lobby-kicker"><span className="kicker-light" /> PROMPTPLAY ARCADE</span><h1>Play while<br /><em>you wait.</em></h1><p>Your agent works. You play.</p><a className="explore-link" href="#games">Explore games <span aria-hidden="true">↓</span></a></div><div className="arcade-visual" aria-hidden="true"><div className="visual-grid" /><div className="visual-orbit orbit-one" /><div className="visual-orbit orbit-two" /><div className="credit-chip"><span>P</span><small>PCC</small></div><span className="visual-spark spark-one">✳</span><span className="visual-spark spark-two">✦</span><span className="visual-label">PLAYER 01 <b>●</b> READY</span></div></div>
