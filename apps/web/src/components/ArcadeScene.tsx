@@ -39,7 +39,7 @@ function AgentTerminal({ started, reduced }: { started: boolean; reduced: boolea
 }
 
 function PhaseScreen({ phase }: { phase: Phase }) {
-  if (phase === 'select') return <div className="demo-library"><div className="demo-library-heading"><strong>Arcade</strong><span>11 games</span></div><div className="demo-library-grid"><a href="#play" className="demo-library-tile"><GameArtwork id="rps" /><span>Rock Paper Scissors</span></a>{practiceGames.map(game => <a href={`#practice/${game.id}`} className="demo-library-tile" key={game.id}><GameArtwork id={game.id} /><span>{game.name}</span></a>)}</div></div>
+  if (phase === 'select') return <div className="demo-library"><div className="demo-library-heading"><strong>Arcade</strong><span>{practiceGames.length + 1} games</span></div><div className="demo-library-grid"><a href="#play" className="demo-library-tile"><GameArtwork id="rps" /><span>Rock Paper Scissors</span></a>{practiceGames.map(game => <a href={`#practice/${game.id}`} className="demo-library-tile" key={game.id}><GameArtwork id={game.id} /><span>{game.name}</span></a>)}</div></div>
   if (phase === 'invite') return <div className="demo-screen"><span className="demo-eyebrow">PRIVATE MATCH</span><div className="demo-icon demo-cyan"><Users size={27} /></div><strong>Challenge a friend</strong><div className="demo-players"><span>you.testnet</span><i>↔</i><span>friend.testnet</span></div><div className="demo-action"><span>Invite shared</span><Check size={15} /></div></div>
   if (phase === 'deposit') return <div className="demo-screen"><span className="demo-eyebrow">DEPOSIT TO ESCROW</span><div className="demo-icon demo-amber"><ShieldCheck size={27} /></div><strong>5 PCC each</strong><div className="demo-players"><span>YOU <b>✓</b></span><i>+</i><span>FRIEND <b>✓</b></span></div><div className="demo-action"><span>Both deposits confirmed</span><LockKeyhole size={14} /></div></div>
   if (phase === 'commit') return <div className="demo-screen"><span className="demo-eyebrow">COMMIT YOUR MOVE</span><div className="demo-hands">{['rock', 'paper', 'scissors'].map((hand, i) => <div className={i === 0 ? 'demo-hand selected' : 'demo-hand'} key={hand}><img src={`/hands/${hand}.svg`} alt="" /></div>)}</div><strong>Move sealed</strong><div className="demo-commit"><LockKeyhole size={13} /> Waiting for both players</div></div>
@@ -68,7 +68,7 @@ function GameTerminal({ started }: { started: boolean }) {
           </motion.div>
         </AnimatePresence>
       </div>
-      <div className="hero-window-bottom"><span>ARCADE / 11</span><div className="demo-progress" aria-hidden="true">{phases.map((step, i) => <span className={i === (reduced ? 0 : index) ? 'active' : ''} key={step} />)}</div></div>
+      <div className="hero-window-bottom"><span>ARCADE / {practiceGames.length + 1}</span><div className="demo-progress" aria-hidden="true">{phases.map((step, i) => <span className={i === (reduced ? 0 : index) ? 'active' : ''} key={step} />)}</div></div>
     </div>
   )
 }
@@ -88,7 +88,7 @@ export function ArcadeScene() {
         <div className="hero-shell-bar"><PanelLeft size={15} /><span>Workspace</span><span>DEMO</span></div>
         <div className="desktop-workspace"><aside className="desktop-rail" aria-hidden="true"><div className="desktop-rail-heading">Workspace</div><div className="desktop-rail-new"><Plus size={15} /> New task</div><div className="desktop-rail-label">Recent</div><div className="desktop-rail-task"><Code2 size={14} /> Build a product</div><div className="desktop-rail-task"><Folder size={14} /> Improve dashboard</div><div className="desktop-rail-task"><Code2 size={14} /> Refine components</div><div className="desktop-rail-task"><Code2 size={14} /> Add project tests</div><div className="desktop-rail-settings"><Settings2 size={15} /></div></aside><div className="hero-workspace"><AgentTerminal started={started} reduced={reduced} /><GameTerminal started={started} /></div></div>
       </div>
-      <div className="hero-actions-row"><a className="hero-action-primary" href="#games"><Gamepad2 size={16} /> Play <ArrowRight size={15} /></a><a className="hero-action-link" href="#redeem">Compute <ArrowRight size={15} /></a><a className="hero-action-scroll" href="#loop" aria-label="Explore PromptPlay"><ArrowDown size={18} /></a></div>
+      <div className="hero-actions-row"><a className="hero-action-scroll" href="#games" aria-label="Explore games"><ArrowDown size={18} /></a></div>
     </section>
   )
 }
