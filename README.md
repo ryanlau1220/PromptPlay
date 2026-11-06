@@ -2,7 +2,7 @@
 
 PromptPlay is a NEAR Testnet arcade for developers waiting for coding agents. Two wallets can play a single round of rock, paper, scissors using Testnet PromptPlay Compute Credits (PCC). The contract escrows the stakes, verifies committed moves and makes the result and payout claimable on-chain.
 
-The game has been exercised on Testnet through the CLI and two isolated browser test wallet adapters. A third-party browser wallet still needs end-to-end verification. The inference gateway is implemented with a deterministic mock, but **live inference and new redemptions remain disabled**: NEAR AI Cloud funding, access and permission for this gateway have not been confirmed.
+The game has been exercised on Testnet through the CLI and two isolated browser test wallet adapters. A third-party browser wallet still needs end-to-end verification. The inference gateway has a deterministic mock and an OpenAI-compatible provider. A direct Nebius Token Factory request succeeded using the existing provider, but **live inference redemption remains disabled** while funding and permission for gateway use are unconfirmed.
 
 ## Run locally
 
@@ -30,7 +30,7 @@ For a local container setup, run `docker compose up --build`. The faucet and liv
 
 The operator-funded demo rate is 5 PCC for one non-transferable gateway unit. Internally, one unit is 1,000,000 microunits. A unit's maximum funded inference cost and the model's input/output prices must be configured from verified provider terms before activation; this is a demo allowance, not a PCC cash peg or a provider-issued credit. The project-wide limit includes both issued allowance and pending redemption intents. Expired or uncertain unpaid intents remain reserved until reconciled, so they can exhaust the demo allocation.
 
-Live operation requires an authorized, funded provider, a server-only provider key, confirmed model pricing/context limits, an explicit Testnet wallet allowlist, and the live, authorization and funding flags in `apps/server/.env.example`. The server also checks that the provider advertises the configured model before enabling redemption. Those conditions are **not currently verified**. The mock is for tests and an offline demonstration only:
+Live operation requires an authorized, funded provider, a server-only provider key, confirmed model pricing/context limits, an explicit Testnet wallet allowlist, and the live, authorization and funding flags in `apps/server/.env.example`. The server also checks that the provider advertises the configured model before enabling redemption. Those conditions are **not currently verified**. The local development configuration uses Nebius Token Factory at `https://api.tokenfactory.nebius.com/v1` with `Qwen/Qwen3-30B-A3B-Instruct-2507`; its key stays in ignored server-side environment configuration. A direct provider request succeeded, but an authorized PCC-to-inference flow has not been demonstrated. The mock is for tests and an offline demonstration only:
 
 ```sh
 cd apps/server
@@ -50,3 +50,5 @@ Testnet contract accounts, deployment transactions and controlled transaction ev
 ## Submission
 
 The internal target is 13 November 2026. The [official deadline](https://nearhackathon.com/) is 14 November 2026 at 23:59 UTC (15 November at 07:59 Singapore time). The organizer requires a public repository and a public X demo post tagged `@NEARProtocol` and `#NEARHackathon`, with both links submitted through the official form. Publication, the demo post and submission remain pending; no changes have been pushed.
+
+The hand illustrations are from [OpenMoji](https://openmoji.org/), licensed under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).
