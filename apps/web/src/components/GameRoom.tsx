@@ -10,7 +10,7 @@ export function GameRoom() {
   const [opponent, setOpponent] = useState(''); const [stake, setStake] = useState('5')
   const [id, setId] = useState(() => new URLSearchParams(window.location.search).get('match') ?? '')
   const socket = useRef<WebSocket | null>(null)
-  const [room, setRoom] = useState<Match | null>(null); const [pending, setPending] = useState(false); const [message, setMessage] = useState(''); const [txHash,setTxHash]=useState('')
+  const [loadedRoom, setRoom] = useState<Match | null>(null); const room = loadedRoom?.id === id ? loadedRoom : null; const [pending, setPending] = useState(false); const [message, setMessage] = useState(''); const [txHash,setTxHash]=useState('')
   const [registered, setRegistered] = useState<boolean | null>(null); const [now, setNow] = useState(Date.now())
   async function checkRegistration() { const value = await viewFunction({contractId:TOKEN,method:'storage_balance_of',args:{account_id:account}}); setRegistered(value !== null) }
   useEffect(() => { setRegistered(null); void checkRegistration().catch(()=>setMessage('Could not check PCC registration.')); const timer = window.setInterval(()=>setNow(Date.now()),1000); return ()=>clearInterval(timer) }, [account])
