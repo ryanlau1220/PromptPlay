@@ -62,5 +62,11 @@ test('only enrolled wallets can reserve funded redemption capacity',async()=>{
  async function login(accountId:string){const challenge=auth.challenge();return (await auth.signIn({challengeId:challenge.id,accountId,publicKey:`ed25519:${'1'.repeat(32)}`,signature:Buffer.alloc(64).toString('base64')})).token}
  const send=async(token:string)=>app.handle(new Request('http://localhost/api/redemptions',{method:'POST',headers:{'content-type':'application/json',authorization:`Bearer ${token}`},body:JSON.stringify({units:1})}))
  expect((await send(await login('bob.testnet'))).status).toBe(403)
- expect((await send(await login('alice.testnet'))).status).toBe(200)
+ const alice=await login('alice.testnet')
+ const created=await send(alice);expect(created.status).toBe(200)
+ const {id}=await created.json() as {id:string}
+ const attempt=(bearer:string)=>app.handle(new Request(`http://localhost/api/redemptions/${id}/attempt`,{method:'POST',headers:{authorization:`Bearer ${bearer}`}}))
+ expect((await attempt(await login('bob.testnet'))).status).toBe(403)
+ expect((await attempt(alice)).status).toBe(200)
+ expect((await attempt(alice)).status).toBe(400)
 })

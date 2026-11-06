@@ -35,3 +35,12 @@ test('finalized matching payment credits once and supports delayed verification'
   await expect(redemption.verify(intent.id,'alice.testnet','1'.repeat(40))).rejects.toThrow('Unexpected NEAR network')
   expect(ledger.balance('alice.testnet')).toBe(0)
  })
+
+test('only one payment attempt is recorded across server instances',()=>{
+ const db=new Database(':memory:'),ledger=new Accounting(db,1_000_000),a=new Redemption(db,ledger,{} as JsonRpcProvider),b=new Redemption(db,ledger,{} as JsonRpcProvider)
+ const intent=a.create('alice.testnet',1)
+ expect(()=>a.beginTransfer(intent.id,'bob.testnet')).toThrow('unavailable')
+ a.beginTransfer(intent.id,'alice.testnet')
+ expect(()=>b.beginTransfer(intent.id,'alice.testnet')).toThrow('already recorded')
+ expect(b.get(intent.id,'alice.testnet')?.attempted).toBe(1)
+})

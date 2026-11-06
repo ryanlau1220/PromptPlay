@@ -12,7 +12,8 @@ const TREASURY = 'treasury.ryanlau1220.testnet'
 /** Direct Testnet transfers only. Callers must authenticate the wallet and enforce the live gate. */
 export class Redemption {
   constructor(private db:Database, private ledger:Accounting, private rpc:JsonRpcProvider) {
-    db.exec(`CREATE TABLE IF NOT EXISTS redemption_intents (id TEXT PRIMARY KEY, account_id TEXT NOT NULL, amount TEXT NOT NULL, units INTEGER NOT NULL, memo TEXT NOT NULL UNIQUE, created INTEGER NOT NULL, expires INTEGER NOT NULL, receipt_id TEXT UNIQUE, tx_hash TEXT)`)
+    db.exec(`CREATE TABLE IF NOT EXISTS redemption_intents (id TEXT PRIMARY KEY, account_id TEXT NOT NULL, amount TEXT NOT NULL, units INTEGER NOT NULL, memo TEXT NOT NULL UNIQUE, created INTEGER NOT NULL, expires INTEGER NOT NULL, receipt_id TEXT UNIQUE, tx_hash TEXT);
+      CREATE TABLE IF NOT EXISTS redemption_attempts (intent_id TEXT PRIMARY KEY REFERENCES redemption_intents(id), created INTEGER NOT NULL)`)
   }
   create(account:string, units:number) {
     if (!account.endsWith('.testnet') || !Number.isSafeInteger(units) || units < 1 || units > 100) throw new Error('Invalid redemption')
@@ -26,9 +27,17 @@ export class Redemption {
     }).immediate()
     return {id,account,amount,units,memo,created,expires,token:TOKEN,treasury:TREASURY}
   }
-  list(account:string) { return this.db.query('SELECT id, account_id, amount, units, memo, created, expires, receipt_id, tx_hash FROM redemption_intents WHERE account_id=? ORDER BY created DESC LIMIT 50').all(account) }
+  list(account:string) { return this.db.query('SELECT id, account_id, amount, units, memo, created, expires, receipt_id, tx_hash, EXISTS(SELECT 1 FROM redemption_attempts WHERE intent_id=redemption_intents.id) AS attempted FROM redemption_intents WHERE account_id=? ORDER BY created DESC LIMIT 50').all(account) }
   get(id:string, account:string) {
-    return this.db.query('SELECT id, account_id, amount, units, memo, created, expires, receipt_id, tx_hash FROM redemption_intents WHERE id=? AND account_id=?').get(id,account) as {id:string;account_id:string;amount:string;units:number;memo:string;created:number;expires:number;receipt_id:string|null;tx_hash:string|null}|null
+    return this.db.query('SELECT id, account_id, amount, units, memo, created, expires, receipt_id, tx_hash, EXISTS(SELECT 1 FROM redemption_attempts WHERE intent_id=redemption_intents.id) AS attempted FROM redemption_intents WHERE id=? AND account_id=?').get(id,account) as {id:string;account_id:string;amount:string;units:number;memo:string;created:number;expires:number;receipt_id:string|null;tx_hash:string|null;attempted:number}|null
+  }
+  beginTransfer(id:string,account:string) {
+    this.db.transaction(()=>{
+      const intent=this.get(id,account)
+      if(!intent || intent.receipt_id || intent.expires-Date.now()<60_000) throw new Error('Intent is unavailable or too close to expiry')
+      if(intent.attempted) throw new Error('Payment attempt already recorded; check wallet history')
+      this.db.query('INSERT INTO redemption_attempts (intent_id,created) VALUES (?,?)').run(id,Date.now())
+    }).immediate()
   }
   async verify(id:string,account:string,hash:string) {
     const intent=this.get(id,account); if (!intent) throw new Error('Unknown intent')
