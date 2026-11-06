@@ -33,3 +33,16 @@ export function WordGuess() {
   function pick(c: string) { if (!win && !lost && !guesses.includes(c)) setGuesses([...guesses,c]) }
   return <><p className="practice-status">{win ? 'Word found!' : lost ? `The word was ${word}` : `${6-mistakes} guesses left`}</p><div className="word-display" aria-label={`Word: ${[...word].map(c => guesses.includes(c) || lost ? c : 'blank').join(' ')}`}>{[...word].map((c,i) => <span key={i}>{guesses.includes(c) || lost ? c : ''}</span>)}</div><div className="letter-grid">{'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map(c => <button key={c} disabled={guesses.includes(c) || win || lost} className={guesses.includes(c) ? word.includes(c) ? 'correct' : 'wrong' : ''} onClick={() => pick(c)}>{c}</button>)}</div></>
 }
+
+export function NumberRush() {
+  const [numbers] = useState(() => shuffle(Array.from({ length: 16 }, (_, i) => i + 1)))
+  const [next, setNext] = useState(1), [startedAt, setStartedAt] = useState<number | null>(null), [elapsed, setElapsed] = useState<number | null>(null)
+  function pick(value: number) {
+    if (value !== next || elapsed !== null) return
+    const now = Date.now()
+    if (startedAt === null) setStartedAt(now)
+    if (value === 16) setElapsed(now - (startedAt ?? now))
+    setNext(value + 1)
+  }
+  return <><p className="practice-status">{elapsed !== null ? `Complete · ${(elapsed / 1000).toFixed(1)}s` : `Find ${next} of 16`}</p><div className="practice-grid number-rush-grid">{numbers.map(value => <button key={value} className={`practice-cell ${value < next ? 'number-found' : ''}`} disabled={value < next || elapsed !== null} onClick={() => pick(value)} aria-label={`Number ${value}`}>{value}</button>)}</div></>
+}

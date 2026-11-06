@@ -1,4 +1,4 @@
-import { Brain, Bomb, Code, Lightbulb, Search, Sparkles } from 'lucide-react'
+import { Brain, Bomb, Code, Lightbulb, Search, Sparkles, Zap } from 'lucide-react'
 import type { GameId } from './games'
 
 type ArtworkId = GameId | 'rps'
@@ -15,6 +15,7 @@ export function GameArtwork({ id }: { id: ArtworkId }) {
     {id === '2048' && <div className="art-2048"><span>2</span><span>4</span><span>8</span><strong>16</strong></div>}
     {id === 'sequence' && <div className="art-sequence">{[0,1,2,3].map(n => <span key={n} />)}</div>}
     {id === 'codebreaker' && <div className="art-code"><Code size={48} strokeWidth={1.7}/><div><i/><i/><i/><i/></div></div>}
+    {id === 'number-rush' && <div className="art-rush"><div><span>1</span><span>3</span><span>4</span><span>2</span></div><Zap size={39} fill="currentColor" /></div>}
     {id === 'word-guess' && <div className="art-word"><div><span>A</span><span>?</span><span>Z</span></div><Search size={41} strokeWidth={2} /></div>}
   </div>
 }

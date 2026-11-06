@@ -2,9 +2,9 @@ import { useState } from 'react'
 import { ArrowLeft, RotateCcw } from 'lucide-react'
 import { isGameId, practiceGames } from './games'
 import { ConnectFour, Game2048, LightsOut, MemoryMatch, SlidingPuzzle, TicTacToe } from './BoardGames'
-import { Codebreaker, Minesweeper, Sequence, WordGuess } from './PuzzleGames'
+import { Codebreaker, Minesweeper, NumberRush, Sequence, WordGuess } from './PuzzleGames'
 
-const components = { 'tic-tac-toe': TicTacToe, 'connect-four': ConnectFour, memory: MemoryMatch, 'lights-out': LightsOut, minesweeper: Minesweeper, slide: SlidingPuzzle, '2048': Game2048, sequence: Sequence, codebreaker: Codebreaker, 'word-guess': WordGuess }
+const components = { 'tic-tac-toe': TicTacToe, 'connect-four': ConnectFour, memory: MemoryMatch, 'lights-out': LightsOut, minesweeper: Minesweeper, slide: SlidingPuzzle, '2048': Game2048, sequence: Sequence, codebreaker: Codebreaker, 'word-guess': WordGuess, 'number-rush': NumberRush }
 export function PracticeArcade({ id }: { id: string }) {
   const [round, setRound] = useState(0)
   if (!isGameId(id)) return <div className="practice-page"><a href="#games">← Arcade</a><h1>Game not found</h1></div>

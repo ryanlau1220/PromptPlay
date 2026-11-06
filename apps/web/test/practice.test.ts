@@ -2,9 +2,9 @@ import { describe, expect, test } from 'bun:test'
 import { adjacent, codeFeedback, drop, move2048, practiceGames, slide, winner } from '../src/components/practice/games'
 
 describe('practice game rules', () => {
-  test('catalog has ten distinct playable identifiers', () => {
-    expect(practiceGames).toHaveLength(10)
-    expect(new Set(practiceGames.map(game => game.id)).size).toBe(10)
+  test('catalog has eleven distinct playable identifiers', () => {
+    expect(practiceGames).toHaveLength(11)
+    expect(new Set(practiceGames.map(game => game.id)).size).toBe(11)
   })
   test('detects lines and diagonals without wrapping across rows', () => {
     expect(winner(['X',null,'O',null,'X','O',null,null,'X'],3,3,3)).toBe('X')

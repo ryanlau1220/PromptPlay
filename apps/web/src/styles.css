@@ -1582,3 +1582,9 @@ footer.app-footer {
   .desktop-workspace .hero-workspace { grid-template-columns: 1fr 1fr; }
   .hero-agent .agent-content:not(.agent-active) { justify-content: flex-end; }
 }
+
+.number-rush-grid { grid-template-columns: repeat(4, 1fr); }
+.number-rush-grid .number-found { color: var(--text-dim); background: var(--surface); border-color: transparent; }
+.art-number-rush { background: linear-gradient(145deg, #d07b33, #99415e); }
+.art-rush { position: relative; transform: rotate(-9deg); }.art-rush > div { display: grid; grid-template-columns: repeat(2, 1fr); gap: 5px; }.art-rush span { display: grid; place-items: center; width: 34px; height: 34px; background: #ffe7aa; color: #9a503a; border-radius: 6px; font: 800 19px var(--font-display); }.art-rush svg { position: absolute; right: -26px; bottom: -13px; color: #fff071; filter: drop-shadow(0 3px 0 #ba6334); }
+.demo-library-tile .art-rush span { width: 17px; height: 17px; font-size: 11px; }.demo-library-tile .art-rush svg { width: 22px; height: 22px; right: -13px; bottom: -7px; }

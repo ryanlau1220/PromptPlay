@@ -9,6 +9,7 @@ export const practiceGames = [
   { id: 'sequence', name: 'Sequence', kind: 'Memory' },
   { id: 'codebreaker', name: 'Codebreaker', kind: 'Logic' },
   { id: 'word-guess', name: 'Word Guess', kind: 'Word' },
+  { id: 'number-rush', name: 'Number Rush', kind: 'Speed' },
 ] as const
 export type GameId = typeof practiceGames[number]['id']
 export const isGameId = (value: string): value is GameId => practiceGames.some(game => game.id === value)
