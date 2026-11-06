@@ -1,0 +1,9 @@
+.git
+.agents
+tmp
+**/node_modules
+**/dist
+**/.tanstack
+**/target
+**/.env*
+**/*.sqlite*

@@ -1,6 +1,8 @@
 services:
   server:
-    build: ./apps/server
+    build:
+      context: .
+      dockerfile: apps/server/Dockerfile
     ports:
       - "127.0.0.1:3001:3001"
     environment:
@@ -24,7 +26,9 @@ services:
       - promptplay-data:/data
       - ${FAUCET_KEY_FILE:-./apps/server/.env.example}:/run/secrets/faucet-key.json:ro
   web:
-    build: ./apps/web
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
     ports:
       - "127.0.0.1:3000:3000"
     environment:
