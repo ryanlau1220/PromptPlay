@@ -26,7 +26,7 @@ export function createApp({auth, redemption, ledger, allowRedemption, origin, ke
       close(ws){socketRates.delete(ws.id);ws.unsubscribe(`room:${ws.data.params.id}`);ws.publish(`room:${ws.data.params.id}`,{type:'resync_required'})},
     })
     .get('/health',()=>({ok:true}))
-    .get('/config',()=>({network:'testnet',redemptionAvailable:allowRedemption && gateway !== null,pccPerUnit:'5',faucetAvailable:faucet !== null,microsPerUnit:gateway?.maxUnitCostMicros ?? null,maxOutputTokens:gateway?.maxOutputTokens ?? null}))
+    .get('/config',()=>({network:'testnet',redemptionAvailable:allowRedemption && gateway !== null,pccPerUnit:'5',model:gateway?.model ?? null,contextTokens:gateway?.contextTokens ?? null,faucetAvailable:faucet !== null,microsPerUnit:gateway?.maxUnitCostMicros ?? null,maxOutputTokens:gateway?.maxOutputTokens ?? null}))
     .post('/api/auth/challenge',({set})=>{if(limited()){set.status=429;return {error:'Try again later'}};return auth.challenge()})
     .post('/api/auth/verify',async({body,set})=>{if(limited()){set.status=429;return {error:'Try again later'}};return auth.signIn(body)}, {body:t.Object({challengeId:t.String({minLength:1,maxLength:64}),accountId:t.String({minLength:2,maxLength:64}),publicKey:t.String({minLength:1,maxLength:64}),signature:t.String({minLength:1,maxLength:128})})})
     .delete('/api/auth/session',({headers,set})=>{const raw=token(headers.authorization);if(!account(headers.authorization)){set.status=401;return {error:'Unauthorized'}};auth.revoke(raw);return {ok:true}})

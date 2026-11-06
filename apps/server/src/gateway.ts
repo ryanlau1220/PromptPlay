@@ -14,6 +14,7 @@ export class Gateway {
   }
   get maxUnitCostMicros() { return this.pricing.microsPerUnit }
   get maxOutputTokens() { return this.pricing.maxOutputTokens }
+  get contextTokens() { return this.pricing.contextTokens }
   private cost(input:number,output:number) {
     const p=this.pricing
     const micros=ceil(BigInt(input)*BigInt(p.inputMicrosPerMillion),1_000_000n)+ceil(BigInt(output)*BigInt(p.outputMicrosPerMillion),1_000_000n)

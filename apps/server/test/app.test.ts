@@ -28,6 +28,7 @@ test('mock gateway authenticates keys and meters real reported mock usage', asyn
   const gateway=new Gateway(ledger,keys,mockProvider(),'mock-model',{inputMicrosPerMillion:1000000,outputMicrosPerMillion:2000000,microsPerUnit:1000000,contextTokens:100,maxOutputTokens:10})
   const app=createApp({auth,redemption,ledger,keys,gateway,faucet:null,allowRedemption:false,redemptionAllowlist:new Set(),origin:'http://localhost:3000'})
   const call=(path:string,method='GET',body?:unknown,token?:string)=>app.handle(new Request(`http://localhost${path}`,{method,headers:{...(body?{'content-type':'application/json'}:{}),...(token?{authorization:`Bearer ${token}`}:{})},body:body?JSON.stringify(body):undefined}))
+  expect(await (await call('/config')).json()).toMatchObject({ model: 'mock-model', contextTokens: 100, maxOutputTokens: 10 })
   const c=await (await call('/api/auth/challenge','POST')).json() as {id:string}
   const session=await (await call('/api/auth/verify','POST',{challengeId:c.id,accountId:'alice.testnet',publicKey:`ed25519:${'1'.repeat(32)}`,signature:Buffer.alloc(64).toString('base64')})).json() as {token:string}
   const key=await (await call('/api/keys','POST',{quota:500},session.token)).json() as {id:string;key:string}
