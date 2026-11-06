@@ -1,73 +1,163 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { NearProvider, useNearWallet } from 'near-connect-hooks'
-import { useEffect, useState } from 'react'
-import { GameRoom } from '../components/GameRoom'
-import { Redemption } from '../components/Redemption'
+import { lazy, Suspense, useEffect, useState } from 'react'
+import { Navbar } from '../components/Navbar'
+import { CoinInsertIntro, shouldShowIntro } from '../components/intro/CoinInsertIntro'
 import { SessionProvider } from '../components/Session'
-import { TOKEN } from '../lib/game'
+import { GAME, TOKEN } from '../lib/game'
+import { Gamepad2, Cpu, ExternalLink } from 'lucide-react'
 
-const nearConfig = { network: 'testnet' as const, providers: { testnet: [import.meta.env.VITE_NEAR_RPC_URL || 'https://rpc.testnet.fastnear.com'] } }
+const ArcadeLobby = lazy(() => import('../components/ArcadeLobby').then((m) => ({ default: m.ArcadeLobby })))
+const GameRoom = lazy(() => import('../components/GameRoom').then((m) => ({ default: m.GameRoom })))
+const Redemption = lazy(() => import('../components/Redemption').then((m) => ({ default: m.Redemption })))
+
+const nearConfig = {
+  network: 'testnet' as const,
+  providers: {
+    testnet: [import.meta.env.VITE_NEAR_RPC_URL || 'https://rpc.testnet.fastnear.com']
+  }
+}
 
 export const Route = createFileRoute('/')({ component: Home })
 
 function Home() {
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
-  return mounted ? <NearProvider config={nearConfig}><SessionProvider><Content /></SessionProvider></NearProvider> : <main><header><a className="brand" href="/">PromptPlay</a></header></main>
+
+  return mounted ? (
+    <NearProvider config={nearConfig}>
+      <SessionProvider>
+        <Content />
+      </SessionProvider>
+    </NearProvider>
+  ) : (
+    <main className="app-shell">
+      <header className="app-header">
+        <div className="brand-logo">
+          <div className="brand-icon-box">P</div>
+          <span>PromptPlay</span>
+        </div>
+      </header>
+    </main>
+  )
 }
 
 function Content() {
-  const { signedAccountId } = useNearWallet()
+  const { signedAccountId, signIn, loading } = useNearWallet()
+  const [walletError, setWalletError] = useState('')
+  async function connectWallet() {
+    setWalletError('')
+    try { await signIn() } catch { setWalletError('Wallet connection was not completed.') }
+  }
+
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
-    try { const saved = localStorage.getItem('promptplay:theme'); if (saved === 'light' || saved === 'dark') return saved } catch { /* Use the system preference when storage is unavailable. */ }
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+    try {
+      const saved = localStorage.getItem('promptplay:theme')
+      if (saved === 'light' || saved === 'dark') return saved
+    } catch {
+      /* Fallback to dark theme as default for cyber-arcade aesthetic */
+    }
+    return 'dark'
   })
+
   useEffect(() => {
     document.documentElement.dataset.theme = theme
-    try { localStorage.setItem('promptplay:theme', theme) } catch { /* Theme still works for this session. */ }
+    try {
+      localStorage.setItem('promptplay:theme', theme)
+    } catch {
+      /* Session fallback */
+    }
   }, [theme])
-  const [view, setView] = useState(() => window.location.hash === '#play' ? 'play' : window.location.hash === '#redeem' ? 'redeem' : 'arcade')
+
+  const [intro, setIntro] = useState<'playing' | 'entering' | 'off'>(() =>
+    shouldShowIntro() ? 'playing' : 'off'
+  )
+
+  const [view, setView] = useState(() =>
+    window.location.hash === '#play' ? 'play' : window.location.hash === '#redeem' ? 'redeem' : 'arcade'
+  )
+
   useEffect(() => {
-    const sync = () => setView(window.location.hash === '#play' ? 'play' : window.location.hash === '#redeem' ? 'redeem' : 'arcade')
+    const sync = () =>
+      setView(window.location.hash === '#play' ? 'play' : window.location.hash === '#redeem' ? 'redeem' : 'arcade')
     window.addEventListener('hashchange', sync)
     return () => window.removeEventListener('hashchange', sync)
   }, [])
-  return <main>
-    <header><a className="brand" href="#arcade" aria-label="PromptPlay arcade">PromptPlay<span className="brand-dot">.</span></a>
-      <nav aria-label="Main navigation"><a href="#arcade" aria-current={view === 'arcade' ? 'page' : undefined}>Arcade</a><a href="#redeem" aria-current={view === 'redeem' ? 'page' : undefined}>Inference</a></nav>
-      <div className="header-actions"><span className="network"><i /> TESTNET</span><button className="theme-toggle" type="button" onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')} aria-label={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'} title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}>{theme === 'light' ? '☾' : '☀'}</button>{(signedAccountId || view === 'arcade') && <Wallet />}</div>
-    </header>
-    {view === 'arcade' && <div className="lobby">
-      <div className="lobby-heading"><div className="lobby-intro"><span className="lobby-kicker"><span className="kicker-light" /> PROMPTPLAY ARCADE</span><h1>Play while<br /><em>you wait.</em></h1><p>Your agent works. You play.</p><a className="explore-link" href="#games">Explore games <span aria-hidden="true">↓</span></a></div><div className="arcade-visual" aria-hidden="true"><div className="visual-grid" /><div className="visual-orbit orbit-one" /><div className="visual-orbit orbit-two" /><div className="credit-chip"><span>P</span><small>PCC</small></div><span className="visual-spark spark-one">✳</span><span className="visual-spark spark-two">✦</span><span className="visual-label">PLAYER 01 <b>●</b> READY</span></div></div>
-      <section id="games" className="games" aria-labelledby="games-title"><div className="section-title"><h2 id="games-title">Games</h2><span>01</span></div>
-        <a className="game-entry" href="#play"><div className="game-art" aria-hidden="true"><div className="art-top"><span>ARCADE / 01</span><span>2P</span></div><div className="hands"><span><img src="/hands/rock.svg" alt="" /></span><span><img src="/hands/paper.svg" alt="" /></span><span><img src="/hands/scissors.svg" alt="" /></span></div><span className="art-bottom">ROCK · PAPER · SCISSORS</span></div><div className="game-details"><div><span className="game-type">2 PLAYERS · PCC</span><h3>Rock Paper Scissors</h3><p>Challenge a friend</p></div><span className="play-link">Play <span aria-hidden="true">↗</span></span></div></a>
-      </section>
-    </div>}
-    {view === 'play' && (signedAccountId ? <GameRoom /> : <section className="connect-page"><a className="back-link" href="#arcade">← Arcade</a><h1>Rock Paper Scissors</h1><p>Connect your wallet to play.</p><Wallet /></section>)}
-    {view === 'redeem' && (signedAccountId ? <Redemption /> : <section className="connect-page"><a className="back-link" href="#arcade">← Arcade</a><h1>Inference</h1><p>Connect your wallet to continue.</p><Wallet /></section>)}
-    <footer><span>PromptPlay · NEAR Testnet</span><a href={`https://testnet.nearblocks.io/address/${TOKEN}`} target="_blank" rel="noreferrer">PCC CONTRACT ↗</a></footer>
-  </main>
-}
 
-function Wallet() {
-  const { signedAccountId, loading, signIn, signOut, viewFunction } = useNearWallet()
-  const [balance, setBalance] = useState<string | null>(null)
-  const [error, setError] = useState('')
-  useEffect(() => {
-    let active = true
-    if (!signedAccountId) { setBalance(null); return }
-    function readBalance() {
-      viewFunction({contractId:TOKEN, method:'ft_balance_of', args:{account_id:signedAccountId}})
-        .then((result: unknown) => { if (active) { const units = BigInt(String(result)); setBalance(`${units / 1000000n}.${(units % 1000000n).toString().padStart(6, '0').replace(/0+$/, '') || '0'}`) } })
-        .catch(() => { if (active) setError('Could not load PCC balance.') })
-    }
-    readBalance(); window.addEventListener('promptplay:balance',readBalance); const timer=window.setInterval(readBalance,30000)
-    return () => { active = false;window.removeEventListener('promptplay:balance',readBalance);clearInterval(timer) }
-  }, [signedAccountId, viewFunction])
-  async function connect() { try { setError(''); await signIn() } catch { setError('Wallet connection was not completed.') } }
-  async function disconnect() { try { setError(''); await signOut() } catch { setError('Could not disconnect the wallet.') } }
-  return <div className="wallet-area">
-    {signedAccountId ? <div className="connected"><div><strong>{signedAccountId}</strong><small>{balance === null ? 'Loading balance…' : `${balance} PCC`}</small></div><button className="text-button" onClick={disconnect}>Disconnect</button></div> : <button className="primary" onClick={connect} disabled={loading}>{loading ? 'Connecting…' : 'Connect wallet'} <span>↗</span></button>}
-    {error && <p className="error" role="alert">{error}</p>}
-  </div>
+  return (
+    <main className="app-shell">
+      <div className="cyber-grid-bg" />
+
+      <Navbar
+        view={view}
+        theme={theme}
+        onToggleTheme={() => setTheme(theme === 'light' ? 'dark' : 'light')}
+      />
+
+      {intro !== 'off' && (
+        <CoinInsertIntro onEnter={() => setIntro('entering')} onDone={() => setIntro('off')} />
+      )}
+
+      <Suspense fallback={null}>
+      {view === 'arcade' && intro !== 'playing' && <ArcadeLobby />}
+
+      {view === 'play' &&
+        (signedAccountId ? (
+          <GameRoom />
+        ) : (
+          <div className="arena-container" style={{ textAlign: 'center', padding: '80px 0' }}>
+            <div className="terminal-card" style={{ maxWidth: '440px', margin: '0 auto' }}>
+              <Gamepad2 size={44} color="var(--cyan)" style={{ margin: '0 auto 16px' }} />
+              <h2 style={{ fontFamily: 'var(--font-display)', margin: '0 0 20px' }}>
+                Enter Duel Arena
+              </h2>
+              <button className="btn-primary" onClick={() => void connectWallet()} disabled={loading} style={{ width: '100%' }}>
+                <span>Connect NEAR Wallet</span>
+              </button>
+            </div>
+          </div>
+        ))}
+
+      {view === 'redeem' &&
+        (signedAccountId ? (
+          <Redemption />
+        ) : (
+          <div className="arena-container" style={{ textAlign: 'center', padding: '80px 0' }}>
+            <div className="terminal-card" style={{ maxWidth: '440px', margin: '0 auto' }}>
+              <Cpu size={44} color="var(--crimson)" style={{ margin: '0 auto 16px' }} />
+              <h2 style={{ fontFamily: 'var(--font-display)', margin: '0 0 20px' }}>
+                Inference Terminal
+              </h2>
+              <button className="btn-accent" onClick={() => void connectWallet()} disabled={loading} style={{ width: '100%' }}>
+                <span>Connect NEAR Wallet</span>
+              </button>
+            </div>
+          </div>
+        ))}
+
+      </Suspense>
+
+      {walletError && <div className="status-toast" role="alert">{walletError}</div>}
+
+      <footer className="app-footer">
+        <div>
+          <strong>PromptPlay Arcade</strong> · NEAR Hackathon 2026 (Track #09: Games With Real Economies)
+        </div>
+
+        <div className="footer-links">
+          <a href={`https://testnet.nearblocks.io/address/${TOKEN}`} target="_blank" rel="noreferrer">
+            <span>PCC Token Contract</span>
+            <ExternalLink size={11} style={{ display: 'inline', marginLeft: '3px' }} />
+          </a>
+          <a href={`https://testnet.nearblocks.io/address/${GAME}`} target="_blank" rel="noreferrer">
+            <span>RPS Game Contract</span>
+            <ExternalLink size={11} style={{ display: 'inline', marginLeft: '3px' }} />
+          </a>
+          <a href="https://nearhackathon.com/" target="_blank" rel="noreferrer">
+            <span>NEAR Hackathon 2026</span>
+          </a>
+        </div>
+      </footer>
+    </main>
+  )
 }
