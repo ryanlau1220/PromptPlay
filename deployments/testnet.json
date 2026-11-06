@@ -48,6 +48,15 @@
       "transferTransaction": "J18gzkvmNmmWJLKemfK7gt9LdGa5TNKEoEXmUtbZVUFr",
       "amountBaseUnits": "5000000",
       "scope": "real finalized Testnet transfer and wallet auth with simulated inference in isolated local database; no live provider"
+    },
+    "openCodeGatewaySmokeTest": {
+      "transferTransaction": "2jJQrZkWHHyGY8C35DSeoPDSCDxGQXYA5QnKvzXbNC9X",
+      "amountBaseUnits": "5000000",
+      "model": "Qwen/Qwen3-30B-A3B-Instruct-2507",
+      "scope": "operator-only isolated in-memory gateway; real Testnet payment and Nebius streaming/tool calls using OpenCode 1.18.21; temporary accounting rates",
+      "allowanceBeforeMicrounits": 1000000,
+      "allowanceAfterMicrounits": 994336,
+      "settledRequests": 3
     }
   },
   "faucet": {
