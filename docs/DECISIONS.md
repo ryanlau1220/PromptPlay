@@ -13,3 +13,5 @@
 - Nebius Token Factory is configured locally through the existing OpenAI-compatible provider as a temporary alternative. Its model catalog and a direct `Qwen/Qwen3-30B-A3B-Instruct-2507` request succeeded on 6 November 2026. This does not establish that third-party PCC redemption is authorized or funded; the live gate remains off pending applicable terms, pricing and account funding confirmation.
 
 - On 6 November 2026, an isolated, operator-only local test used a finalized 5 PCC Testnet transfer (`HnJCfVUQjcNkjQsCdqYfkzCYFWCQjD5JnqUooBVfRuDn`), verified replay idempotency, and sent a real Nebius request through the gateway. Provider usage was 17 input and 6 output tokens; the test allowance decreased from 1,000,000 to 999,971 microunits using temporary test rates. This did not establish provider authorization for third-party gateway use or verify actual billing rates; public redemption stays disabled.
+
+- Bun 1.3.10 is the JavaScript package manager, runtime and test runner for both apps. The server relies on Bun SQLite; Vite runs with Bun using `--bun`. Each app has a committed Bun lockfile and container builds use the pinned Bun image.

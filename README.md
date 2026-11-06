@@ -6,18 +6,18 @@ The game has been exercised on Testnet through the CLI and two isolated browser 
 
 ## Run locally
 
-Install Node 24, pnpm, Bun, Rust with the `wasm32-unknown-unknown` target, and `cargo-near`. In separate terminals:
+Install Bun 1.3.10. Contract development also requires Rust with the `wasm32-unknown-unknown` target and `cargo-near`. In separate terminals:
 
 ```sh
 cd apps/server
-pnpm install --frozen-lockfile
+bun install --frozen-lockfile
 bun run dev
 ```
 
 ```sh
 cd apps/web
-pnpm install --frozen-lockfile
-pnpm dev
+bun install --frozen-lockfile
+bun run --bun dev
 ```
 
 Open `http://localhost:3000`. The server defaults to `http://localhost:3001`, uses a local SQLite database, and checks that its NEAR RPC is on Testnet. `apps/server/.env.example` and `apps/web/.env.example` describe configuration. Bun loads `apps/server/.env.local` for local overrides; keep that file private.
@@ -43,7 +43,7 @@ For a transfer that was submitted but not credited, sign in with the same wallet
 
 ## Test and verify
 
-Build both contracts from their directories with `cargo near build non-reproducible-wasm`. Run `cargo test --lib` in `contracts/compute-credit` and `cargo test` in `contracts/rps-game`; the sandbox test expects both WASM builds in their respective `target/near` directories. Run `bun test` and `pnpm exec tsc` in `apps/server`, and `bun test test/game.test.ts`, `pnpm exec tsc --noEmit` and `pnpm build` in `apps/web`.
+Build both contracts from their directories with `cargo near build non-reproducible-wasm`. Run `cargo test --lib` in `contracts/compute-credit` and `cargo test` in `contracts/rps-game`; the sandbox test expects both WASM builds in their respective `target/near` directories. Run `bun test` and `bun x --bun tsc --noEmit` in `apps/server`, and `bun test test/game.test.ts`, `bun x --bun tsc --noEmit` and `bun run --bun build` in `apps/web`.
 
 Testnet contract accounts, deployment transactions and controlled transaction evidence are in `deployments/testnet.json`. The sandbox covers a tie, callback spoof rejection, failed payout and retry. Timeout rules have unit tests but have not yet been verified using realistic sandbox timestamps. The contracts have not been audited. An isolated operator-only Nebius redemption was tested, but a third-party browser-wallet flow and an authorized public provider-funded demonstration remain unverified.
 
