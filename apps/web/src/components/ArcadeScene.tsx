@@ -78,7 +78,7 @@ export function ArcadeScene() {
         <div className="hero-shell-bar"><div className="hero-lights" aria-hidden="true"><i /><i /><i /></div><span>promptplay / workspace</span><span>DEMO</span></div>
         <div className="hero-workspace"><AgentTerminal started={started} reduced={reduced} /><GameTerminal started={started} /></div>
       </div>
-      <div className="hero-actions-row"><a className="hero-action-primary" href="#play"><Gamepad2 size={16} /> Play <ArrowRight size={15} /></a><a className="hero-action-link" href="#redeem">Compute <ArrowRight size={15} /></a><a className="hero-action-scroll" href="#loop" aria-label="Explore PromptPlay"><ArrowDown size={18} /></a></div>
+      <div className="hero-actions-row"><a className="hero-action-primary" href="#games"><Gamepad2 size={16} /> Play <ArrowRight size={15} /></a><a className="hero-action-link" href="#redeem">Compute <ArrowRight size={15} /></a><a className="hero-action-scroll" href="#loop" aria-label="Explore PromptPlay"><ArrowDown size={18} /></a></div>
     </section>
   )
 }

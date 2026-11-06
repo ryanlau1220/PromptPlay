@@ -14,6 +14,7 @@ import {
 import { GAME, base64, commitment } from '../lib/game'
 import { useSession } from './Session'
 import { ArcadeScene } from './ArcadeScene'
+import { practiceGames } from './practice/games'
 
 // ─── Timing constants ──────────────────────────────────────────────────────
 const TIMING = {
@@ -93,6 +94,7 @@ function StaggerItem({
 export function ArcadeLobby() {
   const reduced = useReducedMotion()
   const { config } = useSession()
+  useEffect(() => { if (window.location.hash === '#games') requestAnimationFrame(() => document.getElementById('games')?.scrollIntoView()) }, [])
   const [stage, setStage] = useState(reduced ? 99 : 0)
   const [simulatedChoice, setSimulatedChoice] = useState<number>(0)
   const choices = [
@@ -130,6 +132,69 @@ export function ArcadeLobby() {
     <div className="lobby-container">
 
       <ArcadeScene />
+
+      {/* ── FEATURED GAME ─────────────────────────────────────────────── */}
+      <section id="games" className="games-showcase" aria-labelledby="games-title">
+        <FadeUp show={stage >= 9} offsetY={20} spring={SPRING.smooth}>
+          <div className="section-heading-row">
+            <div>
+              <div className="section-kicker">
+                <Gamepad2 size={14} />
+                <span>ARCADE CATALOG // 11</span>
+              </div>
+              <h2 id="games-title" className="section-title">Games</h2>
+            </div>
+          </div>
+
+          <div className="game-showcase-card">
+            <div className="game-showcase-media">
+              <div className="hands-cluster">
+                <span style={{ background: '#00f0ff' }}>
+                  <img src="/hands/rock.svg" alt="" style={{ width: '60%' }} />
+                </span>
+                <span style={{ background: '#ff2a6d' }}>
+                  <img src="/hands/paper.svg" alt="" style={{ width: '60%' }} />
+                </span>
+                <span style={{ background: '#ffb800' }}>
+                  <img src="/hands/scissors.svg" alt="" style={{ width: '60%' }} />
+                </span>
+              </div>
+            </div>
+
+            <div className="game-showcase-info">
+              <div>
+                <span className="hero-pill">2 PLAYERS · ON-CHAIN ESCROW</span>
+                <h3>Rock Paper Scissors Blitz</h3>
+
+                <div className="game-specs-grid">
+                  <div className="spec-item">
+                    <span>Match Stake</span>
+                    <strong>Your choice</strong>
+                  </div>
+                  <div className="spec-item">
+                    <span>Phase Timeout</span>
+                    <strong>5 min / phase</strong>
+                  </div>
+                  <div className="spec-item">
+                    <span>Payout Target</span>
+                    <strong>2× stake</strong>
+                  </div>
+                </div>
+              </div>
+
+              <a href="#play" className="btn-primary" style={{ alignSelf: 'flex-start' }}>
+                <Gamepad2 size={16} />
+                <span>Launch Match</span>
+                <ArrowRight size={14} />
+              </a>
+            </div>
+          </div>
+          <div className="practice-catalog-heading"><h3>Practice games</h3><span>NO WALLET · NO PCC</span></div>
+          <div className="practice-catalog">
+            {practiceGames.map((game, index) => <a href={`#practice/${game.id}`} className="practice-entry" key={game.id}><span className="practice-entry-icon" aria-hidden="true">{game.icon}</span><span className="practice-entry-title"><strong>{game.name}</strong><small>{game.kind}</small></span><span className="practice-entry-number">{String(index + 2).padStart(2, '0')}</span><ArrowRight size={16} /></a>)}
+          </div>
+        </FadeUp>
+      </section>
 
       {/* ── COMPUTE LOOP SECTION ──────────────────────────────────────── */}
       <section id="loop" className="story-section" aria-labelledby="story-title">
@@ -229,65 +294,6 @@ export function ArcadeLobby() {
                 <span>{name}</span>
               </motion.div>
             ))}
-          </div>
-        </FadeUp>
-      </section>
-
-      {/* ── FEATURED GAME ─────────────────────────────────────────────── */}
-      <section id="games" className="games-showcase" aria-labelledby="games-title">
-        <FadeUp show={stage >= 9} offsetY={20} spring={SPRING.smooth}>
-          <div className="section-heading-row">
-            <div>
-              <div className="section-kicker">
-                <Gamepad2 size={14} />
-                <span>ARCADE CATALOG // 01</span>
-              </div>
-              <h2 id="games-title" className="section-title">Featured Arcade Title</h2>
-            </div>
-          </div>
-
-          <div className="game-showcase-card">
-            <div className="game-showcase-media">
-              <div className="hands-cluster">
-                <span style={{ background: '#00f0ff' }}>
-                  <img src="/hands/rock.svg" alt="" style={{ width: '60%' }} />
-                </span>
-                <span style={{ background: '#ff2a6d' }}>
-                  <img src="/hands/paper.svg" alt="" style={{ width: '60%' }} />
-                </span>
-                <span style={{ background: '#ffb800' }}>
-                  <img src="/hands/scissors.svg" alt="" style={{ width: '60%' }} />
-                </span>
-              </div>
-            </div>
-
-            <div className="game-showcase-info">
-              <div>
-                <span className="hero-pill">2 PLAYERS · ON-CHAIN ESCROW</span>
-                <h3>Rock Paper Scissors Blitz</h3>
-
-                <div className="game-specs-grid">
-                  <div className="spec-item">
-                    <span>Match Stake</span>
-                    <strong>5.0 PCC</strong>
-                  </div>
-                  <div className="spec-item">
-                    <span>Phase Timeout</span>
-                    <strong>300s Blocks</strong>
-                  </div>
-                  <div className="spec-item">
-                    <span>Payout Target</span>
-                    <strong>10.0 PCC</strong>
-                  </div>
-                </div>
-              </div>
-
-              <a href="#play" className="btn-primary" style={{ alignSelf: 'flex-start' }}>
-                <Gamepad2 size={16} />
-                <span>Launch Match</span>
-                <ArrowRight size={14} />
-              </a>
-            </div>
           </div>
         </FadeUp>
       </section>

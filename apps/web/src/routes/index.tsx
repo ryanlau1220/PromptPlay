@@ -8,6 +8,7 @@ import { Gamepad2, Cpu, ExternalLink } from 'lucide-react'
 
 const ArcadeLobby = lazy(() => import('../components/ArcadeLobby').then((m) => ({ default: m.ArcadeLobby })))
 const GameRoom = lazy(() => import('../components/GameRoom').then((m) => ({ default: m.GameRoom })))
+const PracticeArcade = lazy(() => import('../components/practice/PracticeArcade').then((m) => ({ default: m.PracticeArcade })))
 const Redemption = lazy(() => import('../components/Redemption').then((m) => ({ default: m.Redemption })))
 
 const nearConfig = {
@@ -68,13 +69,11 @@ function Content() {
     }
   }, [theme])
 
-  const [view, setView] = useState(() =>
-    window.location.hash === '#play' ? 'play' : window.location.hash === '#redeem' ? 'redeem' : 'arcade'
-  )
+  const [hash, setHash] = useState(() => window.location.hash)
+  const view = hash === '#play' ? 'play' : hash === '#redeem' ? 'redeem' : hash.startsWith('#practice/') ? 'practice' : 'arcade'
 
   useEffect(() => {
-    const sync = () =>
-      setView(window.location.hash === '#play' ? 'play' : window.location.hash === '#redeem' ? 'redeem' : 'arcade')
+    const sync = () => setHash(window.location.hash)
     window.addEventListener('hashchange', sync)
     return () => window.removeEventListener('hashchange', sync)
   }, [])
@@ -84,13 +83,14 @@ function Content() {
       <div className="cyber-grid-bg" />
 
       <Navbar
-        view={view}
+        view={view === 'practice' ? 'arcade' : view}
         theme={theme}
         onToggleTheme={() => setTheme(theme === 'light' ? 'dark' : 'light')}
       />
 
       <Suspense fallback={null}>
       {view === 'arcade' && <ArcadeLobby />}
+      {view === 'practice' && <PracticeArcade id={hash.slice('#practice/'.length)} />}
 
       {view === 'play' &&
         (signedAccountId ? (
