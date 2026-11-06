@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
-import { ArrowDown, ArrowRight, Check, CircleDollarSign, Code2, Gamepad2, LockKeyhole, ShieldCheck, Swords, Users, PanelLeft, Plus, Folder, Settings2 } from 'lucide-react'
+import { ArrowRight, Check, CircleDollarSign, Code2, Gamepad2, LockKeyhole, ShieldCheck, Swords, Users, PanelLeft, Plus, Folder, Settings2 } from 'lucide-react'
 import { practiceGames } from './practice/games'
 import { GameArtwork } from './practice/GameArtwork'
 
@@ -88,7 +88,6 @@ export function ArcadeScene() {
         <div className="hero-shell-bar"><PanelLeft size={15} /><span>Workspace</span><span>DEMO</span></div>
         <div className="desktop-workspace"><aside className="desktop-rail" aria-hidden="true"><div className="desktop-rail-heading">Workspace</div><div className="desktop-rail-new"><Plus size={15} /> New task</div><div className="desktop-rail-label">Recent</div><div className="desktop-rail-task"><Code2 size={14} /> Build a product</div><div className="desktop-rail-task"><Folder size={14} /> Improve dashboard</div><div className="desktop-rail-task"><Code2 size={14} /> Refine components</div><div className="desktop-rail-task"><Code2 size={14} /> Add project tests</div><div className="desktop-rail-settings"><Settings2 size={15} /></div></aside><div className="hero-workspace"><AgentTerminal started={started} reduced={reduced} /><GameTerminal started={started} /></div></div>
       </div>
-      <div className="hero-actions-row"><a className="hero-action-scroll" href="#games" aria-label="Explore games"><ArrowDown size={18} /></a></div>
     </section>
   )
 }
