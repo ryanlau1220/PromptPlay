@@ -1,26 +1,4 @@
-/* ─────────────────────────────────────────────────────────────────────────────
- * ARCADE LOBBY — Page Entrance Storyboard
- *
- * Static shell (navbar) never re-animates.
- * Only page content cascades in after mount.
- *
- *    0ms   blank — lobby not yet visible
- *  100ms   hero kicker pills fade + slide down              ↓ y: -10
- *  220ms   hero title scales up + fades in                  ↑ scale: 0.95
- *  380ms   hero CTA buttons slide up                        ↑ y: 12
- *  500ms   arcade cabinet frame slides in from right        → x: 40
- *  700ms   token circles stagger in (80ms each)             ↑ scale: 0
- *  900ms   compute loop section fades up                    ↑ y: 20
- * 1100ms   story cards stagger (120ms each)                 ↑ y: 16
- * 1400ms   sandbox card slides up                           ↑ y: 20
- * 1700ms   agents + games + status sections fade up         ↑ y: 16
- * ─────────────────────────────────────────────────────────────────────────────
- * Attract Mode (idle loop):
- *   After 20s of no pointer/key input → token circles pulse + cabinet glows
- *   Any input resets the timer.
- * ───────────────────────────────────────────────────────────────────────────── */
-
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import type React from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
 import {
@@ -44,7 +22,6 @@ const TIMING = {
   title:     220,
   cta:       380,
   cabinet:   500,
-  tokens:    700,
   loop:      900,
   cards:    1100,
   sandbox:  1400,
@@ -118,10 +95,6 @@ export function ArcadeLobby() {
   const reduced = useReducedMotion()
   const { config } = useSession()
   const [stage, setStage] = useState(reduced ? 99 : 0)
-  const [attractMode, setAttractMode] = useState(false)
-  const attractTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const ATTRACT_IDLE_MS = 20_000
-
   const [simulatedChoice, setSimulatedChoice] = useState<number>(0)
   const choices = [
     { id: 0, name: 'Rock', icon: '/hands/rock.svg' },
@@ -147,7 +120,6 @@ export function ArcadeLobby() {
     timers.push(setTimeout(() => setStage(2), TIMING.title))
     timers.push(setTimeout(() => setStage(3), TIMING.cta))
     timers.push(setTimeout(() => setStage(4), TIMING.cabinet))
-    timers.push(setTimeout(() => setStage(5), TIMING.tokens))
     timers.push(setTimeout(() => setStage(6), TIMING.loop))
     timers.push(setTimeout(() => setStage(7), TIMING.cards))
     timers.push(setTimeout(() => setStage(8), TIMING.sandbox))
@@ -155,28 +127,8 @@ export function ArcadeLobby() {
     return () => timers.forEach(clearTimeout)
   }, [reduced])
 
-  // Attract mode idle detection
-  useEffect(() => {
-    if (reduced) return
-    function resetAttract() {
-      setAttractMode(false)
-      if (attractTimer.current) clearTimeout(attractTimer.current)
-      attractTimer.current = setTimeout(() => setAttractMode(true), ATTRACT_IDLE_MS)
-    }
-    resetAttract()
-    window.addEventListener('pointermove', resetAttract)
-    window.addEventListener('keydown', resetAttract)
-    window.addEventListener('click', resetAttract)
-    return () => {
-      if (attractTimer.current) clearTimeout(attractTimer.current)
-      window.removeEventListener('pointermove', resetAttract)
-      window.removeEventListener('keydown', resetAttract)
-      window.removeEventListener('click', resetAttract)
-    }
-  }, [reduced])
-
   return (
-    <div className={`lobby-container${attractMode ? ' lobby-attract' : ''}`}>
+    <div className="lobby-container">
 
       {/* ── HERO SECTION ──────────────────────────────────────────────── */}
       <section className="hero-section" aria-labelledby="hero-title">
@@ -203,8 +155,7 @@ export function ArcadeLobby() {
             transition={SPRING.bouncy}
           >
             Your agent codes.<br />
-            <span className="highlight-cyan">You duel for</span>{' '}
-            <span className="highlight-crimson">compute.</span>
+            <span className="highlight-cyan">You play.</span>
           </motion.h1>
 
           <FadeUp show={stage >= 3} offsetY={12} spring={SPRING.smooth}>
@@ -222,57 +173,24 @@ export function ArcadeLobby() {
           </FadeUp>
         </div>
 
-        {/* ── HOLOGRAPHIC STAGE PREVIEW ─────────────────────────────── */}
-        <div className="arcade-stage" aria-hidden="true">
-          <div className="stage-ambient-glow" />
-
-          <motion.div
-            className="arcade-cabinet-frame"
-            initial={{ opacity: 0, x: 40 }}
-            animate={{ opacity: stage >= 4 ? 1 : 0, x: stage >= 4 ? 0 : 40 }}
-            transition={SPRING.smooth}
-          >
-            <div className="cabinet-top-header">
-              <span>PROMPTPLAY // UNIT-01</span>
-              <span>ARCADE PREVIEW</span>
-            </div>
-
-            <div className="cabinet-display">
-              <div className="duel-tokens-preview">
-                {[
-                  { cls: 'token-rock', src: '/hands/rock.svg' },
-                  { cls: 'token-paper', src: '/hands/paper.svg' },
-                  { cls: 'token-scissors', src: '/hands/scissors.svg' },
-                ].map((t, i) => (
-                  <motion.div
-                    key={t.cls}
-                    initial={{ opacity: 0, scale: 0 }}
-                    animate={{ opacity: stage >= 5 ? 1 : 0, scale: stage >= 5 ? 1 : 0 }}
-                    transition={{ ...SPRING.bouncy, delay: stage >= 5 ? i * 0.08 : 0 }}
-                  >
-                    <div className={`token-circle ${t.cls}`}>
-                      <img src={t.src} alt="" />
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-
-              {attractMode ? (
-                <div className="cabinet-hash-preview cabinet-attract-text">PRESS START</div>
-              ) : (
-                <div className="cabinet-hash-preview">COMMIT · REVEAL · PLAY</div>
-              )}
-            </div>
-
-            <div className="cabinet-footer">
-              <span>
-                <ShieldCheck size={14} />
-                <span>On-chain escrow</span>
-              </span>
-              <span>TESTNET</span>
-            </div>
-          </motion.div>
-        </div>
+        <motion.div
+          className="developer-scene"
+          role="img"
+          aria-label="A developer works alongside AI agents and an arcade machine"
+          initial={reduced ? false : { opacity: 0, y: 20 }}
+          animate={{ opacity: stage >= 4 ? 1 : 0, y: stage >= 4 ? 0 : 20 }}
+          transition={SPRING.smooth}
+        >
+          <img src="/developer-arcade.webp" alt="" />
+          <span className="scene-agent scene-agent-one" />
+          <span className="scene-agent scene-agent-two" />
+          <span className="scene-agent scene-agent-three" />
+          <span className="scene-spark scene-spark-one" />
+          <span className="scene-spark scene-spark-two" />
+          <span className="scene-spark scene-spark-three" />
+          <span className="scene-code-glow" />
+          <span className="scene-credit" />
+        </motion.div>
       </section>
 
       {/* ── COMPUTE LOOP SECTION ──────────────────────────────────────── */}

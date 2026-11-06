@@ -2,7 +2,6 @@ import { createFileRoute } from '@tanstack/react-router'
 import { NearProvider, useNearWallet } from 'near-connect-hooks'
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { Navbar } from '../components/Navbar'
-import { CoinInsertIntro, shouldShowIntro } from '../components/intro/CoinInsertIntro'
 import { SessionProvider } from '../components/Session'
 import { GAME, TOKEN } from '../lib/game'
 import { Gamepad2, Cpu, ExternalLink } from 'lucide-react'
@@ -69,10 +68,6 @@ function Content() {
     }
   }, [theme])
 
-  const [intro, setIntro] = useState<'playing' | 'entering' | 'off'>(() =>
-    shouldShowIntro() ? 'playing' : 'off'
-  )
-
   const [view, setView] = useState(() =>
     window.location.hash === '#play' ? 'play' : window.location.hash === '#redeem' ? 'redeem' : 'arcade'
   )
@@ -94,12 +89,8 @@ function Content() {
         onToggleTheme={() => setTheme(theme === 'light' ? 'dark' : 'light')}
       />
 
-      {intro !== 'off' && (
-        <CoinInsertIntro onEnter={() => setIntro('entering')} onDone={() => setIntro('off')} />
-      )}
-
       <Suspense fallback={null}>
-      {view === 'arcade' && intro !== 'playing' && <ArcadeLobby />}
+      {view === 'arcade' && <ArcadeLobby />}
 
       {view === 'play' &&
         (signedAccountId ? (
