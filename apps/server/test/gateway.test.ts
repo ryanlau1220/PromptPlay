@@ -36,3 +36,13 @@ test('rejects a demo rate that cannot cover the reserved request',()=>{
  const db=new Database(':memory:'),ledger=new Accounting(db,1000000),keys=new GatewayKeys(db)
  expect(()=>new Gateway(ledger,keys,mockProvider(),'model',{...pricing,microsPerUnit:1})).toThrow('cannot cover')
 })
+
+test('rate limit applies across all keys owned by one account',async()=>{
+ const db=new Database(':memory:'),ledger=new Accounting(db,1000000),keys=new GatewayKeys(db)
+ ledger.creditReceipt('r','i','alice',100000);ledger.creditReceipt('r2','i2','bob',100000)
+ const first=keys.create('alice',100000),second=keys.create('alice',100000),other=keys.create('bob',100000)
+ const gateway=new Gateway(ledger,keys,mockProvider(),'model',pricing)
+ for(let i=0;i<10;i++) await gateway.complete(first.key,'model',[{role:'user',content:'hello'}],10)
+ await expect(gateway.complete(second.key,'model',[{role:'user',content:'hello'}],10)).rejects.toThrow('Rate limit exceeded')
+ expect((await gateway.complete(other.key,'model',[{role:'user',content:'hello'}],10)).choices[0]?.message.content).toBe('Mock response')
+})

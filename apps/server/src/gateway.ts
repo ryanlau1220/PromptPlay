@@ -26,8 +26,8 @@ export class Gateway {
     if(model!==this.model) throw new Error('Model is not supported')
     if(!Number.isSafeInteger(maxTokens)||maxTokens<1||maxTokens>this.pricing.maxOutputTokens) throw new Error('Invalid output limit')
     if(!Array.isArray(messages)||messages.length<1||messages.length>32||messages.some(m=>!m||!['system','user','assistant'].includes(m.role)||typeof m.content!=='string') || new TextEncoder().encode(JSON.stringify(messages)).length>20000) throw new Error('Invalid messages')
-    const now=Date.now(); const rate=this.rates.get(key.id)
-    if(rate && now-rate.start<60_000){if(rate.count>=10) throw new Error('Rate limit exceeded');rate.count++} else this.rates.set(key.id,{start:now,count:1})
+    const now=Date.now(); const rate=this.rates.get(key.account_id)
+    if(rate && now-rate.start<60_000){if(rate.count>=10) throw new Error('Rate limit exceeded');rate.count++} else this.rates.set(key.account_id,{start:now,count:1})
     const requestId=randomUUID(); const reserved=this.cost(this.pricing.contextTokens,maxTokens)
     this.ledger.reserve(requestId,key.account_id,reserved,key.id)
     // On timeout, invalid provider usage, or unknown execution the reservation stays in place.
