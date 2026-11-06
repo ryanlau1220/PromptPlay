@@ -16,17 +16,26 @@ function Home() {
 
 function Content() {
   const { signedAccountId } = useNearWallet()
+  const [view, setView] = useState(() => window.location.hash === '#play' ? 'play' : window.location.hash === '#redeem' ? 'redeem' : 'arcade')
+  useEffect(() => {
+    const sync = () => setView(window.location.hash === '#play' ? 'play' : window.location.hash === '#redeem' ? 'redeem' : 'arcade')
+    window.addEventListener('hashchange', sync)
+    return () => window.removeEventListener('hashchange', sync)
+  }, [])
   return <main>
-    <header><a className="brand" href="/" aria-label="PromptPlay home">PromptPlay</a><div className="header-actions"><span className="network"><i /> NEAR TESTNET</span>{signedAccountId && <Wallet />}</div></header>
-    {!signedAccountId && <section className="hero">
-      <div className="hands" aria-hidden="true"><span><img src="/hands/rock.svg" alt="" /></span><span><img src="/hands/paper.svg" alt="" /></span><span><img src="/hands/scissors.svg" alt="" /></span></div>
-      <h1>Rock Paper Scissors</h1>
-      <p>Play a friend. Win PCC.</p>
-      <Wallet />
-      <small>NEAR Testnet</small>
-    </section>}
-    {signedAccountId && <><GameRoom /><Redemption /></>}
-    <footer><span>PromptPlay · NEAR Testnet</span><a href={`https://testnet.nearblocks.io/address/${TOKEN}`} target="_blank" rel="noreferrer">VIEW PCC CONTRACT ↗</a></footer>
+    <header><a className="brand" href="#arcade" aria-label="PromptPlay arcade">PromptPlay<span className="brand-dot">.</span></a>
+      <nav aria-label="Main navigation"><a href="#arcade" aria-current={view === 'arcade' ? 'page' : undefined}>Arcade</a><a href="#redeem" aria-current={view === 'redeem' ? 'page' : undefined}>Inference</a></nav>
+      <div className="header-actions"><span className="network"><i /> TESTNET</span>{(signedAccountId || view === 'arcade') && <Wallet />}</div>
+    </header>
+    {view === 'arcade' && <div className="lobby">
+      <div className="lobby-heading"><div><span className="lobby-kicker">PROMPTPLAY ARCADE</span><h1>Play while you wait.</h1><p>Quick games. Shared credits.</p></div><span className="lobby-count">01 GAME</span></div>
+      <section className="games" aria-labelledby="games-title"><div className="section-title"><h2 id="games-title">Games</h2><span>01</span></div>
+        <a className="game-entry" href="#play"><div className="game-art" aria-hidden="true"><div className="hands"><span><img src="/hands/rock.svg" alt="" /></span><span><img src="/hands/paper.svg" alt="" /></span><span><img src="/hands/scissors.svg" alt="" /></span></div></div><div className="game-details"><div><span className="game-type">2 PLAYERS · PCC</span><h3>Rock Paper Scissors</h3><p>Challenge a friend</p></div><span className="play-link">Play <span aria-hidden="true">↗</span></span></div></a>
+      </section>
+    </div>}
+    {view === 'play' && (signedAccountId ? <GameRoom /> : <section className="connect-page"><a className="back-link" href="#arcade">← Arcade</a><h1>Rock Paper Scissors</h1><p>Connect your wallet to play.</p><Wallet /></section>)}
+    {view === 'redeem' && (signedAccountId ? <Redemption /> : <section className="connect-page"><a className="back-link" href="#arcade">← Arcade</a><h1>Inference</h1><p>Connect your wallet to continue.</p><Wallet /></section>)}
+    <footer><span>PromptPlay · NEAR Testnet</span><a href={`https://testnet.nearblocks.io/address/${TOKEN}`} target="_blank" rel="noreferrer">PCC CONTRACT ↗</a></footer>
   </main>
 }
 
