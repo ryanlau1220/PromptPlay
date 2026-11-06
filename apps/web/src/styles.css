@@ -169,39 +169,21 @@ header.app-header {
 }
 
 .brand-logo {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 10px;
-  font-family: var(--font-display);
-  font-weight: 800;
-  font-size: 22px;
-  letter-spacing: -0.04em;
   color: var(--text);
 }
 
-.brand-icon-box {
-  display: grid;
-  place-items: center;
+.brand-mark {
   width: 36px;
   height: 36px;
-  background: linear-gradient(135deg, var(--cyan), var(--crimson));
-  border-radius: 9px;
-  box-shadow: 0 0 16px var(--cyan-glow);
-  color: #050a14;
-  font-weight: 900;
-  font-size: 18px;
+  flex: none;
 }
 
-.brand-pill {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  padding: 3px 7px;
-  border-radius: 6px;
-  background: rgba(255, 184, 0, 0.12);
-  color: var(--amber);
-  border: 1px solid rgba(255, 184, 0, 0.3);
+.brand-wordmark {
+  width: 150px;
+  height: auto;
 }
 
 nav.app-nav {
@@ -1438,8 +1420,9 @@ footer.app-footer {
 
 @media (max-width: 600px) {
   header.app-header { padding: 8px 12px; }
-  .brand-logo { font-size: 17px; gap: 6px; }
-  .brand-pill, .network-badge span { display: none; }
+  .brand-logo { gap: 6px; }
+  .brand-wordmark { width: 118px; }
+  .network-badge span { display: none; }
   .network-badge { padding: 7px; }
   .header-right { gap: 5px; min-width: 0; }
   .wallet-box .btn-primary { padding: 8px; font-size: 12px; }
@@ -1501,7 +1484,7 @@ footer.app-footer {
 @media (max-width: 850px) { .hero-workspace { grid-template-columns: 1fr; }.agent-content, .game-terminal-stage { min-height: 355px; } }
 @media (max-width: 480px) { .hero-workspace { gap: 12px; }.agent-content { min-height: 350px; padding: 25px 22px; }.agent-prompt { font-size: 15px; }.agent-line { font-size: 11px; }.game-terminal-stage { min-height: 310px; padding: 16px; }.demo-screen { min-height: 275px; }.demo-game { gap: 10px; }.demo-game-art { width: 60px; height: 60px; }.demo-game strong { font-size: 14px; }.demo-players { gap: 5px; font-size: 9px; }.demo-players span { padding: 7px; }.demo-hand { width: 57px; height: 57px; } }
 @media (prefers-reduced-motion: reduce) { .agent-prompt-first, .agent-prompt-second, .agent-cursor, .agent-line, .thinking-spinner, .demo-game-art i, .demo-win { animation: none; opacity: 1; transform: none; clip-path: none; } }
-@media (max-width: 350px) { .brand-logo > span:not(.brand-pill) { display: none; } }
+@media (max-width: 350px) { .brand-wordmark { width: 96px; } }
 /* One workspace, with the agent and arcade as panes. */
 .hero-shell { width: min(100%, 1320px); background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; box-shadow: 0 24px 70px rgba(0,0,0,.2); }
 .hero-shell-bar { height: 46px; padding: 0 19px; display: flex; gap: 15px; align-items: center; border-bottom: 1px solid var(--border); color: var(--text-dim); font: 600 10px var(--font-mono); }

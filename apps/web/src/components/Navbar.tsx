@@ -2,6 +2,7 @@ import { useNearWallet } from 'near-connect-hooks'
 import { useEffect, useState } from 'react'
 import { Moon, Sun, Terminal, Gamepad2, Cpu, Wallet as WalletIcon, LogOut } from 'lucide-react'
 import { TOKEN } from '../lib/game'
+import { Brand } from './Brand'
 
 type NavbarProps = {
   view: string
@@ -68,12 +69,8 @@ export function Navbar({ view, theme, onToggleTheme }: NavbarProps) {
   return (
     <header className="app-header">
       <div className="brand-wrapper">
-        <a href="#arcade" className="brand-logo" aria-label="PromptPlay Homepage">
-          <div className="brand-icon-box">
-            <span>P</span>
-          </div>
-          <span>PromptPlay</span>
-          <span className="brand-pill">ARCADE</span>
+        <a href="#arcade" aria-label="PromptPlay Homepage">
+          <Brand />
         </a>
       </div>
 

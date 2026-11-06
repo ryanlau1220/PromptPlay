@@ -2,6 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { NearProvider, useNearWallet } from 'near-connect-hooks'
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { Navbar } from '../components/Navbar'
+import { Brand } from '../components/Brand'
 import { SessionProvider } from '../components/Session'
 import { GAME, TOKEN } from '../lib/game'
 import { Gamepad2, Cpu, ExternalLink } from 'lucide-react'
@@ -33,10 +34,7 @@ function Home() {
   ) : (
     <main className="app-shell">
       <header className="app-header">
-        <div className="brand-logo">
-          <div className="brand-icon-box">P</div>
-          <span>PromptPlay</span>
-        </div>
+        <Brand />
       </header>
     </main>
   )
