@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import { useNearWallet } from 'near-connect-hooks'
 import { fromBase64 } from '../lib/game'
 export const API = import.meta.env.VITE_API_URL || 'http://localhost:3001'
-export type ServerConfig = {redemptionAvailable:boolean;faucetAvailable:boolean;microsPerUnit:number|null;maxOutputTokens:number|null;pccPerUnit:string}
+export type ServerConfig = {redemptionAvailable:boolean;faucetAvailable:boolean;model:string|null;contextTokens:number|null;microsPerUnit:number|null;maxOutputTokens:number|null;pccPerUnit:string}
 type Session = {token:string;config:ServerConfig|null;login:()=>Promise<string>;request:(path:string,method?:string,body?:unknown,token?:string)=>Promise<any>}
 const Context=createContext<Session|null>(null)
 export function useSession(){const value=useContext(Context);if(!value)throw new Error('Session provider missing');return value}
