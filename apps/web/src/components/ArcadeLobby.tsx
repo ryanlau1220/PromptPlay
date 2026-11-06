@@ -4,7 +4,6 @@ import { motion, useReducedMotion } from 'framer-motion'
 import {
   Gamepad2,
   ShieldCheck,
-  ArrowRight,
   Lock,
   Code2,
   Terminal,
@@ -15,6 +14,7 @@ import { GAME, base64, commitment } from '../lib/game'
 import { useSession } from './Session'
 import { ArcadeScene } from './ArcadeScene'
 import { practiceGames } from './practice/games'
+import { GameArtwork } from './practice/GameArtwork'
 
 // ─── Timing constants ──────────────────────────────────────────────────────
 const TIMING = {
@@ -140,59 +140,17 @@ export function ArcadeLobby() {
             <div>
               <div className="section-kicker">
                 <Gamepad2 size={14} />
-                <span>ARCADE CATALOG // 11</span>
+                <span>ARCADE</span>
               </div>
               <h2 id="games-title" className="section-title">Games</h2>
             </div>
           </div>
 
-          <div className="game-showcase-card">
-            <div className="game-showcase-media">
-              <div className="hands-cluster">
-                <span style={{ background: '#00f0ff' }}>
-                  <img src="/hands/rock.svg" alt="" style={{ width: '60%' }} />
-                </span>
-                <span style={{ background: '#ff2a6d' }}>
-                  <img src="/hands/paper.svg" alt="" style={{ width: '60%' }} />
-                </span>
-                <span style={{ background: '#ffb800' }}>
-                  <img src="/hands/scissors.svg" alt="" style={{ width: '60%' }} />
-                </span>
-              </div>
-            </div>
-
-            <div className="game-showcase-info">
-              <div>
-                <span className="hero-pill">2 PLAYERS · ON-CHAIN ESCROW</span>
-                <h3>Rock Paper Scissors Blitz</h3>
-
-                <div className="game-specs-grid">
-                  <div className="spec-item">
-                    <span>Match Stake</span>
-                    <strong>Your choice</strong>
-                  </div>
-                  <div className="spec-item">
-                    <span>Phase Timeout</span>
-                    <strong>5 min / phase</strong>
-                  </div>
-                  <div className="spec-item">
-                    <span>Payout Target</span>
-                    <strong>2× stake</strong>
-                  </div>
-                </div>
-              </div>
-
-              <a href="#play" className="btn-primary" style={{ alignSelf: 'flex-start' }}>
-                <Gamepad2 size={16} />
-                <span>Launch Match</span>
-                <ArrowRight size={14} />
-              </a>
-            </div>
+          <div className="games-grid">
+            <a href="#play" className="game-tile game-tile-featured"><GameArtwork id="rps" /><span><strong>Rock Paper Scissors</strong><small>2 PLAYERS · PCC</small></span></a>
+            {practiceGames.map(game => <a href={`#practice/${game.id}`} className="game-tile" key={game.id}><GameArtwork id={game.id} /><span><strong>{game.name}</strong><small>{game.kind} · PRACTICE</small></span></a>)}
           </div>
-          <div className="practice-catalog-heading"><h3>Practice games</h3><span>NO WALLET · NO PCC</span></div>
-          <div className="practice-catalog">
-            {practiceGames.map((game, index) => <a href={`#practice/${game.id}`} className="practice-entry" key={game.id}><span className="practice-entry-icon" aria-hidden="true">{game.icon}</span><span className="practice-entry-title"><strong>{game.name}</strong><small>{game.kind}</small></span><span className="practice-entry-number">{String(index + 2).padStart(2, '0')}</span><ArrowRight size={16} /></a>)}
-          </div>
+
         </FadeUp>
       </section>
 
