@@ -24,7 +24,7 @@ export function GameRoom() {
     if (!/^\d+$/.test(id) || BigInt(id) > 2n**64n-1n) { setRoom(null); return }
     let stopped = false
     async function read() { try { const state = await viewFunction({contractId:GAME,method:'get_match',args:{match_id:id}}) as Match|null; if (!stopped) setRoom(state) } catch { if (!stopped) setMessage('Could not load match. Try again.') } }
-    void read(); const timer = window.setInterval(read, 5000); return () => { stopped = true; clearInterval(timer) }
+    void read(); const timer = window.setInterval(read, 15000); return () => { stopped = true; clearInterval(timer) }
   }, [id, account])
   useEffect(() => {
     if (!/^\d+$/.test(id) || BigInt(id) > 2n**64n-1n) return

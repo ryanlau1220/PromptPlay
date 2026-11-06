@@ -33,6 +33,7 @@ services:
       - "127.0.0.1:3000:3000"
     environment:
       VITE_API_URL: http://localhost:3001
+      VITE_NEAR_RPC_URL: ${VITE_NEAR_RPC_URL:-https://rpc.testnet.fastnear.com}
     depends_on:
       - server
 volumes:

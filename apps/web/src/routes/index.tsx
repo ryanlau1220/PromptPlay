@@ -6,12 +6,14 @@ import { Redemption } from '../components/Redemption'
 import { SessionProvider } from '../components/Session'
 import { TOKEN } from '../lib/game'
 
+const nearConfig = { network: 'testnet' as const, providers: { testnet: [import.meta.env.VITE_NEAR_RPC_URL || 'https://rpc.testnet.fastnear.com'] } }
+
 export const Route = createFileRoute('/')({ component: Home })
 
 function Home() {
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
-  return mounted ? <NearProvider config={{ network: 'testnet' }}><SessionProvider><Content /></SessionProvider></NearProvider> : <main><header><a className="brand" href="/">PromptPlay</a></header></main>
+  return mounted ? <NearProvider config={nearConfig}><SessionProvider><Content /></SessionProvider></NearProvider> : <main><header><a className="brand" href="/">PromptPlay</a></header></main>
 }
 
 function Content() {
@@ -59,7 +61,7 @@ function Wallet() {
         .then((result: unknown) => { if (active) { const units = BigInt(String(result)); setBalance(`${units / 1000000n}.${(units % 1000000n).toString().padStart(6, '0').replace(/0+$/, '') || '0'}`) } })
         .catch(() => { if (active) setError('Could not load PCC balance.') })
     }
-    readBalance(); window.addEventListener('promptplay:balance',readBalance); const timer=window.setInterval(readBalance,15000)
+    readBalance(); window.addEventListener('promptplay:balance',readBalance); const timer=window.setInterval(readBalance,30000)
     return () => { active = false;window.removeEventListener('promptplay:balance',readBalance);clearInterval(timer) }
   }, [signedAccountId, viewFunction])
   async function connect() { try { setError(''); await signIn() } catch { setError('Wallet connection was not completed.') } }
