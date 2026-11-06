@@ -142,7 +142,7 @@ export function ArcadeCabinet() {
       <rect x="198" y="536" width="4" height="30" rx="2" fill="#000" />
       <circle className="cab-credit-led" cx="227" cy="534" r="3.5" fill="#3a1414" />
       <text x="200" y="600" textAnchor="middle" fontFamily="'Press Start 2P', monospace" fontSize="8" fill="#ffb800">
-        1 PCC
+        START
       </text>
       <rect x="180" y="610" width="40" height="26" rx="3" fill="#0b0b11" stroke="#000" />
 

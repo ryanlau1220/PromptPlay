@@ -20,7 +20,7 @@ import { ArcadeCabinet, SCREEN_BOX, SLOT_POINT, VIEW } from './ArcadeCabinet'
 import { createParticles } from './particles'
 
 const STORAGE_KEY = 'promptplay:intro-seen'
-const BOOT_STEPS = ['loading cartridge…', 'syncing near testnet…', 'warming compute…', 'ready']
+const BOOT_STEPS = ['starting arcade…', 'loading games…', 'ready']
 
 export function shouldShowIntro(): boolean {
   if (new URLSearchParams(window.location.search).has('intro')) return true
@@ -100,7 +100,7 @@ export function CoinInsertIntro({ onEnter, onDone }: { onEnter: () => void; onDo
           ease: 'steps(24)',
           onUpdate() {
             fill.style.transform = `scaleX(${progress.v / 100})`
-            log.textContent = BOOT_STEPS[Math.min(3, Math.floor(progress.v / 25))]
+            log.textContent = BOOT_STEPS[Math.min(2, Math.floor(progress.v / 34))]
           },
         })
         .addPause('+=0.15', () => {
@@ -117,7 +117,8 @@ export function CoinInsertIntro({ onEnter, onDone }: { onEnter: () => void; onDo
         .fromTo('.crt-power', { scaleX: 0, scaleY: 0.012, autoAlpha: 1 }, { scaleX: 1, duration: 0.16, ease: 'power2.out' }, '-=0.25')
         .to('.crt-power', { scaleY: 1, duration: 0.14, ease: 'power2.in' })
         .to('.crt-power', { autoAlpha: 0, duration: 0.3 })
-        .from('.crt-title, .crt-hands, .crt-insert', { autoAlpha: 0, y: 8, stagger: 0.09, duration: 0.3 }, '<')
+        .from('.crt-title, .crt-signal, .crt-insert', { autoAlpha: 0, y: 8, stagger: 0.09, duration: 0.3 }, '<')
+        .from('.intro-story > *', { autoAlpha: 0, y: 18, stagger: 0.12, duration: 0.6, ease: 'power3.out' }, '-=0.8')
         .from('.cab-button', { opacity: 0.15, stagger: 0.1, duration: 0.15 }, '<')
         .to('.intro-cta', { autoAlpha: 1, duration: 0.4 })
         .add(() => {
@@ -165,7 +166,7 @@ export function CoinInsertIntro({ onEnter, onDone }: { onEnter: () => void; onDo
         gsap.fromTo('.intro-flash', { opacity: 0.3 }, { opacity: 0, duration: 0.35 })
         gsap.to('.crt-insert', { autoAlpha: 0, duration: 0.05 })
         gsap.fromTo('.crt-credit', { autoAlpha: 0, scale: 2.2 }, { autoAlpha: 1, scale: 1, duration: 0.45, ease: 'back.out(3)', delay: 0.08 })
-        gsap.fromTo('.crt-hands img', { y: 0 }, { keyframes: { y: [0, -10, 0, -4, 0] }, duration: 0.7, stagger: 0.09, ease: 'power1.inOut', delay: 0.15 })
+        gsap.fromTo('.crt-signal span', { scale: 1 }, { scale: 1.18, yoyo: true, repeat: 1, stagger: 0.08, duration: 0.2, delay: 0.15 })
         gsap.delayedCall(0.15, playCredit)
         gsap.delayedCall(0.75, () => {
           $('.crt-press').classList.add('is-on')
@@ -224,7 +225,7 @@ export function CoinInsertIntro({ onEnter, onDone }: { onEnter: () => void; onDo
     }
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') skip()
-      else if (e.key === 'Enter' || e.key === ' ') {
+      else if ((e.key === 'Enter' || e.key === ' ') && !(e.target instanceof Element && e.target.closest('.intro-skip'))) {
         e.preventDefault()
         advance(null)
       }
@@ -267,6 +268,15 @@ export function CoinInsertIntro({ onEnter, onDone }: { onEnter: () => void; onDo
       </div>
       <canvas className="intro-particles" />
 
+      <div className="intro-story">
+        <div className="intro-kicker"><span /> NEAR TESTNET ARCADE</div>
+        <h1>Your agent codes.<br /><em>You play.</em></h1>
+        <div className="intro-path" aria-label="Play, earn PCC, explore compute">
+          <span>PLAY</span><i /><span>EARN PCC</span><i /><span>COMPUTE</span>
+        </div>
+        <button type="button" className="intro-cta">ENTER ARCADE <span aria-hidden="true">↗</span></button>
+      </div>
+
       <div className="intro-stage">
         <div className="intro-cab">
           <ArcadeCabinet />
@@ -280,17 +290,17 @@ export function CoinInsertIntro({ onEnter, onDone }: { onEnter: () => void; onDo
             }}
           >
             <div className="crt-content">
-              <div className="crt-title">RPS BLITZ</div>
-              <div className="crt-hands">
-                <img src="/hands/rock.svg" alt="" />
-                <img src="/hands/paper.svg" alt="" />
-                <img src="/hands/scissors.svg" alt="" />
+              <div className="crt-title">ARCADE ONLINE</div>
+              <div className="crt-signal" aria-hidden="true">
+                <span className="crt-agent">&gt;_</span><i />
+                <span className="crt-play">✦</span><i />
+                <span className="crt-compute">P</span>
               </div>
               <div className="crt-status">
-                <span className="crt-insert">INSERT COIN</span>
-                <span className="crt-credit">CREDIT 01</span>
+                <span className="crt-insert">PRESS START</span>
+                <span className="crt-credit">PLAYER READY</span>
               </div>
-              <div className="crt-press">PRESS START</div>
+              <div className="crt-press">LET’S PLAY</div>
             </div>
             <div className="crt-power" />
             <div className="crt-glass" />
@@ -302,11 +312,9 @@ export function CoinInsertIntro({ onEnter, onDone }: { onEnter: () => void; onDo
         </div>
       </div>
 
-      <p className="intro-cta">CLICK TO INSERT COIN</p>
-
       <div className="intro-coin">
-        <span className="coin-face">PCC</span>
-        <span className="coin-face coin-back">PCC</span>
+        <span className="coin-face">P</span>
+        <span className="coin-face coin-back">P</span>
       </div>
 
       <button
