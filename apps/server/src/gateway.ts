@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { Accounting } from './accounting'
 import type { GatewayKeys } from './keys'
-import type { ChatMessage, InferenceProvider } from './provider'
+import type { ChatMessage, ChatOptions, InferenceProvider } from './provider'
 
 export type Pricing = { inputMicrosPerMillion:number; outputMicrosPerMillion:number; microsPerUnit:number; contextTokens:number; maxOutputTokens:number }
 function ceil(n:bigint,d:bigint) { return (n+d-1n)/d }
@@ -21,20 +21,41 @@ export class Gateway {
     if(units > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error('Request cost is too large')
     return Number(units)
   }
-  async complete(rawKey:string, model:string, messages:ChatMessage[], maxTokens:number) {
+  private reserve(rawKey:string, model:string, messages:ChatMessage[], maxTokens:number, options?:ChatOptions) {
     const key=this.keys.authenticate(rawKey); if (!key) throw new Error('Invalid API key')
     if(model!==this.model) throw new Error('Model is not supported')
     if(!Number.isSafeInteger(maxTokens)||maxTokens<1||maxTokens>this.pricing.maxOutputTokens) throw new Error('Invalid output limit')
-    if(!Array.isArray(messages)||messages.length<1||messages.length>32||messages.some(m=>!m||!['system','user','assistant'].includes(m.role)||typeof m.content!=='string') || new TextEncoder().encode(JSON.stringify(messages)).length>20000) throw new Error('Invalid messages')
+    if(!Array.isArray(messages)||messages.length<1||messages.length>32||messages.some(m=>!m||!['system','developer','user','assistant','tool'].includes(m.role)||(typeof m.content!=='string' && !(m.role==='assistant' && m.content===null && Array.isArray(m.tool_calls)))||(m.role==='tool' && typeof m.tool_call_id!=='string')) || new TextEncoder().encode(JSON.stringify({messages,...options})).length>100_000) throw new Error('Invalid messages')
+    if(options?.tools && (!Array.isArray(options.tools)||options.tools.length>32)) throw new Error('Invalid messages')
     const now=Date.now(); const rate=this.rates.get(key.account_id)
     if(rate && now-rate.start<60_000){if(rate.count>=10) throw new Error('Rate limit exceeded');rate.count++} else this.rates.set(key.account_id,{start:now,count:1})
-    const requestId=randomUUID(); const reserved=this.cost(this.pricing.contextTokens,maxTokens)
-    this.ledger.reserve(requestId,key.account_id,reserved,key.id)
-    // On timeout, invalid provider usage, or unknown execution the reservation stays in place.
-    const response=await this.provider.complete(messages,maxTokens)
-    if(!Number.isSafeInteger(response.inputTokens)||!Number.isSafeInteger(response.outputTokens)||response.inputTokens<0||response.outputTokens<0||response.outputTokens>maxTokens||response.inputTokens+response.outputTokens>this.pricing.contextTokens) throw new Error('Provider usage exceeds configured limits')
-    const used=this.cost(response.inputTokens,response.outputTokens)
-    this.ledger.settle(requestId,used,{inputTokens:response.inputTokens,outputTokens:response.outputTokens})
-    return {id:`chatcmpl-${requestId}`,object:'chat.completion',created:Math.floor(now/1000),model:this.model,choices:[{index:0,message:{role:'assistant',content:response.text},finish_reason:response.finishReason}],usage:{prompt_tokens:response.inputTokens,completion_tokens:response.outputTokens,total_tokens:response.inputTokens+response.outputTokens}}
+    const requestId=randomUUID(); this.ledger.reserve(requestId,key.account_id,this.cost(this.pricing.contextTokens,maxTokens),key.id)
+    return {requestId,now}
+  }
+  private settle(requestId:string,inputTokens:number,outputTokens:number,maxTokens:number) {
+    if(!Number.isSafeInteger(inputTokens)||!Number.isSafeInteger(outputTokens)||inputTokens<0||outputTokens<0||outputTokens>maxTokens||inputTokens+outputTokens>this.pricing.contextTokens) throw new Error('Provider usage exceeds configured limits')
+    this.ledger.settle(requestId,this.cost(inputTokens,outputTokens),{inputTokens,outputTokens})
+  }
+  async complete(rawKey:string, model:string, messages:ChatMessage[], maxTokens:number, options?:ChatOptions) {
+    const {requestId,now}=this.reserve(rawKey,model,messages,maxTokens,options)
+    const response=await this.provider.complete(messages,maxTokens,options)
+    this.settle(requestId,response.inputTokens,response.outputTokens,maxTokens)
+    return {id:`chatcmpl-${requestId}`,object:'chat.completion',created:Math.floor(now/1000),model:this.model,choices:[{index:0,message:{role:'assistant',content:response.text,...(response.toolCalls?{tool_calls:response.toolCalls}:{})},finish_reason:response.finishReason}],usage:{prompt_tokens:response.inputTokens,completion_tokens:response.outputTokens,total_tokens:response.inputTokens+response.outputTokens}}
+  }
+  stream(rawKey:string,model:string,messages:ChatMessage[],maxTokens:number,options?:ChatOptions) {
+    if(!this.provider.stream) throw new Error('Streaming is not supported')
+    const {requestId}=this.reserve(rawKey,model,messages,maxTokens,options)
+    const iterator=this.provider.stream(messages,maxTokens,options),encoder=new TextEncoder()
+    let counts:{inputTokens:number;outputTokens:number}|undefined
+    const settle=this.settle.bind(this)
+    return new ReadableStream<Uint8Array>({
+      async pull(controller){try{
+        const result=await iterator.next()
+        if(result.done){if(!counts) throw new Error('Provider stream lacks usage');settle(requestId,counts.inputTokens,counts.outputTokens,maxTokens);controller.enqueue(encoder.encode('data: [DONE]\n\n'));controller.close();return}
+        if(result.value.usage){if(counts) throw new Error('Duplicate provider usage');counts=result.value.usage}
+        controller.enqueue(encoder.encode(`data: ${result.value.data}\n\n`))
+      }catch{controller.error(new Error('Inference stream could not be completed'))}},
+      async cancel(){await iterator.return(undefined).catch(()=>{})}
+    })
   }
 }

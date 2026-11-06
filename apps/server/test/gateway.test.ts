@@ -46,3 +46,19 @@ test('rate limit applies across all keys owned by one account',async()=>{
  await expect(gateway.complete(second.key,'model',[{role:'user',content:'hello'}],10)).rejects.toThrow('Rate limit exceeded')
  expect((await gateway.complete(other.key,'model',[{role:'user',content:'hello'}],10)).choices[0]?.message.content).toBe('Mock response')
 })
+
+test('streams tool calls and settles only after reported usage',async()=>{
+ const db=new Database(':memory:'),ledger=new Accounting(db,1000),keys=new GatewayKeys(db);ledger.creditReceipt('r','i','alice',1000);const key=keys.create('alice',1000)
+ const provider={...mockProvider(),async *stream(){yield {data:JSON.stringify({choices:[{delta:{tool_calls:[{index:0,function:{name:'lookup'}}]}}]})};yield {data:JSON.stringify({choices:[],usage:{prompt_tokens:2,completion_tokens:2}}),usage:{inputTokens:2,outputTokens:2}}}}
+ const gateway=new Gateway(ledger,keys,provider,'model',pricing),body=await new Response(gateway.stream(key.key,'model',[{role:'user',content:'use a tool'}],10,{tools:[{type:'function'}]})).text()
+ expect(body).toContain('tool_calls');expect(body).toContain('[DONE]');expect(ledger.balance('alice')).toBe(994);expect(ledger.usage('alice')[0]).toMatchObject({state:'settled',charged:6})
+})
+test('retains reservation when stream has no usage or is cancelled',async()=>{
+ const db=new Database(':memory:'),ledger=new Accounting(db,1000),keys=new GatewayKeys(db);ledger.creditReceipt('r','i','alice',1000);const key=keys.create('alice',1000)
+ const provider={...mockProvider(),async *stream(){yield {data:'{"choices":[]}'} }}
+ const gateway=new Gateway(ledger,keys,provider,'model',pricing)
+ await expect(new Response(gateway.stream(key.key,'model',[{role:'user',content:'hello'}],10)).text()).rejects.toThrow()
+ expect(ledger.usage('alice')[0]).toMatchObject({state:'reserved',reserved:120})
+ const reader=gateway.stream(key.key,'model',[{role:'user',content:'hello'}],10).getReader();await reader.read();await reader.cancel()
+ expect(ledger.usage('alice').filter((r:any)=>r.state==='reserved')).toHaveLength(2)
+})

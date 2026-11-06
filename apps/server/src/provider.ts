@@ -1,51 +1,69 @@
-export type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
-export type Completion = { text: string; inputTokens: number; outputTokens: number; finishReason: string };
-export interface InferenceProvider { complete(messages: ChatMessage[], maxTokens: number): Promise<Completion>; }
+export type ChatMessage = { role: 'system' | 'developer' | 'user' | 'assistant' | 'tool'; content: string | null; tool_calls?: unknown; tool_call_id?: string; name?: string }
+export type ChatOptions = { tools?: unknown[]; tool_choice?: unknown; parallel_tool_calls?: boolean; temperature?: number }
+export type Completion = { text: string | null; toolCalls?: unknown[]; inputTokens: number; outputTokens: number; finishReason: string }
+export type StreamEvent = { data: string; usage?: { inputTokens:number; outputTokens:number } }
+export interface InferenceProvider { complete(messages: ChatMessage[], maxTokens: number, options?:ChatOptions): Promise<Completion>; stream?(messages:ChatMessage[], maxTokens:number, options?:ChatOptions): AsyncGenerator<StreamEvent> }
 
 export function providerConfig(env: Record<string, string | undefined>) {
-  return {
-    liveEnabled: env.PROMPTPLAY_LIVE_INFERENCE === "true",
-    endpoint: env.INFERENCE_BASE_URL ?? "https://cloud-api.near.ai/v1",
-    model: env.INFERENCE_MODEL ?? "zai-org/GLM-5.1-FP8",
-    apiKey: env.INFERENCE_API_KEY ?? "",
-  };
+  return {liveEnabled:env.PROMPTPLAY_LIVE_INFERENCE === 'true',endpoint:env.INFERENCE_BASE_URL ?? 'https://cloud-api.near.ai/v1',model:env.INFERENCE_MODEL ?? 'zai-org/GLM-5.1-FP8',apiKey:env.INFERENCE_API_KEY ?? ''}
 }
-
+function usage(value:unknown) {
+  if(!value || typeof value!=='object') return null
+  const u=value as {prompt_tokens?:unknown;completion_tokens?:unknown}
+  if(!Number.isSafeInteger(u.prompt_tokens)||!Number.isSafeInteger(u.completion_tokens)||(u.prompt_tokens as number)<0||(u.completion_tokens as number)<0) return null
+  return {inputTokens:u.prompt_tokens as number,outputTokens:u.completion_tokens as number}
+}
 /** Live requests are disabled unless the operator explicitly enables an authorized deployment. */
-export function createProvider(config: { liveEnabled: boolean; endpoint: string; model: string; apiKey: string }): InferenceProvider {
-  if (!config.liveEnabled) throw new Error("Live inference is disabled");
-  const base = new URL(config.endpoint);
-  if (base.username || base.password || base.search || base.hash) throw new Error("Invalid provider URL");
-  if (base.protocol !== "https:" && base.hostname !== "localhost" && base.hostname !== "127.0.0.1") throw new Error("Provider must use HTTPS or localhost");
-  if (!config.apiKey || !config.model) throw new Error("Provider credentials and model are required");
+export function createProvider(config:{liveEnabled:boolean;endpoint:string;model:string;apiKey:string}):InferenceProvider {
+  if(!config.liveEnabled) throw new Error('Live inference is disabled')
+  const base=new URL(config.endpoint)
+  if(base.username||base.password||base.search||base.hash) throw new Error('Invalid provider URL')
+  if(base.protocol!=='https:' && base.hostname!=='localhost' && base.hostname!=='127.0.0.1') throw new Error('Provider must use HTTPS or localhost')
+  if(!config.apiKey||!config.model) throw new Error('Provider credentials and model are required')
+  async function request(messages:ChatMessage[],maxTokens:number,options:ChatOptions|undefined,stream:boolean) {
+    const res=await fetch(`${config.endpoint.replace(/\/$/,'')}/chat/completions`,{method:'POST',headers:{'content-type':'application/json',authorization:`Bearer ${config.apiKey}`},body:JSON.stringify({model:config.model,messages,max_tokens:maxTokens,...options,stream,...(stream?{stream_options:{include_usage:true}}:{})}),signal:AbortSignal.timeout(120_000),redirect:'error'})
+    if(!res.ok) throw new Error(`Provider returned HTTP ${res.status}`)
+    return res
+  }
   return {
-    async complete(messages, maxTokens) {
-      const res = await fetch(`${config.endpoint.replace(/\/$/, "")}/chat/completions`, {
-        method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${config.apiKey}` },
-        body: JSON.stringify({model: config.model, messages, max_tokens: maxTokens, stream: false}),
-        signal: AbortSignal.timeout(30_000), redirect: "error",
-      });
-      if (!res.ok) throw new Error(`Provider returned HTTP ${res.status}`);
-      const data = await res.json() as {choices?: Array<{message?: {content?: unknown}; finish_reason?: unknown}>; usage?: {prompt_tokens?: unknown; completion_tokens?: unknown}};
-      const text = data.choices?.[0]?.message?.content;
-      const finishReason = data.choices?.[0]?.finish_reason;
-      const inputTokens = data.usage?.prompt_tokens;
-      const outputTokens = data.usage?.completion_tokens;
-      if (typeof text !== "string" || typeof finishReason !== "string" || !Number.isSafeInteger(inputTokens) || !Number.isSafeInteger(outputTokens) || (inputTokens as number) < 0 || (outputTokens as number) < 0) throw new Error("Provider response lacks valid text or usage");
-      return {text, inputTokens: inputTokens as number, outputTokens: outputTokens as number, finishReason};
+    async complete(messages,maxTokens,options) {
+      const res=await request(messages,maxTokens,options,false)
+      const data=await res.json() as {choices?:Array<{message?:{content?:unknown;tool_calls?:unknown};finish_reason?:unknown}>;usage?:unknown}
+      const choice=data.choices?.[0],text=choice?.message?.content,toolCalls=choice?.message?.tool_calls,counts=usage(data.usage)
+      if((typeof text!=='string' && text!==null)|| (toolCalls!==undefined && !Array.isArray(toolCalls)) || (text===null && !Array.isArray(toolCalls)) || typeof choice?.finish_reason!=='string'||!counts) throw new Error('Provider response lacks valid message or usage')
+      return {text, ...(toolCalls?{toolCalls:toolCalls as unknown[]}:{}),...counts,finishReason:choice.finish_reason}
     },
-  };
+    async *stream(messages,maxTokens,options) {
+      const response=await request(messages,maxTokens,options,true)
+      if(!response.body) throw new Error('Provider stream unavailable')
+      const reader=response.body.getReader(),decoder=new TextDecoder();let buffer='',done=false
+      try {
+        while(true){
+          const part=await reader.read();buffer=(buffer+decoder.decode(part.value,{stream:!part.done})).replace(/\r\n/g,'\n')
+          if(buffer.length>1_000_000) throw new Error('Provider stream frame too large')
+          let end:number
+          while((end=buffer.indexOf('\n\n'))>=0){
+            const frame=buffer.slice(0,end);buffer=buffer.slice(end+2)
+            const data=frame.split('\n').filter(line=>line.startsWith('data:')).map(line=>line.slice(5).trimStart()).join('\n')
+            if(!data) continue
+            if(data==='[DONE]'){done=true;break}
+            const parsed=JSON.parse(data) as {usage?:unknown;choices?:unknown}
+            const counts=parsed.usage == null ? undefined : usage(parsed.usage)
+            if(parsed.usage != null && !counts) throw new Error('Invalid provider usage')
+            yield {data,...(counts && Array.isArray(parsed.choices) && parsed.choices.length===0?{usage:counts}:{})}
+          }
+          if(done || part.done) break
+        }
+        if(!done) throw new Error('Provider stream ended unexpectedly')
+      } finally { await reader.cancel().catch(()=>{});reader.releaseLock() }
+    }
+  }
 }
-
 /** Deterministic offline test double; never exposed as a real inference provider. */
-export function mockProvider(): InferenceProvider {
-  return { async complete() { return {text: "Mock response", inputTokens: 2, outputTokens: 2, finishReason: "stop"}; } };
-}
-
-/** Verify the configured model is advertised before accepting paid redemptions. */
-export async function verifyProviderModel(config: {liveEnabled:boolean;endpoint:string;model:string;apiKey:string}): Promise<void> {
-  createProvider(config) // validates the live gate, credentials and endpoint
-  const response=await fetch(`${config.endpoint.replace(/\/$/, '')}/models`,{headers:{authorization:`Bearer ${config.apiKey}`},signal:AbortSignal.timeout(15_000),redirect:'error'})
+export function mockProvider():InferenceProvider { return {async complete(){return {text:'Mock response',inputTokens:2,outputTokens:2,finishReason:'stop'}}} }
+export async function verifyProviderModel(config:{liveEnabled:boolean;endpoint:string;model:string;apiKey:string}):Promise<void> {
+  createProvider(config)
+  const response=await fetch(`${config.endpoint.replace(/\/$/,'')}/models`,{headers:{authorization:`Bearer ${config.apiKey}`},signal:AbortSignal.timeout(15_000),redirect:'error'})
   if(!response.ok) throw new Error('Provider model list is unavailable')
   const data=await response.json() as {data?:Array<{id?:unknown}>}
   if(!Array.isArray(data.data)||!data.data.some(model=>model.id===config.model)) throw new Error('Configured model is unavailable')

@@ -37,7 +37,7 @@ test('mock gateway authenticates keys and meters real reported mock usage', asyn
   const body=await response.json() as any;expect(body.choices[0].message.content).toBe('Mock response');expect(body.usage.total_tokens).toBe(4)
   expect(ledger.balance('alice.testnet')).toBe(994)
   expect((await call('/v1/chat/completions','POST',{model:'mock-model',messages:[{role:'user',content:'hello'}],max_tokens:10,stream:true},key.key)).status).toBe(400)
-  expect((await call('/v1/chat/completions','POST',{model:'mock-model',messages:[{role:'user',content:'hello'}],max_tokens:10,tools:[]},key.key)).status).toBe(400)
+  expect((await call('/v1/chat/completions','POST',{model:'mock-model',messages:[{role:'user',content:'hello'}],max_tokens:10,tools:[]},key.key)).status).toBe(200)
   expect((await call(`/api/keys/${key.id}`,'DELETE',undefined,session.token)).status).toBe(200)
   expect((await call('/v1/models','GET',undefined,key.key)).status).toBe(401)
 })
@@ -69,4 +69,17 @@ test('only enrolled wallets can reserve funded redemption capacity',async()=>{
  expect((await attempt(await login('bob.testnet'))).status).toBe(403)
  expect((await attempt(alice)).status).toBe(200)
  expect((await attempt(alice)).status).toBe(400)
+})
+
+test('chat endpoint passes tool calls and streams metered events',async()=>{
+ const {Gateway}=await import('../src/gateway')
+ const db=new Database(':memory:'),rpc=new JsonRpcProvider({url:'https://test.rpc.fastnear.com'}),ledger=new Accounting(db,1000),auth=new WalletAuth(db,rpc,async()=>{}),redemption=new Redemption(db,ledger,rpc),keys=new GatewayKeys(db)
+ ledger.creditReceipt('r','i','alice.testnet',1000);const key=keys.create('alice.testnet',1000)
+ let received:unknown
+ const provider={async complete(_m:unknown,_n:number,options:unknown){received=options;return {text:null,toolCalls:[{id:'call_1',type:'function',function:{name:'lookup',arguments:'{}'}}],inputTokens:2,outputTokens:2,finishReason:'tool_calls'}},async *stream(){yield {data:'{"choices":[{"delta":{"tool_calls":[{"index":0}]}}]}'};yield {data:'{"choices":[],"usage":{"prompt_tokens":2,"completion_tokens":2}}',usage:{inputTokens:2,outputTokens:2}}}}
+ const gateway=new Gateway(ledger,keys,provider,'model',{inputMicrosPerMillion:1000000,outputMicrosPerMillion:2000000,microsPerUnit:1000000,contextTokens:100,maxOutputTokens:10})
+ const app=createApp({auth,redemption,ledger,keys,gateway,faucet:null,allowRedemption:false,redemptionAllowlist:new Set(),origin:'http://localhost:3000'})
+ const send=(stream:boolean)=>app.handle(new Request('http://localhost/v1/chat/completions',{method:'POST',headers:{'content-type':'application/json',authorization:`Bearer ${key.key}`},body:JSON.stringify({model:'model',messages:[{role:'user',content:'test'}],tools:[{type:'function',function:{name:'lookup',parameters:{type:'object'}}}],tool_choice:'auto',stream})}))
+ const first=await send(false);expect(first.status).toBe(200);expect((await first.json() as any).choices[0].message.tool_calls[0].function.name).toBe('lookup');expect(received).toMatchObject({tool_choice:'auto'})
+ const second=await send(true);expect(second.status).toBe(200);expect(second.headers.get('content-type')).toContain('text/event-stream');expect(await second.text()).toContain('data: [DONE]');expect(ledger.balance('alice.testnet')).toBe(988)
 })
