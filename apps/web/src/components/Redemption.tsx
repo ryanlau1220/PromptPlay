@@ -45,7 +45,7 @@ export function Redemption() {
     const response=await request('/v1/chat/completions','POST',{model,messages:[{role:'user',content:prompt}],max_tokens:Math.min(128,config?.maxOutputTokens ?? 0)},newKey)
     setAnswer(response.choices[0].message.content);await refresh()
   }
-  return <section id="redeem" className="play-section"><div className="play-heading"><div><h2>Use your credits.</h2></div></div>
+  return <section id="redeem" className="play-section"><div className="play-heading"><div><h2>Inference</h2></div></div>
     {!config ? <p>Redemption service unavailable.</p> : !session ? <><p>Sign a wallet message to manage your inference allowance.</p><button className="primary" disabled={busy} onClick={()=>void action(async()=>{const auth=await login();await refresh(auth)})}>Connect to gateway</button></> : <div className="play-grid">
       <div className="game-card"><h3>Redeem PCC</h3>{config.redemptionAvailable ? <p>5 PCC = 1 gateway unit. One unit funds up to ${(Number(config.microsPerUnit)/1_000_000).toFixed(6).replace(/0+$/, '').replace(/\.$/, '')} in inference.</p> : <p>New redemptions and inference are unavailable. Existing payments can still be verified.</p>}<strong>Allowance: {balance === null ? '…' : (balance/1_000_000).toFixed(6)} units</strong>
         {!intent && config.redemptionAvailable && <button className="primary" disabled={busy} onClick={()=>void action(createIntent)}>Create redemption</button>}

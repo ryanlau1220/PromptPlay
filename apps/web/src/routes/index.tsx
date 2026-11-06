@@ -17,20 +17,16 @@ function Home() {
 function Content() {
   const { signedAccountId } = useNearWallet()
   return <main>
-    <header><a className="brand" href="/" aria-label="PromptPlay home"><span className="brand-mark">P<span>✳</span></span> PromptPlay</a><div className="header-actions"><span className="network"><i /> NEAR TESTNET</span>{signedAccountId && <Wallet />}</div></header>
-    {!signedAccountId && <div className="hero">
-      <section className="intro">
-        <h1>While your<br />agent works,<br /><em>play.</em></h1>
-        <p className="lede">A quick game of rock, paper, scissors. Real players, verifiable moves, and credits that keep moving.</p>
-        <Wallet />
-        <p className="note">Testnet demo credits</p>
-      </section>
-      <aside className="arena" aria-label="Rock paper scissors game preview">
-        <div className="orbit"><div className="hand">ROCK</div><span className="vs">VS</span><div className="hand second">SCISSORS</div></div>
-      </aside>
-    </div>}
+    <header><a className="brand" href="/" aria-label="PromptPlay home">PromptPlay</a><div className="header-actions"><span className="network"><i /> NEAR TESTNET</span>{signedAccountId && <Wallet />}</div></header>
+    {!signedAccountId && <section className="hero">
+      <div className="hands" aria-hidden="true"><span><img src="/hands/rock.svg" alt="" /></span><span><img src="/hands/paper.svg" alt="" /></span><span><img src="/hands/scissors.svg" alt="" /></span></div>
+      <h1>Rock Paper Scissors</h1>
+      <p>Play a friend. Win PCC.</p>
+      <Wallet />
+      <small>NEAR Testnet</small>
+    </section>}
     {signedAccountId && <><GameRoom /><Redemption /></>}
-    <footer><span>BUILT FOR THE WAIT.</span><a href={`https://testnet.nearblocks.io/address/${TOKEN}`} target="_blank" rel="noreferrer">VIEW PCC CONTRACT ↗</a></footer>
+    <footer><span>PromptPlay · NEAR Testnet</span><a href={`https://testnet.nearblocks.io/address/${TOKEN}`} target="_blank" rel="noreferrer">VIEW PCC CONTRACT ↗</a></footer>
   </main>
 }
 
@@ -52,7 +48,7 @@ function Wallet() {
   async function connect() { try { setError(''); await signIn() } catch { setError('Wallet connection was not completed.') } }
   async function disconnect() { try { setError(''); await signOut() } catch { setError('Could not disconnect the wallet.') } }
   return <div className="wallet-area">
-    {signedAccountId ? <div className="connected"><div><span>CONNECTED WALLET</span><strong>{signedAccountId}</strong><small>{balance === null ? 'Loading balance…' : `${balance} PCC`}</small></div><button className="text-button" onClick={disconnect}>Disconnect</button></div> : <button className="primary" onClick={connect} disabled={loading}>{loading ? 'Connecting…' : 'Connect wallet'} <span>↗</span></button>}
+    {signedAccountId ? <div className="connected"><div><strong>{signedAccountId}</strong><small>{balance === null ? 'Loading balance…' : `${balance} PCC`}</small></div><button className="text-button" onClick={disconnect}>Disconnect</button></div> : <button className="primary" onClick={connect} disabled={loading}>{loading ? 'Connecting…' : 'Connect wallet'} <span>↗</span></button>}
     {error && <p className="error" role="alert">{error}</p>}
   </div>
 }
