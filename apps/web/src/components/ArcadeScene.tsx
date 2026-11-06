@@ -1,43 +1,69 @@
-import { ArrowDown, ArrowRight, Cpu, Gamepad2, TerminalSquare } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
+import { ArrowDown, ArrowRight, Check, CircleDollarSign, Code2, Gamepad2, LockKeyhole, ShieldCheck, Swords, Users } from 'lucide-react'
+
+const phases = ['select', 'invite', 'deposit', 'commit', 'reveal', 'claim'] as const
+type Phase = typeof phases[number]
+
+function AgentTerminal() {
+  return (
+    <div className="hero-window hero-agent">
+      <div className="hero-window-bar"><div className="hero-lights" aria-hidden="true"><i /><i /><i /></div><div className="hero-window-title"><Code2 size={14} /> agent</div><span className="hero-window-badge">SIMULATED</span></div>
+      <div className="agent-content" aria-label="Illustrative agent activity">
+        <div className="agent-prompt-label">YOU</div>
+        <div className="agent-prompt"><span className="agent-prompt-first">Give me a production-ready product.</span><span className="agent-prompt-second">Make no mistakes<span className="agent-cursor">▍</span></span></div>
+        <div className="agent-divider" />
+        <div className="agent-response-label"><span /> AGENT</div>
+        <div className="agent-line agent-line-one"><span>›</span> Inspecting the project structure</div>
+        <div className="agent-line agent-line-two"><span>›</span> Mapping the existing flows</div>
+        <div className="agent-line agent-line-three"><span>›</span> Implementing the changes</div>
+        <div className="agent-line agent-line-four"><span>✓</span> Running checks and tests</div>
+        <div className="agent-thinking"><span className="thinking-spinner" /> Working<span className="thinking-dots">...</span></div>
+      </div>
+      <div className="hero-window-bottom"><span><span className="agent-status-dot" /> RUNNING</span><span>~ / workspace</span></div>
+    </div>
+  )
+}
+
+function PhaseScreen({ phase }: { phase: Phase }) {
+  if (phase === 'select') return <div className="demo-screen demo-select"><span className="demo-eyebrow">CHOOSE A GAME</span><div className="demo-game"><div className="demo-game-art"><Gamepad2 size={32} strokeWidth={1.5} /><span /><i /></div><div><span className="demo-minor">2 PLAYERS · PCC</span><strong>Rock Paper Scissors</strong></div><ArrowRight size={19} /></div><div className="demo-action"><span>Select game</span><ArrowRight size={15} /></div></div>
+  if (phase === 'invite') return <div className="demo-screen"><span className="demo-eyebrow">PRIVATE MATCH</span><div className="demo-icon demo-cyan"><Users size={27} /></div><strong>Challenge a friend</strong><div className="demo-players"><span>you.testnet</span><i>↔</i><span>friend.testnet</span></div><div className="demo-action"><span>Invite shared</span><Check size={15} /></div></div>
+  if (phase === 'deposit') return <div className="demo-screen"><span className="demo-eyebrow">DEPOSIT TO ESCROW</span><div className="demo-icon demo-amber"><ShieldCheck size={27} /></div><strong>5 PCC each</strong><div className="demo-players"><span>YOU <b>✓</b></span><i>+</i><span>FRIEND <b>✓</b></span></div><div className="demo-action"><span>Both deposits confirmed</span><LockKeyhole size={14} /></div></div>
+  if (phase === 'commit') return <div className="demo-screen"><span className="demo-eyebrow">COMMIT YOUR MOVE</span><div className="demo-hands">{['rock', 'paper', 'scissors'].map((hand, i) => <div className={i === 0 ? 'demo-hand selected' : 'demo-hand'} key={hand}><img src={`/hands/${hand}.svg`} alt="" /></div>)}</div><strong>Move sealed</strong><div className="demo-commit"><LockKeyhole size={13} /> Waiting for both players</div></div>
+  if (phase === 'reveal') return <div className="demo-screen"><span className="demo-eyebrow">REVEAL</span><div className="demo-duel"><div><img src="/hands/rock.svg" alt="" /><span>YOU</span></div><Swords size={19} /><div><img src="/hands/scissors.svg" alt="" /><span>FRIEND</span></div></div><strong>Rock beats scissors</strong><div className="demo-result">YOU WIN</div></div>
+  return <div className="demo-screen"><span className="demo-eyebrow">MATCH COMPLETE</span><div className="demo-icon demo-win"><CircleDollarSign size={31} /></div><strong>10 PCC claimed</strong><div className="demo-commit"><Check size={14} /> Payout confirmed</div><div className="demo-replay">BACK TO ARCADE <ArrowRight size={13} /></div></div>
+}
+
+function GameTerminal() {
+  const reduced = useReducedMotion()
+  const [index, setIndex] = useState(0)
+  useEffect(() => {
+    if (reduced) return
+    const timer = window.setInterval(() => { if (!document.hidden) setIndex((current) => (current + 1) % phases.length) }, 3800)
+    return () => clearInterval(timer)
+  }, [reduced])
+  const phase = reduced ? 'claim' : phases[index]!
+  return (
+    <div className="hero-window hero-game">
+      <div className="hero-window-bar"><div className="hero-lights" aria-hidden="true"><i /><i /><i /></div><div className="hero-window-title"><Gamepad2 size={15} /> arcade</div><span className="hero-window-badge">SIMULATED</span></div>
+      <div className="game-terminal-stage" aria-label="Simulated arcade flow: choose a game, invite a friend, deposit, commit, reveal, and claim.">
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div className="demo-frame" key={phase} initial={reduced ? false : { opacity: 0, y: 9 }} animate={{ opacity: 1, y: 0 }} exit={reduced ? undefined : { opacity: 0, y: -7 }} transition={{ duration: .25 }}>
+            <PhaseScreen phase={phase} />
+          </motion.div>
+        </AnimatePresence>
+      </div>
+      <div className="hero-window-bottom"><span>ARCADE / 01</span><div className="demo-progress" aria-hidden="true">{phases.map((step, i) => <span className={i === (reduced ? phases.length - 1 : index) ? 'active' : ''} key={step} />)}</div></div>
+    </div>
+  )
+}
 
 export function ArcadeScene() {
   return (
     <section className="arcade-hero" aria-label="PromptPlay arcade">
       <h1 className="visually-hidden">PromptPlay arcade</h1>
-      <div className="terminal-window">
-        <div className="terminal-titlebar">
-          <div className="terminal-lights" aria-hidden="true"><i /><i /><i /></div>
-          <div className="terminal-title"><TerminalSquare size={15} /> promptplay <span>/</span> arcade</div>
-          <span className="terminal-demo">DEMO</span>
-        </div>
-        <div className="terminal-body">
-          <div className="terminal-code" aria-label="Illustrative agent terminal animation">
-            <div className="terminal-row terminal-row-one"><span className="terminal-prompt">~ ❯</span> opencode run <span className="terminal-string">"build the feature"</span></div>
-            <div className="terminal-row terminal-row-two"><span className="terminal-muted">⠋</span> agent is working<span className="terminal-muted">...</span></div>
-            <div className="terminal-row terminal-row-three"><span className="terminal-check">✓</span> <span className="terminal-muted">workspace ready</span></div>
-            <div className="terminal-row terminal-row-four"><span className="terminal-prompt">~ ❯</span> promptplay <span className="terminal-string">arcade</span><span className="terminal-cursor">▊</span></div>
-          </div>
-          <div className="terminal-divider" />
-          <div className="terminal-arcade" aria-label="Arcade preview">
-            <div className="terminal-arcade-heading"><span>ARCADE</span><span>01 <i>/</i> 01</span></div>
-            <div className="terminal-game-row">
-              <div className="terminal-game-art" aria-hidden="true">
-                <span className="terminal-game-orbit terminal-game-orbit-one" />
-                <span className="terminal-game-orbit terminal-game-orbit-two" />
-                <span className="terminal-game-center"><Gamepad2 size={34} strokeWidth={1.5} /></span>
-                <span className="terminal-pixel terminal-pixel-one" /><span className="terminal-pixel terminal-pixel-two" /><span className="terminal-pixel terminal-pixel-three" />
-              </div>
-              <div className="terminal-game-info"><span>2 PLAYER <b>·</b> TESTNET</span><strong>Rock Paper Scissors</strong><span>PLAY WITH PCC</span></div>
-              <a href="#play" className="terminal-play" aria-label="Play Rock Paper Scissors"><ArrowRight size={20} /></a>
-            </div>
-          </div>
-        </div>
-        <div className="terminal-footer">
-          <a href="#play"><Gamepad2 size={16} /> Play <ArrowRight size={15} /></a>
-          <a href="#redeem"><Cpu size={16} /> Compute <ArrowRight size={15} /></a>
-          <a className="terminal-explore" href="#loop" aria-label="Explore PromptPlay"><ArrowDown size={18} /></a>
-        </div>
-      </div>
+      <div className="hero-workspace"><AgentTerminal /><GameTerminal /></div>
+      <div className="hero-actions-row"><a className="hero-action-primary" href="#play"><Gamepad2 size={16} /> Play <ArrowRight size={15} /></a><a className="hero-action-link" href="#redeem">Compute <ArrowRight size={15} /></a><a className="hero-action-scroll" href="#loop" aria-label="Explore PromptPlay"><ArrowDown size={18} /></a></div>
     </section>
   )
 }
