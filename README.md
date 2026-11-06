@@ -6,19 +6,14 @@ The game has been exercised on Testnet through the CLI and two isolated browser 
 
 ## Run locally
 
-Install Bun 1.3.10. Contract development also requires Rust with the `wasm32-unknown-unknown` target and `cargo-near`. In separate terminals:
+Install Bun 1.3.10. Contract development also requires Rust with the `wasm32-unknown-unknown` target and `cargo-near`. From the repository root:
 
 ```sh
-cd apps/server
 bun install --frozen-lockfile
 bun run dev
 ```
 
-```sh
-cd apps/web
-bun install --frozen-lockfile
-bun run --bun dev
-```
+Use `bun run dev:web` or `bun run dev:server` to start one app.
 
 Open `http://localhost:3000`. The server defaults to `http://localhost:3001`, uses a local SQLite database, and checks that its NEAR RPC is on Testnet. `apps/server/.env.example` and `apps/web/.env.example` describe configuration. Bun loads `apps/server/.env.local` for local overrides; keep that file private.
 
@@ -33,7 +28,6 @@ The operator-funded demo rate is 5 PCC for one non-transferable gateway unit. In
 Live operation requires an authorized, funded provider, a server-only provider key, confirmed model pricing/context limits, an explicit Testnet wallet allowlist, and the live, authorization and funding flags in `apps/server/.env.example`. The server also checks that the provider advertises the configured model before enabling redemption. Those conditions are **not currently verified**. The local development configuration uses Nebius Token Factory at `https://api.tokenfactory.nebius.com/v1` with `Qwen/Qwen3-30B-A3B-Instruct-2507`; its key stays in ignored server-side environment configuration. An isolated operator-only test verified a real Testnet payment, idempotent crediting, a Nebius response, and metered allowance deduction. Public PCC-to-inference gateway use has not been authorized or enabled; the test used temporary accounting rates, not verified billing rates. The mock is for tests and an offline demonstration only:
 
 ```sh
-cd apps/server
 bun run demo:mock
 ```
 
@@ -43,7 +37,13 @@ For a transfer that was submitted but not credited, sign in with the same wallet
 
 ## Test and verify
 
-Build both contracts from their directories with `cargo near build non-reproducible-wasm`. Run `cargo test --lib` in `contracts/compute-credit` and `cargo test` in `contracts/rps-game`; the sandbox test expects both WASM builds in their respective `target/near` directories. Run `bun test` and `bun x --bun tsc --noEmit` in `apps/server`, and `bun test test/game.test.ts`, `bun x --bun tsc --noEmit` and `bun run --bun build` in `apps/web`.
+Run these commands from the repository root:
+
+- `bun run check` runs JavaScript/TypeScript lint, Rust formatting checks and both app type checks. The lint rules cover selected correctness and suspicious patterns; they are not a full security audit.
+- `bun run build` builds both NEAR contracts and the web app; `bun run build:web` and `bun run build:contracts` run them separately.
+- `bun run test` builds the contracts, runs both app test suites and the contract tests, including the NEAR sandbox integration test. Use `bun run test:apps` or `bun run test:contracts` for a subset.
+
+Contract builds require the Rust WASM target and `cargo-near`; sandbox tests require access to the NEAR sandbox binary.
 
 Testnet contract accounts, deployment transactions and controlled transaction evidence are in `deployments/testnet.json`. The sandbox covers a tie, callback spoof rejection, failed payout and retry. Timeout rules have unit tests but have not yet been verified using realistic sandbox timestamps. The contracts have not been audited. An isolated operator-only Nebius redemption was tested, but a third-party browser-wallet flow and an authorized public provider-funded demonstration remain unverified.
 
