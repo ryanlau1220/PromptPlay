@@ -1,14 +1,14 @@
 export const practiceGames = [
-  { id: 'tic-tac-toe', name: 'Tic-Tac-Toe', icon: '✕', kind: 'Strategy' },
-  { id: 'connect-four', name: 'Connect Four', icon: '●', kind: 'Strategy' },
-  { id: 'memory', name: 'Memory Match', icon: '◇', kind: 'Memory' },
-  { id: 'lights-out', name: 'Lights Out', icon: '✦', kind: 'Puzzle' },
-  { id: 'minesweeper', name: 'Minesweeper', icon: '✳', kind: 'Puzzle' },
-  { id: 'slide', name: 'Sliding Puzzle', icon: '▦', kind: 'Puzzle' },
-  { id: '2048', name: '2048', icon: '²', kind: 'Puzzle' },
-  { id: 'sequence', name: 'Sequence', icon: '◉', kind: 'Memory' },
-  { id: 'codebreaker', name: 'Codebreaker', icon: '#', kind: 'Logic' },
-  { id: 'word-guess', name: 'Word Guess', icon: 'A', kind: 'Word' },
+  { id: 'tic-tac-toe', name: 'Tic-Tac-Toe', kind: 'Strategy' },
+  { id: 'connect-four', name: 'Connect Four', kind: 'Strategy' },
+  { id: 'memory', name: 'Memory Match', kind: 'Memory' },
+  { id: 'lights-out', name: 'Lights Out', kind: 'Puzzle' },
+  { id: 'minesweeper', name: 'Minesweeper', kind: 'Puzzle' },
+  { id: 'slide', name: 'Sliding Puzzle', kind: 'Puzzle' },
+  { id: '2048', name: '2048', kind: 'Puzzle' },
+  { id: 'sequence', name: 'Sequence', kind: 'Memory' },
+  { id: 'codebreaker', name: 'Codebreaker', kind: 'Logic' },
+  { id: 'word-guess', name: 'Word Guess', kind: 'Word' },
 ] as const
 export type GameId = typeof practiceGames[number]['id']
 export const isGameId = (value: string): value is GameId => practiceGames.some(game => game.id === value)
