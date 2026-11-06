@@ -3,10 +3,8 @@ import type React from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
 import {
   Gamepad2,
-  Cpu,
   ShieldCheck,
   ArrowRight,
-  Sparkles,
   Lock,
   Code2,
   Terminal,
@@ -15,6 +13,7 @@ import {
 } from 'lucide-react'
 import { GAME, base64, commitment } from '../lib/game'
 import { useSession } from './Session'
+import { ArcadeScene } from './ArcadeScene'
 
 // ─── Timing constants ──────────────────────────────────────────────────────
 const TIMING = {
@@ -130,68 +129,7 @@ export function ArcadeLobby() {
   return (
     <div className="lobby-container">
 
-      {/* ── HERO SECTION ──────────────────────────────────────────────── */}
-      <section className="hero-section" aria-labelledby="hero-title">
-        <div className="hero-content">
-
-          <FadeUp show={stage >= 1} offsetY={-10} spring={SPRING.stiff}>
-            <div className="hero-kicker-row">
-              <span className="hero-pill">
-                <Sparkles size={13} />
-                <span>NEAR TESTNET ARCADE</span>
-              </span>
-              <span className="hero-pill" style={{ borderColor: 'rgba(255, 184, 0, 0.3)', color: 'var(--amber)', background: 'rgba(255, 184, 0, 0.08)' }}>
-                <Coins size={13} />
-                <span>NEP-141 COMPUTE ASSETS</span>
-              </span>
-            </div>
-          </FadeUp>
-
-          <motion.h1
-            id="hero-title"
-            className="hero-title"
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: stage >= 2 ? 1 : 0, scale: stage >= 2 ? 1 : 0.95 }}
-            transition={SPRING.bouncy}
-          >
-            Your agent codes.<br />
-            <span className="highlight-cyan">You play.</span>
-          </motion.h1>
-
-          <FadeUp show={stage >= 3} offsetY={12} spring={SPRING.smooth}>
-            <div className="hero-actions">
-              <a href="#play" className="btn-primary">
-                <Gamepad2 size={18} />
-                <span>Enter Duel Arena</span>
-                <ArrowRight size={16} />
-              </a>
-              <a href="#redeem" className="btn-accent">
-                <Cpu size={18} />
-                <span>Inference Terminal</span>
-              </a>
-            </div>
-          </FadeUp>
-        </div>
-
-        <motion.div
-          className="developer-scene"
-          role="img"
-          aria-label="A developer works alongside AI agents and an arcade machine"
-          initial={reduced ? false : { opacity: 0, y: 20 }}
-          animate={{ opacity: stage >= 4 ? 1 : 0, y: stage >= 4 ? 0 : 20 }}
-          transition={SPRING.smooth}
-        >
-          <img src="/developer-arcade.webp" alt="" />
-          <span className="scene-agent scene-agent-one" />
-          <span className="scene-agent scene-agent-two" />
-          <span className="scene-agent scene-agent-three" />
-          <span className="scene-spark scene-spark-one" />
-          <span className="scene-spark scene-spark-two" />
-          <span className="scene-spark scene-spark-three" />
-          <span className="scene-code-glow" />
-          <span className="scene-credit" />
-        </motion.div>
-      </section>
+      <ArcadeScene />
 
       {/* ── COMPUTE LOOP SECTION ──────────────────────────────────────── */}
       <section id="loop" className="story-section" aria-labelledby="story-title">
