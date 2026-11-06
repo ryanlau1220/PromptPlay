@@ -18,7 +18,8 @@
     "typecheck": "bun run --parallel --filter \"@promptplay/*\" typecheck",
     "lint": "biome lint apps/web/src apps/web/test apps/server/src apps/server/test && cd contracts/compute-credit && cargo fmt --check && cd ../rps-game && cargo fmt --check",
     "check": "bun run lint && bun run typecheck",
-    "demo:mock": "bun run --filter @promptplay/server demo:mock"
+    "demo:mock": "bun run --filter @promptplay/server demo:mock",
+    "test:timeouts": "bun run build:contracts && cd contracts/rps-game && cargo test --test timeouts -- --ignored"
   },
   "devDependencies": {
     "@biomejs/biome": "2.3.11"
