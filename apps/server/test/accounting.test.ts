@@ -48,3 +48,18 @@ test("two processes cannot reserve the same allowance", async () => {
     check.close();
   } finally { rmSync(dir, {recursive:true, force:true}); }
 });
+
+test('persisted allowance, key and uncertain reservation survive a restart',async()=>{
+  const {mkdtempSync,rmSync}=await import('node:fs');const {tmpdir}=await import('node:os');const {join}=await import('node:path');const {GatewayKeys}=await import('../src/keys')
+  const dir=mkdtempSync(join(tmpdir(),'promptplay-restart-')),path=join(dir,'ledger.sqlite')
+  try {
+    const first=new Database(path),ledger=new Accounting(first,1_000_000),keys=new GatewayKeys(first)
+    ledger.creditReceipt('receipt','intent','alice.testnet',1_000_000);const key=keys.create('alice.testnet',1_000_000)
+    ledger.reserve('uncertain','alice.testnet',120,key.id);first.close()
+    const second=new Database(path),restored=new Accounting(second,1_000_000),restoredKeys=new GatewayKeys(second)
+    expect(restored.balance('alice.testnet')).toBe(999_880);expect(restoredKeys.authenticate(key.key)?.account_id).toBe('alice.testnet')
+    expect(restored.usage('alice.testnet')[0]).toMatchObject({state:'reserved',reserved:120})
+    expect(()=>restored.creditReceipt('receipt','intent','alice.testnet',1_000_000)).not.toThrow();expect(restored.balance('alice.testnet')).toBe(999_880)
+    second.close()
+  } finally {rmSync(dir,{recursive:true,force:true})}
+})
