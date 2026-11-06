@@ -5,22 +5,27 @@ import { ArrowDown, ArrowRight, Check, CircleDollarSign, Code2, Gamepad2, LockKe
 const phases = ['select', 'invite', 'deposit', 'commit', 'reveal', 'claim'] as const
 type Phase = typeof phases[number]
 
-function AgentTerminal() {
+function AgentTerminal({ started, reduced }: { started: boolean; reduced: boolean | null }) {
   return (
     <div className="hero-window hero-agent">
-      <div className="hero-window-bar"><div className="hero-lights" aria-hidden="true"><i /><i /><i /></div><div className="hero-window-title"><Code2 size={14} /> agent</div><span className="hero-window-badge">SIMULATED</span></div>
+      <div className="hero-window-bar"><div className="hero-window-title"><Code2 size={14} /> agent</div><span className="hero-window-badge">SIMULATED</span></div>
       <div className="agent-content" aria-label="Illustrative agent activity">
-        <div className="agent-prompt-label">YOU</div>
-        <div className="agent-prompt"><span className="agent-prompt-first">Give me a production-ready product.</span><span className="agent-prompt-second">Make no mistakes<span className="agent-cursor">▍</span></span></div>
-        <div className="agent-divider" />
-        <div className="agent-response-label"><span /> AGENT</div>
-        <div className="agent-line agent-line-one"><span>›</span> Inspecting the project structure</div>
-        <div className="agent-line agent-line-two"><span>›</span> Mapping the existing flows</div>
-        <div className="agent-line agent-line-three"><span>›</span> Implementing the changes</div>
-        <div className="agent-line agent-line-four"><span>✓</span> Running checks and tests</div>
-        <div className="agent-thinking"><span className="thinking-spinner" /> Working<span className="thinking-dots">...</span></div>
+        <motion.div className={`agent-request ${started ? 'is-sent' : ''}`} layout transition={reduced ? { duration: 0 } : { duration: .55, ease: 'easeInOut' }}>
+          <div className="agent-prompt-label">{started ? 'YOU' : 'PROMPT'}</div>
+          <div className="agent-prompt"><span className="agent-prompt-first">Give me a production-ready product.</span><span className="agent-prompt-second">Make no mistakes<span className="agent-cursor">▍</span></span></div>
+          {!started && <span className="agent-send" aria-hidden="true"><ArrowRight size={16} /></span>}
+        </motion.div>
+        {started && <motion.div className="agent-response" initial={reduced ? false : { opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .4 }}>
+          <div className="agent-divider" />
+          <div className="agent-response-label"><span /> AGENT</div>
+          <div className="agent-line agent-line-one"><span>›</span> Inspecting the project structure</div>
+          <div className="agent-line agent-line-two"><span>›</span> Mapping the existing flows</div>
+          <div className="agent-line agent-line-three"><span>›</span> Implementing the changes</div>
+          <div className="agent-line agent-line-four"><span>✓</span> Running checks and tests</div>
+          <div className="agent-thinking"><span className="thinking-spinner" /> Working<span className="thinking-dots">...</span></div>
+        </motion.div>}
       </div>
-      <div className="hero-window-bottom"><span><span className="agent-status-dot" /> RUNNING</span><span>~ / workspace</span></div>
+      <div className="hero-window-bottom"><span><span className="agent-status-dot" /> {started ? 'RUNNING' : 'READY'}</span><span>~ / workspace</span></div>
     </div>
   )
 }
@@ -34,18 +39,18 @@ function PhaseScreen({ phase }: { phase: Phase }) {
   return <div className="demo-screen"><span className="demo-eyebrow">MATCH COMPLETE</span><div className="demo-icon demo-win"><CircleDollarSign size={31} /></div><strong>10 PCC claimed</strong><div className="demo-commit"><Check size={14} /> Payout confirmed</div><div className="demo-replay">BACK TO ARCADE <ArrowRight size={13} /></div></div>
 }
 
-function GameTerminal() {
+function GameTerminal({ started }: { started: boolean }) {
   const reduced = useReducedMotion()
   const [index, setIndex] = useState(0)
   useEffect(() => {
-    if (reduced) return
+    if (reduced || !started) return
     const timer = window.setInterval(() => { if (!document.hidden) setIndex((current) => (current + 1) % phases.length) }, 3800)
     return () => clearInterval(timer)
-  }, [reduced])
+  }, [reduced, started])
   const phase = reduced ? 'claim' : phases[index]!
   return (
     <div className="hero-window hero-game">
-      <div className="hero-window-bar"><div className="hero-lights" aria-hidden="true"><i /><i /><i /></div><div className="hero-window-title"><Gamepad2 size={15} /> arcade</div><span className="hero-window-badge">SIMULATED</span></div>
+      <div className="hero-window-bar"><div className="hero-window-title"><Gamepad2 size={15} /> arcade</div><span className="hero-window-badge">SIMULATED</span></div>
       <div className="game-terminal-stage" aria-label="Simulated arcade flow: choose a game, invite a friend, deposit, commit, reveal, and claim.">
         <AnimatePresence mode="wait" initial={false}>
           <motion.div className="demo-frame" key={phase} initial={reduced ? false : { opacity: 0, y: 9 }} animate={{ opacity: 1, y: 0 }} exit={reduced ? undefined : { opacity: 0, y: -7 }} transition={{ duration: .25 }}>
@@ -59,10 +64,20 @@ function GameTerminal() {
 }
 
 export function ArcadeScene() {
+  const reduced = useReducedMotion()
+  const [started, setStarted] = useState(false)
+  useEffect(() => {
+    if (reduced) { setStarted(true); return }
+    const timer = window.setTimeout(() => setStarted(true), 5000)
+    return () => window.clearTimeout(timer)
+  }, [reduced])
   return (
     <section className="arcade-hero" aria-label="PromptPlay arcade">
       <h1 className="visually-hidden">PromptPlay arcade</h1>
-      <div className="hero-workspace"><AgentTerminal /><GameTerminal /></div>
+      <div className="hero-shell">
+        <div className="hero-shell-bar"><div className="hero-lights" aria-hidden="true"><i /><i /><i /></div><span>promptplay / workspace</span><span>DEMO</span></div>
+        <div className="hero-workspace"><AgentTerminal started={started} reduced={reduced} /><GameTerminal started={started} /></div>
+      </div>
       <div className="hero-actions-row"><a className="hero-action-primary" href="#play"><Gamepad2 size={16} /> Play <ArrowRight size={15} /></a><a className="hero-action-link" href="#redeem">Compute <ArrowRight size={15} /></a><a className="hero-action-scroll" href="#loop" aria-label="Explore PromptPlay"><ArrowDown size={18} /></a></div>
     </section>
   )

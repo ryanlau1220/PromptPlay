@@ -1597,3 +1597,23 @@ footer.app-footer {
 @media (max-width: 480px) { .arcade-hero { padding: 22px 14px 38px; }.hero-workspace { gap: 12px; }.agent-content { min-height: 350px; padding: 25px 22px; }.agent-prompt { font-size: 15px; }.agent-line { font-size: 11px; }.game-terminal-stage { min-height: 310px; padding: 16px; }.demo-screen { min-height: 275px; }.demo-game { gap: 10px; }.demo-game-art { width: 60px; height: 60px; }.demo-game strong { font-size: 14px; }.demo-players { gap: 5px; font-size: 9px; }.demo-players span { padding: 7px; }.demo-hand { width: 57px; height: 57px; }.hero-actions-row { margin-top: 16px; } }
 @media (prefers-reduced-motion: reduce) { .agent-prompt-first, .agent-prompt-second, .agent-cursor, .agent-line, .thinking-spinner, .demo-game-art i, .demo-win { animation: none; opacity: 1; transform: none; clip-path: none; } }
 @media (max-width: 350px) { .brand-logo > span:not(.brand-pill) { display: none; } }
+/* One workspace, with the agent and arcade as panes. */
+.hero-shell { width: min(100%, 1320px); background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; box-shadow: 0 24px 70px rgba(0,0,0,.2); }
+.hero-shell-bar { height: 46px; padding: 0 19px; display: flex; gap: 15px; align-items: center; border-bottom: 1px solid var(--border); color: var(--text-dim); font: 600 10px var(--font-mono); }
+.hero-shell-bar > span:last-child { margin-left: auto; letter-spacing: .08em; }
+.hero-workspace { width: 100%; gap: 0; }
+.hero-window { border: 0; border-radius: 0; box-shadow: none; background: transparent; }
+.hero-game { border-left: 1px solid var(--border); }
+.hero-window-bar { height: 42px; }
+.agent-content { display: flex; flex-direction: column; justify-content: center; }
+.agent-request { position: relative; padding: 18px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-card); }
+.agent-request.is-sent { padding: 0; background: transparent; border-color: transparent; }
+.agent-request.is-sent .agent-prompt-first, .agent-request.is-sent .agent-prompt-second { animation: none; clip-path: none; }
+.agent-request.is-sent .agent-cursor { display: none; }
+.agent-send { display: grid; place-items: center; margin: 16px 0 0 auto; width: 30px; height: 30px; border-radius: 7px; color: var(--button-primary-text); background: var(--button-primary-bg); }
+.agent-prompt-first, .agent-prompt-second { animation-duration: 5s; animation-iteration-count: 1; animation-fill-mode: both; }
+.agent-prompt-first { animation-name: prompt-entry-first; }.agent-prompt-second { animation-name: prompt-entry-second; }
+@keyframes prompt-entry-first { 0% { clip-path: inset(0 100% 0 0); } 55%, 100% { clip-path: inset(0); } }
+@keyframes prompt-entry-second { 0%, 55% { clip-path: inset(0 100% 0 0); } 90%, 100% { clip-path: inset(0); } }
+@media (max-width: 850px) { .hero-shell { max-width: 620px; }.hero-game { border-left: 0; border-top: 1px solid var(--border); }.hero-workspace { gap: 0; } }
+@media (prefers-reduced-motion: reduce) { .agent-prompt-first, .agent-prompt-second { animation: none; clip-path: none; } }
