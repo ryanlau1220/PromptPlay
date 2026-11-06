@@ -25,7 +25,7 @@ export class Gateway {
     const key=this.keys.authenticate(rawKey); if (!key) throw new Error('Invalid API key')
     if(model!==this.model) throw new Error('Model is not supported')
     if(!Number.isSafeInteger(maxTokens)||maxTokens<1||maxTokens>this.pricing.maxOutputTokens) throw new Error('Invalid output limit')
-    if(!Array.isArray(messages)||messages.length<1||messages.length>32||messages.some(m=>!m||!['system','developer','user','assistant','tool'].includes(m.role)||(typeof m.content!=='string' && !(m.role==='assistant' && m.content===null && Array.isArray(m.tool_calls)))||(m.role==='tool' && typeof m.tool_call_id!=='string')) || new TextEncoder().encode(JSON.stringify({messages,...options})).length>100_000) throw new Error('Invalid messages')
+    if(!Array.isArray(messages)||messages.length<1||messages.length>32||messages.some(m=>!m||!['system','developer','user','assistant','tool'].includes(m.role)||(typeof m.content!=='string' && !(Array.isArray(m.content) && m.content.length>0 && m.content.length<=64 && m.content.every(part=>part && part.type==='text' && typeof part.text==='string')) && !(m.role==='assistant' && m.content===null && Array.isArray(m.tool_calls)))||(m.role==='tool' && typeof m.tool_call_id!=='string')) || new TextEncoder().encode(JSON.stringify({messages,...options})).length>100_000) throw new Error('Invalid messages')
     if(options?.tools && (!Array.isArray(options.tools)||options.tools.length>32)) throw new Error('Invalid messages')
     const now=Date.now(); const rate=this.rates.get(key.account_id)
     if(rate && now-rate.start<60_000){if(rate.count>=10) throw new Error('Rate limit exceeded');rate.count++} else this.rates.set(key.account_id,{start:now,count:1})
