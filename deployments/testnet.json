@@ -34,6 +34,29 @@
       "stakeBaseUnits": "5000000",
       "testMethod": "two isolated browser contexts using locally controlled test wallet adapters; refresh before reveal"
     },
+    "meteorBrowserMatch": {
+      "id": "8",
+      "players": [
+        "arcade-a.ryanlau1220.testnet",
+        "arcade-b.ryanlau1220.testnet"
+      ],
+      "winner": "arcade-a.ryanlau1220.testnet",
+      "stakeBaseUnits": "1000000",
+      "claimTransaction": "4KLYPVz7FA4Rn16pna1uTWSgLiKqFqftSpdHpST7sjFv",
+      "balancesBefore": ["13000000", "17000000"],
+      "balancesAfter": ["14000000", "16000000"],
+      "testMethod": "two isolated Chromium profiles using Meteor Wallet extension 0.8.11 on Testnet; refresh before reveal"
+    },
+    "meteorBrowserTie": {
+      "id": "9",
+      "players": ["arcade-a.ryanlau1220.testnet", "arcade-b.ryanlau1220.testnet"],
+      "winner": null,
+      "stakeBaseUnits": "1000000",
+      "claimTransactions": ["6amwvVFdNUHFg81h21TU1PTGCRTTb55rmj7Pt6py7g1s", "GEyea1vFV3ywjZBroxk2TreKrwpy5oz9qxCbV83tR4LZ"],
+      "balancesBefore": ["14000000", "16000000"],
+      "balancesAfter": ["14000000", "16000000"],
+      "testMethod": "two isolated Chromium profiles using Meteor Wallet extension 0.8.11; app and server restarted during reveal"
+    },
     "automatedTestnetMatches": [
       {
         "id": "6",

@@ -29,10 +29,7 @@ function transferEvent(outcome, from, to, amount) {
   )
 }
 
-try {
-  const status = await rpc('status', [])
-  assert.equal(status.chain_id, 'testnet', 'RPC must be connected to NEAR Testnet')
-  const recorded = evidence.rpsGame.verifiedMatch
+async function verifyMatch(recorded) {
   const query = await rpc('query', {
     request_type: 'call_function', finality: 'final', account_id: evidence.rpsGame.accountId,
     method_name: 'get_match', args_base64: Buffer.from(JSON.stringify({ match_id: recorded.id })).toString('base64')
@@ -46,26 +43,36 @@ try {
   assert.ok(match.players.every(player => player.funded && player.commitment && player.revealed !== null))
   assert.ok(match.players.every(player => player.claim === '0' && !player.pending))
 
-  const payout = await rpc('tx', { tx_hash: recorded.claimTransaction, sender_account_id: recorded.winner, wait_until: 'FINAL' })
-  assert.equal(payout.final_execution_status, 'FINAL')
-  assert.equal(payout.transaction.signer_id, recorded.winner)
-  assert.equal(payout.transaction.receiver_id, evidence.rpsGame.accountId)
-  assert.equal(Buffer.from(payout.status.SuccessValue, 'base64').toString(), 'true', 'Payout callback must succeed')
-  const call = payout.transaction.actions.find(action => action.FunctionCall?.method_name === 'claim_payout')?.FunctionCall
-  assert.ok(call, 'Missing claim_payout call')
-  assert.equal(JSON.parse(Buffer.from(call.args, 'base64').toString()).match_id, recorded.id)
-  assert.ok(transferEvent(payout, evidence.rpsGame.accountId, recorded.winner, (BigInt(recorded.stakeBaseUnits) * 2n).toString()), 'Missing successful PCC payout receipt')
+  const claims = recorded.winner ? [{ account: recorded.winner, hash: recorded.claimTransaction, amount: (BigInt(recorded.stakeBaseUnits) * 2n).toString() }] : recorded.players.map((account, index) => ({ account, hash: recorded.claimTransactions[index], amount: recorded.stakeBaseUnits }))
+  await Promise.all(claims.map(async ({ account, hash, amount }) => {
+    const payout = await rpc('tx', { tx_hash: hash, sender_account_id: account, wait_until: 'FINAL' })
+    assert.equal(payout.final_execution_status, 'FINAL')
+    assert.equal(payout.transaction.signer_id, account)
+    assert.equal(payout.transaction.receiver_id, evidence.rpsGame.accountId)
+    assert.equal(Buffer.from(payout.status.SuccessValue, 'base64').toString(), 'true', 'Payout callback must succeed')
+    const call = payout.transaction.actions.find(action => action.FunctionCall?.method_name === 'claim_payout')?.FunctionCall
+    assert.ok(call, 'Missing claim_payout call')
+    assert.equal(JSON.parse(Buffer.from(call.args, 'base64').toString()).match_id, recorded.id)
+    assert.ok(transferEvent(payout, evidence.rpsGame.accountId, account, amount), 'Missing successful PCC payout receipt')
+  }))
+  return { id: match.id, players: recorded.players, stakeBaseUnits: match.stake, winner: match.winner, claimTransactions: claims.map(claim => claim.hash), blockHeight: query.block_height }
+}
+
+try {
+  const status = await rpc('status', [])
+  assert.equal(status.chain_id, 'testnet', 'RPC must be connected to NEAR Testnet')
+  const matches = await Promise.all([evidence.rpsGame.verifiedMatch, evidence.rpsGame.meteorBrowserMatch, evidence.rpsGame.meteorBrowserTie].map(verifyMatch))
 
   const payment = evidence.redemptionTreasury.openCodeGatewaySmokeTest
-  const tx = await rpc('tx', { tx_hash: payment.transferTransaction, sender_account_id: recorded.winner, wait_until: 'FINAL' })
+  const sender = evidence.rpsGame.verifiedMatch.winner
+  const tx = await rpc('tx', { tx_hash: payment.transferTransaction, sender_account_id: sender, wait_until: 'FINAL' })
   assert.equal(tx.final_execution_status, 'FINAL')
   assert.ok(Object.hasOwn(tx.status, 'SuccessValue'))
-  assert.equal(tx.transaction.signer_id, recorded.winner)
+  assert.equal(tx.transaction.signer_id, sender)
   assert.equal(tx.transaction.receiver_id, evidence.computeCredit.accountId)
-  assert.ok(transferEvent(tx, recorded.winner, evidence.redemptionTreasury.accountId, payment.amountBaseUnits), 'Missing successful PCC treasury transfer receipt')
+  assert.ok(transferEvent(tx, sender, evidence.redemptionTreasury.accountId, payment.amountBaseUnits), 'Missing successful PCC treasury transfer receipt')
 
-  console.log(JSON.stringify({ checkedAt: new Date().toISOString(), network: status.chain_id, blockHeight: query.block_height,
-    match: { id: match.id, players: recorded.players, stakeBaseUnits: match.stake, winner: match.winner, claimTransaction: recorded.claimTransaction },
+  console.log(JSON.stringify({ checkedAt: new Date().toISOString(), network: status.chain_id, matches,
     operatorPayment: { transaction: payment.transferTransaction, amountBaseUnits: payment.amountBaseUnits },
     limitations: 'Read-only chain evidence; does not reproduce browser wallet interactions, infer linkage between match and payment, or verify a live inference request.' }, null, 2))
 } catch (error) {
