@@ -50,6 +50,7 @@ export function GameRoom() {
 
   const [pending, setPending] = useState(false)
   const pendingAction = useRef(false)
+  const [confirmedDeposit, setConfirmedDeposit] = useState<{ account: string; matchId: string } | null>(null)
   const [message, setMessage] = useState('')
   const [txHash, setTxHash] = useState('')
   const [copiedLink, setCopiedLink] = useState(false)
@@ -257,6 +258,7 @@ export function GameRoom() {
       deposit: '1'
     })
     confirmStakeTransfer(transferred, room.stake)
+    setConfirmedDeposit({ account, matchId: room.id })
   }
 
   async function choose(choice: number) {
@@ -519,9 +521,9 @@ export function GameRoom() {
           {/* GAME ACTION CONTROLS */}
           {me && room.phase === 'Funding' && !me.funded && (
             <div style={{ textAlign: 'center', padding: '16px 0' }}>
-              <button className="btn-primary" disabled={pending} onClick={() => void action(fund)}>
+              <button className="btn-primary" disabled={pending || (confirmedDeposit?.account === account && confirmedDeposit.matchId === room.id)} onClick={() => void action(fund)}>
                 <ShieldCheck size={18} />
-                <span>Deposit {pcc(room.stake)} PCC Into Escrow</span>
+                <span>{confirmedDeposit?.account === account && confirmedDeposit.matchId === room.id ? 'Deposit confirmed · updating match…' : `Deposit ${pcc(room.stake)} PCC Into Escrow`}</span>
               </button>
             </div>
           )}
