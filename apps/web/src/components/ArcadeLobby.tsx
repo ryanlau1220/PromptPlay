@@ -148,7 +148,7 @@ export function ArcadeLobby() {
 
           <div className="games-grid">
             <a href="#play" className="game-tile game-tile-featured"><GameArtwork id="rps" /><span><strong>Rock Paper Scissors</strong><small>2 PLAYERS · PCC</small></span></a>
-            {practiceGames.map(game => <a href={`#practice/${game.id}`} className="game-tile" key={game.id}><GameArtwork id={game.id} /><span><strong>{game.name}</strong><small>{game.kind} · PRACTICE</small></span></a>)}
+            {practiceGames.map(game => <a href={`#practice/${game.id}`} className="game-tile" key={game.id}><GameArtwork id={game.id} /><span><strong>{game.name}</strong><small>OFF-CHAIN · NO PCC</small></span></a>)}
           </div>
 
         </FadeUp>
