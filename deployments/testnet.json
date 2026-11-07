@@ -33,7 +33,117 @@
       "winner": "ryanlau1220.testnet",
       "stakeBaseUnits": "5000000",
       "testMethod": "two isolated browser contexts using locally controlled test wallet adapters; refresh before reveal"
-    }
+    },
+    "automatedTestnetMatches": [
+      {
+        "id": "6",
+        "players": [
+          "arcade-a.ryanlau1220.testnet",
+          "arcade-b.ryanlau1220.testnet"
+        ],
+        "stakeBaseUnits": "1000000",
+        "outcome": "win",
+        "balancesBefore": [
+          "12000000",
+          "18000000"
+        ],
+        "balancesAfter": [
+          "13000000",
+          "17000000"
+        ],
+        "transactions": [
+          {
+            "step": "create",
+            "hash": "E8J38NfuxuxJSn7bFc1edv2TjcHLiWyLSbBWG8eHSXpD"
+          },
+          {
+            "step": "fund-0",
+            "hash": "AxRbZRecUHreczYYsiUSyLCdbv5BLNn5VaUZM9xh7Xn3"
+          },
+          {
+            "step": "fund-1",
+            "hash": "7peRzy8ULJ8YLH12bNVdFfBgTGfhFUrn9yGn8HCGHcho"
+          },
+          {
+            "step": "commit-0",
+            "hash": "4WRWXDqLJEL9ry9X4DFJGw22rLnhp3PXQaJ1T7Rh7JFL"
+          },
+          {
+            "step": "commit-1",
+            "hash": "F2RaDJwzS5pEc4vitF5xHMnMHZ1yy8Pi2egvaewN1ZE6"
+          },
+          {
+            "step": "reveal-0",
+            "hash": "muwQFU5PcN1qJ1smBPmsmQmA4C6dnqyqUUcrZkRnVrD"
+          },
+          {
+            "step": "reveal-1",
+            "hash": "7hKeMAgLULtPAmRoVQuedSrXSPCA15GXyVY2FBXJfx32"
+          },
+          {
+            "step": "claim",
+            "hash": "jScKsr1kbYnugivLX3z14Ff75WS87xyWqBaKJQ2c6h4"
+          }
+        ],
+        "testMethod": "operator-run near-api-js signers; not browser wallets"
+      },
+      {
+        "id": "7",
+        "players": [
+          "arcade-a.ryanlau1220.testnet",
+          "arcade-b.ryanlau1220.testnet"
+        ],
+        "stakeBaseUnits": "1000000",
+        "outcome": "tie",
+        "balancesBefore": [
+          "13000000",
+          "17000000"
+        ],
+        "balancesAfter": [
+          "13000000",
+          "17000000"
+        ],
+        "transactions": [
+          {
+            "step": "create",
+            "hash": "EwcUpMxP453SnvKsH9HrfLNoTWWGXrGgRvHo4d4vSKEF"
+          },
+          {
+            "step": "fund-0",
+            "hash": "465MyUt7wKN5j6CFrbQbVFPD33N2P7ABJxZ8vwMCdzbt"
+          },
+          {
+            "step": "fund-1",
+            "hash": "Fmw44gDES4eodd2wVEZCDVqp4tNisYVW1DiRc8ZwjNfK"
+          },
+          {
+            "step": "commit-0",
+            "hash": "BaMWad8imUq8TRE4zC7xLgEW9TuAY7hJyN1aS5YvRne4"
+          },
+          {
+            "step": "commit-1",
+            "hash": "5sScnPnrSKC9jjrDqq98fWzdy2cfnfTBis47voXPc8wQ"
+          },
+          {
+            "step": "reveal-0",
+            "hash": "6xXBo9qr2yH3zWJMY4gun7e7hZ3SJ3fS1qKiKupz9dqK"
+          },
+          {
+            "step": "reveal-1",
+            "hash": "Ffyuf8F3e3MmCEMeoX8NUDHMNEhADN4euw9mFuVkiB2g"
+          },
+          {
+            "step": "claim-0",
+            "hash": "HrmaNoDNqPuUXk8jyrrJPKXTj2orj6xkPwi5wPjPdbqj"
+          },
+          {
+            "step": "claim-1",
+            "hash": "8hKCGbqrvZ621f5xN5GgS8jw924mJCFciNq6Wu5Gm39q"
+          }
+        ],
+        "testMethod": "operator-run near-api-js signers; not browser wallets"
+      }
+    ]
   },
   "redemptionTreasury": {
     "accountId": "treasury.ryanlau1220.testnet",
