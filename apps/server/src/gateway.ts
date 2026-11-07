@@ -1,13 +1,15 @@
 import { randomUUID } from 'node:crypto'
 import type { Accounting } from './accounting'
 import type { GatewayKeys } from './keys'
-import type { ChatMessage, ChatOptions, InferenceProvider } from './provider'
+import type { ChatMessage, ChatOptions, InferenceProvider, StreamEvent } from './provider'
 
 export type Pricing = { inputMicrosPerMillion:number; outputMicrosPerMillion:number; microsPerUnit:number; contextTokens:number; maxOutputTokens:number }
 function ceil(n:bigint,d:bigint) { return (n+d-1n)/d }
 function positive(n:number) { return Number.isSafeInteger(n) && n > 0 }
 export class Gateway {
   private rates=new Map<string,{start:number;count:number}>()
+  private activeRequests=0
+  private activeByAccount=new Map<string,number>()
   constructor(private ledger:Accounting, private keys:GatewayKeys, private provider:InferenceProvider, readonly model:string, private pricing:Pricing) {
     if (!model || !Object.values(pricing).every(positive) || pricing.maxOutputTokens > pricing.contextTokens) throw new Error('Invalid gateway pricing or token limits')
     if (this.cost(pricing.contextTokens,Math.min(128,pricing.maxOutputTokens)) > 1_000_000) throw new Error('One demo unit cannot cover the request reservation')
@@ -29,34 +31,47 @@ export class Gateway {
     if(!Array.isArray(messages)||messages.length<1||messages.length>32||messages.some(m=>!m||!['system','developer','user','assistant','tool'].includes(m.role)||(typeof m.content!=='string' && !(Array.isArray(m.content) && m.content.length>0 && m.content.length<=64 && m.content.every(part=>part && part.type==='text' && typeof part.text==='string')) && !(m.role==='assistant' && m.content===null && Array.isArray(m.tool_calls)))||(m.role==='tool' && typeof m.tool_call_id!=='string')) || new TextEncoder().encode(JSON.stringify({messages,...options})).length>100_000) throw new Error('Invalid messages')
     if(options?.tools && (!Array.isArray(options.tools)||options.tools.length>32)) throw new Error('Invalid messages')
     const now=Date.now(); const rate=this.rates.get(key.account_id)
+    if(this.activeRequests>=8 || (this.activeByAccount.get(key.account_id) ?? 0)>=2) throw new Error('Concurrency limit exceeded')
     if(rate && now-rate.start<60_000){if(rate.count>=10) throw new Error('Rate limit exceeded');rate.count++} else this.rates.set(key.account_id,{start:now,count:1})
     const requestId=randomUUID(); this.ledger.reserve(requestId,key.account_id,this.cost(this.pricing.contextTokens,maxTokens),key.id)
-    return {requestId,now}
+    this.activeRequests++;this.activeByAccount.set(key.account_id,(this.activeByAccount.get(key.account_id) ?? 0)+1)
+    let released=false
+    const release=()=>{
+      if(released)return
+      released=true;this.activeRequests--
+      const remaining=(this.activeByAccount.get(key.account_id) ?? 1)-1
+      if(remaining) this.activeByAccount.set(key.account_id,remaining); else this.activeByAccount.delete(key.account_id)
+    }
+    return {requestId,now,release}
   }
   private settle(requestId:string,inputTokens:number,outputTokens:number,maxTokens:number) {
     if(!Number.isSafeInteger(inputTokens)||!Number.isSafeInteger(outputTokens)||inputTokens<0||outputTokens<0||outputTokens>maxTokens||inputTokens+outputTokens>this.pricing.contextTokens) throw new Error('Provider usage exceeds configured limits')
     this.ledger.settle(requestId,this.cost(inputTokens,outputTokens),{inputTokens,outputTokens})
   }
   async complete(rawKey:string, model:string, messages:ChatMessage[], maxTokens:number, options?:ChatOptions) {
-    const {requestId,now}=this.reserve(rawKey,model,messages,maxTokens,options)
-    const response=await this.provider.complete(messages,maxTokens,options)
-    this.settle(requestId,response.inputTokens,response.outputTokens,maxTokens)
-    return {id:`chatcmpl-${requestId}`,object:'chat.completion',created:Math.floor(now/1000),model:this.model,choices:[{index:0,message:{role:'assistant',content:response.text,...(response.toolCalls?{tool_calls:response.toolCalls}:{})},finish_reason:response.finishReason}],usage:{prompt_tokens:response.inputTokens,completion_tokens:response.outputTokens,total_tokens:response.inputTokens+response.outputTokens}}
+    const {requestId,now,release}=this.reserve(rawKey,model,messages,maxTokens,options)
+    try {
+      const response=await this.provider.complete(messages,maxTokens,options)
+      this.settle(requestId,response.inputTokens,response.outputTokens,maxTokens)
+      return {id:`chatcmpl-${requestId}`,object:'chat.completion',created:Math.floor(now/1000),model:this.model,choices:[{index:0,message:{role:'assistant',content:response.text,...(response.toolCalls?{tool_calls:response.toolCalls}:{})},finish_reason:response.finishReason}],usage:{prompt_tokens:response.inputTokens,completion_tokens:response.outputTokens,total_tokens:response.inputTokens+response.outputTokens}}
+    } finally { release() }
   }
   stream(rawKey:string,model:string,messages:ChatMessage[],maxTokens:number,options?:ChatOptions) {
     if(!this.provider.stream) throw new Error('Streaming is not supported')
-    const {requestId}=this.reserve(rawKey,model,messages,maxTokens,options)
-    const iterator=this.provider.stream(messages,maxTokens,options),encoder=new TextEncoder()
+    const {requestId,release}=this.reserve(rawKey,model,messages,maxTokens,options)
+    let iterator:AsyncGenerator<StreamEvent>
+    try { iterator=this.provider.stream(messages,maxTokens,options) } catch(error) { release(); throw error }
+    const encoder=new TextEncoder()
     let counts:{inputTokens:number;outputTokens:number}|undefined
     const settle=this.settle.bind(this)
     return new ReadableStream<Uint8Array>({
       async pull(controller){try{
         const result=await iterator.next()
-        if(result.done){if(!counts) throw new Error('Provider stream lacks usage');settle(requestId,counts.inputTokens,counts.outputTokens,maxTokens);controller.enqueue(encoder.encode('data: [DONE]\n\n'));controller.close();return}
+        if(result.done){if(!counts) throw new Error('Provider stream lacks usage');settle(requestId,counts.inputTokens,counts.outputTokens,maxTokens);controller.enqueue(encoder.encode('data: [DONE]\n\n'));controller.close();release();return}
         if(result.value.usage){if(counts) throw new Error('Duplicate provider usage');counts=result.value.usage}
         controller.enqueue(encoder.encode(`data: ${result.value.data}\n\n`))
-      }catch{controller.error(new Error('Inference stream could not be completed'))}},
-      async cancel(){await iterator.return(undefined).catch(()=>{})}
+      }catch{await iterator.return(undefined).catch(()=>{});release();controller.error(new Error('Inference stream could not be completed'))}},
+      async cancel(){try{await iterator.return(undefined).catch(()=>{})}finally{release()}}
     })
   }
 }

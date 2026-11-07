@@ -85,6 +85,21 @@ test('chat endpoint passes tool calls and streams metered events',async()=>{
  const second=await send(true);expect(second.status).toBe(200);expect(second.headers.get('content-type')).toContain('text/event-stream');expect(await second.text()).toContain('data: [DONE]');expect(ledger.balance('alice.testnet')).toBe(988)
 })
 
+test('chat endpoint returns 429 when the account concurrency limit is reached',async()=>{
+ const {Gateway}=await import('../src/gateway')
+ const db=new Database(':memory:'),rpc=new JsonRpcProvider({url:'https://test.rpc.fastnear.com'}),ledger=new Accounting(db,1000),auth=new WalletAuth(db,rpc,async()=>{}),redemption=new Redemption(db,ledger,rpc),keys=new GatewayKeys(db)
+ ledger.creditReceipt('r','i','alice.testnet',1000);const key=keys.create('alice.testnet',1000)
+ let release!:()=>void, bothStarted!:()=>void, started=0
+ const waiting=new Promise<void>(resolve=>{release=resolve}),ready=new Promise<void>(resolve=>{bothStarted=resolve})
+ const provider={async complete(){if(++started===2)bothStarted();await waiting;return {text:'ok',inputTokens:2,outputTokens:2,finishReason:'stop'}}}
+ const gateway=new Gateway(ledger,keys,provider,'model',{inputMicrosPerMillion:1000000,outputMicrosPerMillion:2000000,microsPerUnit:1000000,contextTokens:100,maxOutputTokens:10})
+ const app=createApp({auth,redemption,ledger,keys,gateway,faucet:null,allowRedemption:false,redemptionAllowlist:new Set(),origin:'http://localhost:3000'})
+ const send=()=>app.handle(new Request('http://localhost/v1/chat/completions',{method:'POST',headers:{'content-type':'application/json',authorization:`Bearer ${key.key}`},body:JSON.stringify({model:'model',messages:[{role:'user',content:'test'}],max_tokens:10})}))
+ const a=send(),b=send();await ready
+ const rejected=await send();expect(rejected.status).toBe(429);expect(await rejected.json()).toMatchObject({error:{code:'rate_limit'}})
+ release();expect((await a).status).toBe(200);expect((await b).status).toBe(200)
+})
+
 test('accepts structured text parts and rejects image inputs',async()=>{
  const {Gateway}=await import('../src/gateway');const {mockProvider}=await import('../src/provider')
  const db=new Database(':memory:'),rpc=new JsonRpcProvider({url:'https://test.rpc.fastnear.com'}),ledger=new Accounting(db,1000),auth=new WalletAuth(db,rpc,async()=>{}),redemption=new Redemption(db,ledger,rpc),keys=new GatewayKeys(db)

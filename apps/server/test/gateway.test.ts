@@ -21,6 +21,9 @@ test('uncertain provider failure keeps the reservation',async()=>{
  const g=new Gateway(ledger,keys,{complete:async()=>{throw new Error('timeout')}},'model',pricing)
  await expect(g.complete(key.key,'model',[{role:'user',content:'hello'}],10)).rejects.toThrow()
  expect(ledger.balance('alice')).toBe(880);expect(ledger.usage('alice')[0]).toMatchObject({reserved:120,state:'reserved'})
+ await expect(g.complete(key.key,'model',[{role:'user',content:'again'}],10)).rejects.toThrow('timeout')
+ await expect(g.complete(key.key,'model',[{role:'user',content:'again'}],10)).rejects.toThrow('timeout')
+ expect(ledger.usage('alice').filter((request:any)=>request.state==='reserved')).toHaveLength(3)
 })
 test('simultaneous requests cannot spend the same key quota',async()=>{
  const db=new Database(':memory:'),ledger=new Accounting(db,1000),keys=new GatewayKeys(db)
@@ -30,6 +33,41 @@ test('simultaneous requests cannot spend the same key quota',async()=>{
  const first=g.complete(key.key,'model',[{role:'user',content:'a'}],10)
  await expect(g.complete(key.key,'model',[{role:'user',content:'b'}],10)).rejects.toThrow('quota')
  release();await first;expect(ledger.balance('alice')).toBe(994)
+})
+
+test('limits concurrent requests across keys for one account and releases slots',async()=>{
+ const db=new Database(':memory:'),ledger=new Accounting(db,10000),keys=new GatewayKeys(db)
+ ledger.creditReceipt('r','i','alice',10000);const a=keys.create('alice',10000),b=keys.create('alice',10000)
+ let release!:()=>void;const waiting=new Promise<void>(resolve=>{release=resolve})
+ const gateway=new Gateway(ledger,keys,{complete:async()=>{await waiting;return {text:'ok',inputTokens:2,outputTokens:2,finishReason:'stop'}}},'model',pricing)
+ const first=gateway.complete(a.key,'model',[{role:'user',content:'a'}],10),second=gateway.complete(b.key,'model',[{role:'user',content:'b'}],10)
+ await expect(gateway.complete(a.key,'model',[{role:'user',content:'c'}],10)).rejects.toThrow('Concurrency limit')
+ expect(ledger.usage('alice')).toHaveLength(2)
+ release();await Promise.all([first,second])
+ await expect(gateway.complete(a.key,'model',[{role:'user',content:'d'}],10)).resolves.toBeDefined()
+})
+
+test('limits total concurrency across accounts',async()=>{
+ const db=new Database(':memory:'),ledger=new Accounting(db,100000),keys=new GatewayKeys(db)
+ let release!:()=>void;const waiting=new Promise<void>(resolve=>{release=resolve})
+ const gateway=new Gateway(ledger,keys,{complete:async()=>{await waiting;return {text:'ok',inputTokens:2,outputTokens:2,finishReason:'stop'}}},'model',pricing)
+ const created=Array.from({length:9},(_,i)=>{const id=`player-${i}`;ledger.creditReceipt(`r${i}`,`i${i}`,id,10000);return keys.create(id,10000)})
+ const calls=created.slice(0,8).map(key=>gateway.complete(key.key,'model',[{role:'user',content:'hi'}],10))
+ await expect(gateway.complete(created[8]!.key,'model',[{role:'user',content:'hi'}],10)).rejects.toThrow('Concurrency limit')
+ release();await Promise.all(calls)
+ await expect(gateway.complete(created[8]!.key,'model',[{role:'user',content:'hi'}],10)).resolves.toBeDefined()
+})
+
+test('releases a cancelled stream slot without releasing its uncertain reservation',async()=>{
+ const db=new Database(':memory:'),ledger=new Accounting(db,10000),keys=new GatewayKeys(db);ledger.creditReceipt('r','i','alice',10000);const key=keys.create('alice',10000)
+ const provider={...mockProvider(),async *stream(){yield {data:'{"choices":[]}'};yield {data:'{"choices":[]}'}}}
+ const gateway=new Gateway(ledger,keys,provider,'model',pricing),messages=[{role:'user' as const,content:'hi'}]
+ const a=gateway.stream(key.key,'model',messages,10).getReader(),b=gateway.stream(key.key,'model',messages,10).getReader()
+ await a.read();await b.read()
+ expect(()=>gateway.stream(key.key,'model',messages,10)).toThrow('Concurrency limit')
+ await a.cancel()
+ const c=gateway.stream(key.key,'model',messages,10).getReader();await c.read();await c.cancel();await b.cancel()
+ expect(ledger.usage('alice').filter((r:any)=>r.state==='reserved')).toHaveLength(3)
 })
 
 test('rejects a demo rate that cannot cover the reserved request',()=>{

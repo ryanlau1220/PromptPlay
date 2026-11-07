@@ -49,7 +49,7 @@ export function createApp({auth, redemption, ledger, allowRedemption, origin, ke
         if(body.stream) return new Response(gateway.stream(raw,body.model,messages,max,options),{headers:{'content-type':'text/event-stream','cache-control':'no-cache','x-accel-buffering':'no'}})
         return await gateway.complete(raw,body.model,messages,max,options)
       }catch(e){
-        const msg=e instanceof Error ? e.message : '';const payment=msg==='Insufficient allowance'||msg==='Key quota exceeded or revoked';const limited=msg==='Project spending cap exceeded'||msg==='Rate limit exceeded';const invalid=msg==='Model is not supported'||msg==='Invalid output limit'||msg==='Invalid messages'||msg==='Streaming is not supported'
+        const msg=e instanceof Error ? e.message : '';const payment=msg==='Insufficient allowance'||msg==='Key quota exceeded or revoked';const limited=msg==='Project spending cap exceeded'||msg==='Rate limit exceeded'||msg==='Concurrency limit exceeded';const invalid=msg==='Model is not supported'||msg==='Invalid output limit'||msg==='Invalid messages'||msg==='Streaming is not supported'
         set.status=payment?402:limited?429:invalid?400:502
         return {error:{message:payment?'Insufficient allowance or key quota':limited?'Spending or rate limit reached':invalid?msg:'Inference request could not be completed',type:payment?'insufficient_quota':limited?'rate_limit_error':invalid?'invalid_request_error':'server_error',code:payment?'insufficient_quota':limited?'rate_limit':invalid?'invalid_request':'upstream_error'}}
       }
