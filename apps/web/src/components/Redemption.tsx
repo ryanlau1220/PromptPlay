@@ -215,9 +215,9 @@ export function Redemption() {
             <small style={{ fontSize: '14px', color: 'var(--text-muted)' }}>UNITS</small>
           </span>
           <span className="hint">
-            {balance !== null
-              ? `Funded capacity: $${(Number(config?.microsPerUnit || 1_000_000) / 1_000_000 * (balance / 1_000_000)).toFixed(4)} USD`
-              : 'Sign challenge to inspect'}
+            {balance === null ? 'Sign challenge to inspect' : config?.microsPerUnit
+              ? `Funded capacity: $${(config.microsPerUnit / 1_000_000 * (balance / 1_000_000)).toFixed(4)} USD`
+              : 'Funding terms unavailable'}
           </span>
         </div>
 
@@ -239,11 +239,11 @@ export function Redemption() {
               }}
             />
             <span style={{ fontSize: '20px' }}>
-              {config?.redemptionAvailable ? 'ONLINE' : 'GATE ACTIVE'}
+              {!config ? 'CONNECTING' : config.redemptionAvailable ? 'ENABLED' : 'DISABLED'}
             </span>
           </span>
           <span className="hint">
-            {config?.redemptionAvailable ? 'Upstream Connected' : 'Gate Active'}
+            {!config ? 'Checking gateway' : config.redemptionAvailable ? 'Operator-funded demo' : 'Live redemption unavailable'}
           </span>
         </div>
       </div>
