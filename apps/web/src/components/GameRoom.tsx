@@ -26,6 +26,7 @@ import {
   amount,
   base64,
   commitment,
+  confirmStakeTransfer,
   fromBase64,
   pcc,
   secretKey,
@@ -48,6 +49,7 @@ export function GameRoom() {
   const room = loadedRoom?.id === id ? loadedRoom : null
 
   const [pending, setPending] = useState(false)
+  const pendingAction = useRef(false)
   const [message, setMessage] = useState('')
   const [txHash, setTxHash] = useState('')
   const [copiedLink, setCopiedLink] = useState(false)
@@ -178,6 +180,8 @@ export function GameRoom() {
   }
 
   async function action(fn: () => Promise<void>, refreshAfter = true) {
+    if (pendingAction.current) return
+    pendingAction.current = true
     setPending(true)
     setTxHash('')
     setMessage('Waiting for wallet signature & blockchain confirmation…')
@@ -192,11 +196,14 @@ export function GameRoom() {
     } catch (err) {
       setMessage(err instanceof Error ? err.message : 'Transaction was not completed.')
     } finally {
+      pendingAction.current = false
       setPending(false)
     }
   }
 
   async function claimFaucet() {
+    if (pendingAction.current) return
+    pendingAction.current = true
     setPending(true)
     setTxHash('')
     setMessage('Authenticating wallet challenge for Testnet faucet…')
@@ -215,6 +222,7 @@ export function GameRoom() {
     } catch (err) {
       setMessage(err instanceof Error ? err.message : 'Faucet claim failed.')
     } finally {
+      pendingAction.current = false
       setPending(false)
     }
   }
@@ -241,13 +249,14 @@ export function GameRoom() {
 
   async function fund() {
     if (!room) return
-    await callFunction({
+    const transferred = await callFunction({
       contractId: TOKEN,
       method: 'ft_transfer_call',
       args: { receiver_id: GAME, amount: room.stake, memo: null, msg: room.id },
       gas: '100000000000000',
       deposit: '1'
     })
+    confirmStakeTransfer(transferred, room.stake)
   }
 
   async function choose(choice: number) {
