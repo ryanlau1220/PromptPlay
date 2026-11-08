@@ -24,6 +24,7 @@
     "test:testnet-match": "bun apps/server/src/testnet-match.ts",
     "test:testnet-journey": "bun apps/server/src/testnet-journey.ts",
     "test:browser": "bun scripts/test-browser-match.ts",
+    "test:self-hosted": "bun apps/server/src/ollama-check.ts",
     "test:timeouts": "bun run build:contracts && cd contracts/rps-game && cargo test --test timeouts -- --ignored"
   },
   "devDependencies": {
