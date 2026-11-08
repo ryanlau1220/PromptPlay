@@ -182,6 +182,24 @@
       "amountBaseUnits": "5000000",
       "scope": "real finalized Testnet transfer and wallet auth with simulated inference in isolated local database; no live provider"
     },
+    "localOperatorGatewaySmokeTest": {
+      "transferTransaction": "DUiKv1ceybjjyrkwoLJjT4QYKZk18diixrJiMetHzzFx",
+      "receiptId": "Cob6tWHnTkLWb88qE1SLkDmKqbBdB3HpVWfTCGwps2Ee",
+      "account": "ryanlau1220.testnet",
+      "amountBaseUnits": "5000000",
+      "model": "Qwen/Qwen3-30B-A3B-Instruct-2507",
+      "scope": "local operator-only server; real Testnet payment, replay check, and Nebius streaming tool call; no public access",
+      "allowanceBeforeMicrounits": 1000000,
+      "allowanceAfterMicrounits": 999978,
+      "inputTokens": 154,
+      "outputTokens": 20,
+      "openCode": {
+        "version": "1.18.21",
+        "scope": "isolated local workspace; real file-read tool through the local gateway",
+        "allowanceBeforeMicrounits": 999807,
+        "allowanceAfterMicrounits": 995424
+      }
+    },
     "openCodeGatewaySmokeTest": {
       "transferTransaction": "2jJQrZkWHHyGY8C35DSeoPDSCDxGQXYA5QnKvzXbNC9X",
       "amountBaseUnits": "5000000",

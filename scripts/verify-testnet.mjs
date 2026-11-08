@@ -63,17 +63,19 @@ try {
   assert.equal(status.chain_id, 'testnet', 'RPC must be connected to NEAR Testnet')
   const matches = await Promise.all([evidence.rpsGame.verifiedMatch, evidence.rpsGame.meteorBrowserMatch, evidence.rpsGame.meteorBrowserTie].map(verifyMatch))
 
-  const payment = evidence.redemptionTreasury.openCodeGatewaySmokeTest
-  const sender = evidence.rpsGame.verifiedMatch.winner
-  const tx = await rpc('tx', { tx_hash: payment.transferTransaction, sender_account_id: sender, wait_until: 'FINAL' })
-  assert.equal(tx.final_execution_status, 'FINAL')
-  assert.ok(Object.hasOwn(tx.status, 'SuccessValue'))
-  assert.equal(tx.transaction.signer_id, sender)
-  assert.equal(tx.transaction.receiver_id, evidence.computeCredit.accountId)
-  assert.ok(transferEvent(tx, sender, evidence.redemptionTreasury.accountId, payment.amountBaseUnits), 'Missing successful PCC treasury transfer receipt')
+  const payments = [evidence.redemptionTreasury.openCodeGatewaySmokeTest, evidence.redemptionTreasury.localOperatorGatewaySmokeTest]
+  await Promise.all(payments.map(async payment => {
+    const sender = payment.account ?? evidence.rpsGame.verifiedMatch.winner
+    const tx = await rpc('tx', { tx_hash: payment.transferTransaction, sender_account_id: sender, wait_until: 'FINAL' })
+    assert.equal(tx.final_execution_status, 'FINAL')
+    assert.ok(Object.hasOwn(tx.status, 'SuccessValue'))
+    assert.equal(tx.transaction.signer_id, sender)
+    assert.equal(tx.transaction.receiver_id, evidence.computeCredit.accountId)
+    assert.ok(transferEvent(tx, sender, evidence.redemptionTreasury.accountId, payment.amountBaseUnits), 'Missing successful PCC treasury transfer receipt')
+  }))
 
   console.log(JSON.stringify({ checkedAt: new Date().toISOString(), network: status.chain_id, matches,
-    operatorPayment: { transaction: payment.transferTransaction, amountBaseUnits: payment.amountBaseUnits },
+    operatorPayments: payments.map(payment => ({ transaction: payment.transferTransaction, amountBaseUnits: payment.amountBaseUnits })),
     limitations: 'Read-only chain evidence; does not reproduce browser wallet interactions, infer linkage between match and payment, or verify a live inference request.' }, null, 2))
 } catch (error) {
   console.error('Testnet evidence verification failed:', error instanceof Error ? error.message : String(error))
