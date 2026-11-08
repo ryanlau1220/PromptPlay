@@ -57,6 +57,14 @@
       "balancesAfter": ["14000000", "16000000"],
       "testMethod": "two isolated Chromium profiles using Meteor Wallet extension 0.8.11; app and server restarted during reveal"
     },
+    "automatedMeteorMatch": {
+      "id": "14",
+      "players": ["arcade-a.ryanlau1220.testnet", "arcade-b.ryanlau1220.testnet"],
+      "winner": "arcade-a.ryanlau1220.testnet",
+      "stakeBaseUnits": "1000000",
+      "claimTransaction": "DwgM6MYfjM3TJiteB3kBNcPTpwLDErkWRS4bgAn4qXjQ",
+      "testMethod": "automated Chromium profiles and Meteor Wallet 0.8.11; refreshed before reveal; payout receipt independently verified"
+    },
     "journeyMatch": {
       "id": "10",
       "players": ["ryanlau1220.testnet", "arcade-b.ryanlau1220.testnet"],

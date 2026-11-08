@@ -61,7 +61,7 @@ async function verifyMatch(recorded) {
 try {
   const status = await rpc('status', [])
   assert.equal(status.chain_id, 'testnet', 'RPC must be connected to NEAR Testnet')
-  const matches = await Promise.all([evidence.rpsGame.verifiedMatch, evidence.rpsGame.meteorBrowserMatch, evidence.rpsGame.meteorBrowserTie, evidence.rpsGame.journeyMatch].map(verifyMatch))
+  const matches = await Promise.all([evidence.rpsGame.verifiedMatch, evidence.rpsGame.meteorBrowserMatch, evidence.rpsGame.meteorBrowserTie, evidence.rpsGame.journeyMatch, evidence.rpsGame.automatedMeteorMatch].map(verifyMatch))
 
   const payments = [evidence.redemptionTreasury.openCodeGatewaySmokeTest, evidence.redemptionTreasury.localOperatorGatewaySmokeTest, evidence.redemptionTreasury.journeyPayment]
   await Promise.all(payments.map(async payment => {
