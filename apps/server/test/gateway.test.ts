@@ -15,6 +15,17 @@ test('meters a mock response and enforces key quota',async()=>{
  await expect(g.complete(key.key,'other',[{role:'user',content:'hello'}],10)).rejects.toThrow('Model')
  keys.revoke('alice',key.id);await expect(g.complete(key.key,'model',[{role:'user',content:'hello'}],10)).rejects.toThrow('API key')
 })
+test('requires explicit streaming and tool capabilities before reserving allowance',async()=>{
+ const db=new Database(':memory:'),ledger=new Accounting(db,1000),keys=new GatewayKeys(db)
+ ledger.creditReceipt('r','i','alice',1000);const key=keys.create('alice',1000)
+ const provider={...mockProvider(),async *stream(){yield {data:'{}'}}}
+ const gateway=new Gateway(ledger,keys,provider,'model',pricing)
+ const messages=[{role:'user' as const,content:'hello'}]
+ expect(()=>gateway.stream(key.key,'model',messages,10)).toThrow('Streaming is not supported')
+ await expect(gateway.complete(key.key,'model',messages,10,{tools:[{type:'function'}]})).rejects.toThrow('Tool calling is not supported')
+ await expect(gateway.complete(key.key,'model',[{role:'tool',content:'result',tool_call_id:'call'}],10)).rejects.toThrow('Tool calling is not supported')
+ expect(ledger.usage('alice')).toHaveLength(0);expect(ledger.balance('alice')).toBe(1000)
+})
 test('uncertain provider failure keeps the reservation',async()=>{
  const db=new Database(':memory:');const ledger=new Accounting(db,1000);const keys=new GatewayKeys(db)
  ledger.creditReceipt('r','i','alice',1000);const key=keys.create('alice',1000)
@@ -61,7 +72,7 @@ test('limits total concurrency across accounts',async()=>{
 test('releases a cancelled stream slot without releasing its uncertain reservation',async()=>{
  const db=new Database(':memory:'),ledger=new Accounting(db,10000),keys=new GatewayKeys(db);ledger.creditReceipt('r','i','alice',10000);const key=keys.create('alice',10000)
  const provider={...mockProvider(),async *stream(){yield {data:'{"choices":[]}'};yield {data:'{"choices":[]}'}}}
- const gateway=new Gateway(ledger,keys,provider,'model',pricing),messages=[{role:'user' as const,content:'hi'}]
+ const gateway=new Gateway(ledger,keys,provider,'model',pricing,'Mock',{streaming:true,toolCalls:false}),messages=[{role:'user' as const,content:'hi'}]
  const a=gateway.stream(key.key,'model',messages,10).getReader(),b=gateway.stream(key.key,'model',messages,10).getReader()
  await a.read();await b.read()
  expect(()=>gateway.stream(key.key,'model',messages,10)).toThrow('Concurrency limit')
@@ -88,13 +99,13 @@ test('rate limit applies across all keys owned by one account',async()=>{
 test('streams tool calls and settles only after reported usage',async()=>{
  const db=new Database(':memory:'),ledger=new Accounting(db,1000),keys=new GatewayKeys(db);ledger.creditReceipt('r','i','alice',1000);const key=keys.create('alice',1000)
  const provider={...mockProvider(),async *stream(){yield {data:JSON.stringify({choices:[{delta:{tool_calls:[{index:0,function:{name:'lookup'}}]}}]})};yield {data:JSON.stringify({choices:[],usage:{prompt_tokens:2,completion_tokens:2}}),usage:{inputTokens:2,outputTokens:2}}}}
- const gateway=new Gateway(ledger,keys,provider,'model',pricing),body=await new Response(gateway.stream(key.key,'model',[{role:'user',content:'use a tool'}],10,{tools:[{type:'function'}]})).text()
+ const gateway=new Gateway(ledger,keys,provider,'model',pricing,'Mock',{streaming:true,toolCalls:true}),body=await new Response(gateway.stream(key.key,'model',[{role:'user',content:'use a tool'}],10,{tools:[{type:'function'}]})).text()
  expect(body).toContain('tool_calls');expect(body).toContain('[DONE]');expect(ledger.balance('alice')).toBe(994);expect(ledger.usage('alice')[0]).toMatchObject({state:'settled',charged:6})
 })
 test('retains reservation when stream has no usage or is cancelled',async()=>{
  const db=new Database(':memory:'),ledger=new Accounting(db,1000),keys=new GatewayKeys(db);ledger.creditReceipt('r','i','alice',1000);const key=keys.create('alice',1000)
  const provider={...mockProvider(),async *stream(){yield {data:'{"choices":[]}'} }}
- const gateway=new Gateway(ledger,keys,provider,'model',pricing)
+ const gateway=new Gateway(ledger,keys,provider,'model',pricing,'Mock',{streaming:true,toolCalls:false})
  await expect(new Response(gateway.stream(key.key,'model',[{role:'user',content:'hello'}],10)).text()).rejects.toThrow()
  expect(ledger.usage('alice')[0]).toMatchObject({state:'reserved',reserved:120})
  const reader=gateway.stream(key.key,'model',[{role:'user',content:'hello'}],10).getReader();await reader.read();await reader.cancel()

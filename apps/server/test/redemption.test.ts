@@ -24,7 +24,9 @@ test('finalized matching payment credits once and supports delayed verification'
  test('reserves funding for pending intents',()=>{
   const db=new Database(':memory:'), ledger=new Accounting(db,1_000_000)
   const redemption=new Redemption(db,ledger,{} as JsonRpcProvider)
+  expect(redemption.remainingUnits()).toBe(1)
   redemption.create('alice.testnet',1)
+  expect(redemption.remainingUnits()).toBe(0)
   expect(()=>redemption.create('bob.testnet',1)).toThrow('fully allocated')
  })
 

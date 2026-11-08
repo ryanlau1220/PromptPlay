@@ -52,7 +52,7 @@ test('an interrupted upstream stream keeps the gateway reservation',async()=>{
  try{
   const provider=createProvider({liveEnabled:true,endpoint:`http://127.0.0.1:${server.port}`,model:'test-model',apiKey:'server-secret'})
   const ledger=new Accounting(db,1000),keys=new GatewayKeys(db);ledger.creditReceipt('r','i','alice',1000);const key=keys.create('alice',1000)
-  const gateway=new Gateway(ledger,keys,provider,'test-model',{inputMicrosPerMillion:1000000,outputMicrosPerMillion:2000000,microsPerUnit:1000000,contextTokens:100,maxOutputTokens:10})
+  const gateway=new Gateway(ledger,keys,provider,'test-model',{inputMicrosPerMillion:1000000,outputMicrosPerMillion:2000000,microsPerUnit:1000000,contextTokens:100,maxOutputTokens:10},'Mock',{streaming:true,toolCalls:false})
   await expect(new Response(gateway.stream(key.key,'test-model',[{role:'user',content:'hello'}],10)).text()).rejects.toThrow()
   expect(ledger.usage('alice')[0]).toMatchObject({state:'reserved',reserved:120})
  }finally{server.stop();db.close()}

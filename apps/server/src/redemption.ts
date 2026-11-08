@@ -15,6 +15,11 @@ export class Redemption {
     db.exec(`CREATE TABLE IF NOT EXISTS redemption_intents (id TEXT PRIMARY KEY, account_id TEXT NOT NULL, amount TEXT NOT NULL, units INTEGER NOT NULL, memo TEXT NOT NULL UNIQUE, created INTEGER NOT NULL, expires INTEGER NOT NULL, receipt_id TEXT UNIQUE, tx_hash TEXT);
       CREATE TABLE IF NOT EXISTS redemption_attempts (intent_id TEXT PRIMARY KEY REFERENCES redemption_intents(id), created INTEGER NOT NULL)`)
   }
+  remainingUnits() {
+    const {issued}=this.db.query('SELECT COALESCE(SUM(amount),0) AS issued FROM receipts').get() as {issued:number}
+    const {pending}=this.db.query('SELECT COALESCE(SUM(units),0) AS pending FROM redemption_intents WHERE receipt_id IS NULL').get() as {pending:number}
+    return Math.max(0,Math.floor((this.ledger.issuanceLimit()-issued)/1_000_000)-pending)
+  }
   create(account:string, units:number) {
     if (!account.endsWith('.testnet') || !Number.isSafeInteger(units) || units < 1 || units > 100) throw new Error('Invalid redemption')
     const id=randomBytes(24).toString('base64url'); const memo=`promptplay:${randomBytes(24).toString('base64url')}`

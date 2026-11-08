@@ -243,8 +243,9 @@ export function Redemption() {
             </span>
           </span>
           <span className="hint">
-            {!config ? 'Checking gateway' : config.redemptionAvailable ? 'Operator-funded demo' : 'Live redemption unavailable'}
+            {!config ? 'Checking gateway' : config.redemptionAvailable ? `${config.provider} · ${config.model}` : 'Live redemption unavailable'}
           </span>
+          {config?.redemptionAvailable && <span className="hint">Chat completions{config.capabilities?.streaming ? ' · Streaming' : ''}{config.capabilities?.toolCalls ? ' · Tool calls' : ''}</span>}
         </div>
       </div>
 
@@ -299,7 +300,8 @@ export function Redemption() {
                 </div>
               )}
 
-              {!intent && config.redemptionAvailable && (
+              {!intent && config.redemptionAvailable && config.redemptionUnitsAvailable === 0 && <p>All demo units are currently allocated.</p>}
+              {!intent && config.redemptionAvailable && config.redemptionUnitsAvailable !== 0 && (
                 <div>
                   <button className="btn-primary" disabled={busy} onClick={() => void action(createIntent)}>
                     <ArrowRight size={16} />
@@ -502,7 +504,7 @@ export function Redemption() {
               <button
                 className="btn-ghost"
                 style={{ fontSize: '12px', padding: '6px 12px' }}
-                disabled={!snippetContent}
+                disabled={!snippetContent?.[activeSnippetTab]}
                 onClick={() => {
                   void navigator.clipboard.writeText(snippetContent?.[activeSnippetTab] ?? '').then(() => {
                     setCopiedSnippet(true)
@@ -541,7 +543,7 @@ export function Redemption() {
                 </button>
               </div>
               <div className="code-snippet-body">
-                {snippetContent?.[activeSnippetTab] ?? 'Gateway model is unavailable while live inference is disabled.'}
+                {snippetContent?.[activeSnippetTab] ?? (config?.model ? 'Streaming and tool calling must be verified for coding agents.' : 'Gateway model is unavailable while live inference is disabled.')}
               </div>
             </div>
           </div>

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { Accounting } from './accounting'
 import type { GatewayKeys } from './keys'
-import type { ChatMessage, ChatOptions, InferenceProvider, StreamEvent } from './provider'
+import type { ChatMessage, ChatOptions, InferenceProvider, ProviderCapabilities, StreamEvent } from './provider'
 
 export type Pricing = { inputMicrosPerMillion:number; outputMicrosPerMillion:number; microsPerUnit:number; contextTokens:number; maxOutputTokens:number }
 function ceil(n:bigint,d:bigint) { return (n+d-1n)/d }
@@ -10,8 +10,9 @@ export class Gateway {
   private rates=new Map<string,{start:number;count:number}>()
   private activeRequests=0
   private activeByAccount=new Map<string,number>()
-  constructor(private ledger:Accounting, private keys:GatewayKeys, private provider:InferenceProvider, readonly model:string, private pricing:Pricing) {
+  constructor(private ledger:Accounting, private keys:GatewayKeys, private provider:InferenceProvider, readonly model:string, private pricing:Pricing, readonly providerName='OpenAI-compatible', readonly capabilities:ProviderCapabilities={streaming:false,toolCalls:false}) {
     if (!model || !Object.values(pricing).every(positive) || pricing.maxOutputTokens > pricing.contextTokens) throw new Error('Invalid gateway pricing or token limits')
+    if(!providerName || providerName.length>80 || (capabilities.streaming && !provider.stream)) throw new Error('Invalid provider capabilities')
     if (this.cost(pricing.contextTokens,Math.min(128,pricing.maxOutputTokens)) > 1_000_000) throw new Error('One demo unit cannot cover the request reservation')
   }
   get maxUnitCostMicros() { return this.pricing.microsPerUnit }
@@ -28,8 +29,9 @@ export class Gateway {
     const key=this.keys.authenticate(rawKey); if (!key) throw new Error('Invalid API key')
     if(model!==this.model) throw new Error('Model is not supported')
     if(!Number.isSafeInteger(maxTokens)||maxTokens<1||maxTokens>this.pricing.maxOutputTokens) throw new Error('Invalid output limit')
-    if(!Array.isArray(messages)||messages.length<1||messages.length>32||messages.some(m=>!m||!['system','developer','user','assistant','tool'].includes(m.role)||(typeof m.content!=='string' && !(Array.isArray(m.content) && m.content.length>0 && m.content.length<=64 && m.content.every(part=>part && part.type==='text' && typeof part.text==='string')) && !(m.role==='assistant' && m.content===null && Array.isArray(m.tool_calls)))||(m.role==='tool' && typeof m.tool_call_id!=='string')) || new TextEncoder().encode(JSON.stringify({messages,...options})).length>100_000) throw new Error('Invalid messages')
-    if(options?.tools && (!Array.isArray(options.tools)||options.tools.length>32)) throw new Error('Invalid messages')
+    if(!Array.isArray(messages)||messages.length<1||messages.length>32||messages.some(m=>!m||!['system','developer','user','assistant','tool'].includes(m.role)||(typeof m.content!=='string' && !(Array.isArray(m.content) && m.content.length>0 && m.content.length<=64 && m.content.every(part=>part && part.type==='text' && typeof part.text==='string')) && !(m.role==='assistant' && m.content===null && Array.isArray(m.tool_calls)))||(m.role==='tool' && typeof m.tool_call_id!=='string')) || new TextEncoder().encode(JSON.stringify({messages,...options})).length>256_000) throw new Error('Invalid messages')
+    if(options?.tools && (!Array.isArray(options.tools)||options.tools.length>128)) throw new Error('Invalid messages')
+    if(!this.capabilities.toolCalls && (options?.tools?.length || options?.tool_choice!==undefined || options?.parallel_tool_calls!==undefined || messages.some(m=>m.role==='tool' || m.tool_calls!==undefined || m.tool_call_id!==undefined))) throw new Error('Tool calling is not supported')
     const now=Date.now(); const rate=this.rates.get(key.account_id)
     if(this.activeRequests>=8 || (this.activeByAccount.get(key.account_id) ?? 0)>=2) throw new Error('Concurrency limit exceeded')
     if(rate && now-rate.start<60_000){if(rate.count>=10) throw new Error('Rate limit exceeded');rate.count++} else this.rates.set(key.account_id,{start:now,count:1})
@@ -57,7 +59,7 @@ export class Gateway {
     } finally { release() }
   }
   stream(rawKey:string,model:string,messages:ChatMessage[],maxTokens:number,options?:ChatOptions) {
-    if(!this.provider.stream) throw new Error('Streaming is not supported')
+    if(!this.capabilities.streaming || !this.provider.stream) throw new Error('Streaming is not supported')
     const {requestId,release}=this.reserve(rawKey,model,messages,maxTokens,options)
     let iterator:AsyncGenerator<StreamEvent>
     try { iterator=this.provider.stream(messages,maxTokens,options) } catch(error) { release(); throw error }

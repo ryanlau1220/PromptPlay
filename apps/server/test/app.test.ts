@@ -28,7 +28,7 @@ test('mock gateway authenticates keys and meters real reported mock usage', asyn
   const gateway=new Gateway(ledger,keys,mockProvider(),'mock-model',{inputMicrosPerMillion:1000000,outputMicrosPerMillion:2000000,microsPerUnit:1000000,contextTokens:100,maxOutputTokens:10})
   const app=createApp({auth,redemption,ledger,keys,gateway,faucet:null,allowRedemption:false,redemptionAllowlist:new Set(),origin:'http://localhost:3000'})
   const call=(path:string,method='GET',body?:unknown,token?:string)=>app.handle(new Request(`http://localhost${path}`,{method,headers:{...(body?{'content-type':'application/json'}:{}),...(token?{authorization:`Bearer ${token}`}:{})},body:body?JSON.stringify(body):undefined}))
-  expect(await (await call('/config')).json()).toMatchObject({ model: 'mock-model', contextTokens: 100, maxOutputTokens: 10 })
+  expect(await (await call('/config')).json()).toMatchObject({ provider:'OpenAI-compatible', model: 'mock-model', capabilities:{streaming:false,toolCalls:false}, contextTokens: 100, maxOutputTokens: 10 })
   const c=await (await call('/api/auth/challenge','POST')).json() as {id:string}
   const session=await (await call('/api/auth/verify','POST',{challengeId:c.id,accountId:'alice.testnet',publicKey:`ed25519:${'1'.repeat(32)}`,signature:Buffer.alloc(64).toString('base64')})).json() as {token:string}
   const key=await (await call('/api/keys','POST',{quota:500},session.token)).json() as {id:string;key:string}
@@ -72,13 +72,24 @@ test('only enrolled wallets can reserve funded redemption capacity',async()=>{
  expect((await attempt(alice)).status).toBe(400)
 })
 
+test('gateway status distinguishes enabled inference from exhausted redemption allocation',async()=>{
+ const {Gateway}=await import('../src/gateway');const {mockProvider}=await import('../src/provider')
+ const db=new Database(':memory:'),rpc=new JsonRpcProvider({url:'https://test.rpc.fastnear.com'}),ledger=new Accounting(db,1000000),auth=new WalletAuth(db,rpc,async()=>{}),redemption=new Redemption(db,ledger,rpc),keys=new GatewayKeys(db)
+ const gateway=new Gateway(ledger,keys,mockProvider(),'model',{inputMicrosPerMillion:1000000,outputMicrosPerMillion:2000000,microsPerUnit:1000000,contextTokens:100,maxOutputTokens:10})
+ const app=createApp({auth,redemption,ledger,keys,gateway,faucet:null,allowRedemption:true,redemptionAllowlist:new Set(['alice.testnet']),origin:'http://localhost:3000'})
+ const status=async()=>await (await app.handle(new Request('http://localhost/config'))).json()
+ expect(await status()).toMatchObject({redemptionAvailable:true,redemptionUnitsAvailable:1})
+ redemption.create('alice.testnet',1)
+ expect(await status()).toMatchObject({redemptionAvailable:true,redemptionUnitsAvailable:0})
+})
+
 test('chat endpoint passes tool calls and streams metered events',async()=>{
  const {Gateway}=await import('../src/gateway')
  const db=new Database(':memory:'),rpc=new JsonRpcProvider({url:'https://test.rpc.fastnear.com'}),ledger=new Accounting(db,1000),auth=new WalletAuth(db,rpc,async()=>{}),redemption=new Redemption(db,ledger,rpc),keys=new GatewayKeys(db)
  ledger.creditReceipt('r','i','alice.testnet',1000);const key=keys.create('alice.testnet',1000)
  let received:unknown
  const provider={async complete(_m:unknown,_n:number,options:unknown){received=options;return {text:null,toolCalls:[{id:'call_1',type:'function',function:{name:'lookup',arguments:'{}'}}],inputTokens:2,outputTokens:2,finishReason:'tool_calls'}},async *stream(){yield {data:'{"choices":[{"delta":{"tool_calls":[{"index":0}]}}]}'};yield {data:'{"choices":[],"usage":{"prompt_tokens":2,"completion_tokens":2}}',usage:{inputTokens:2,outputTokens:2}}}}
- const gateway=new Gateway(ledger,keys,provider,'model',{inputMicrosPerMillion:1000000,outputMicrosPerMillion:2000000,microsPerUnit:1000000,contextTokens:100,maxOutputTokens:10})
+ const gateway=new Gateway(ledger,keys,provider,'model',{inputMicrosPerMillion:1000000,outputMicrosPerMillion:2000000,microsPerUnit:1000000,contextTokens:100,maxOutputTokens:10},'Mock',{streaming:true,toolCalls:true})
  const app=createApp({auth,redemption,ledger,keys,gateway,faucet:null,allowRedemption:false,redemptionAllowlist:new Set(),origin:'http://localhost:3000'})
  const send=(stream:boolean)=>app.handle(new Request('http://localhost/v1/chat/completions',{method:'POST',headers:{'content-type':'application/json',authorization:`Bearer ${key.key}`},body:JSON.stringify({model:'model',messages:[{role:'user',content:'test'}],tools:[{type:'function',function:{name:'lookup',parameters:{type:'object'}}}],tool_choice:'auto',stream})}))
  const first=await send(false);expect(first.status).toBe(200);expect((await first.json() as any).choices[0].message.tool_calls[0].function.name).toBe('lookup');expect(received).toMatchObject({tool_choice:'auto'})
@@ -98,6 +109,20 @@ test('chat endpoint returns 429 when the account concurrency limit is reached',a
  const a=send(),b=send();await ready
  const rejected=await send();expect(rejected.status).toBe(429);expect(await rejected.json()).toMatchObject({error:{code:'rate_limit'}})
  release();expect((await a).status).toBe(200);expect((await b).status).toBe(200)
+})
+
+test('accepts a large bounded agent tool catalog and meters the request',async()=>{
+ const {Gateway}=await import('../src/gateway');const {mockProvider}=await import('../src/provider')
+ const db=new Database(':memory:'),rpc=new JsonRpcProvider({url:'https://test.rpc.fastnear.com'}),ledger=new Accounting(db,1000),auth=new WalletAuth(db,rpc,async()=>{}),redemption=new Redemption(db,ledger,rpc),keys=new GatewayKeys(db)
+ ledger.creditReceipt('r','i','alice.testnet',1000);const key=keys.create('alice.testnet',1000)
+ const gateway=new Gateway(ledger,keys,mockProvider(),'model',{inputMicrosPerMillion:1000000,outputMicrosPerMillion:2000000,microsPerUnit:1000000,contextTokens:100,maxOutputTokens:10},'Mock',{streaming:false,toolCalls:true})
+ const app=createApp({auth,redemption,ledger,keys,gateway,faucet:null,allowRedemption:false,redemptionAllowlist:new Set(),origin:'http://localhost:3000'})
+ const send=(tools:unknown[])=>app.handle(new Request('http://localhost/v1/chat/completions',{method:'POST',headers:{'content-type':'application/json',authorization:`Bearer ${key.key}`},body:JSON.stringify({model:'model',messages:[{role:'user',content:'test'}],max_tokens:10,tools})}))
+ const tools=Array.from({length:94},(_,i)=>({type:'function',function:{name:`tool_${i}`,description:'x'.repeat(1700)}}))
+ expect((await send(tools)).status).toBe(200);expect(ledger.balance('alice.testnet')).toBe(994)
+ expect((await send(Array.from({length:129},()=>({type:'function'})))).status).toBe(400)
+ expect((await send([{type:'function',description:'x'.repeat(256000)}])).status).toBe(400)
+ expect(ledger.balance('alice.testnet')).toBe(994)
 })
 
 test('accepts structured text parts and rejects image inputs',async()=>{
