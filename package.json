@@ -22,6 +22,7 @@
     "economy:increase-cap": "bun apps/server/src/increase-demo-cap.ts",
     "verify:testnet": "bun scripts/verify-testnet.mjs",
     "test:testnet-match": "bun apps/server/src/testnet-match.ts",
+    "test:testnet-journey": "bun apps/server/src/testnet-journey.ts",
     "test:timeouts": "bun run build:contracts && cd contracts/rps-game && cargo test --test timeouts -- --ignored"
   },
   "devDependencies": {

@@ -57,6 +57,14 @@
       "balancesAfter": ["14000000", "16000000"],
       "testMethod": "two isolated Chromium profiles using Meteor Wallet extension 0.8.11; app and server restarted during reveal"
     },
+    "journeyMatch": {
+      "id": "10",
+      "players": ["ryanlau1220.testnet", "arcade-b.ryanlau1220.testnet"],
+      "winner": "ryanlau1220.testnet",
+      "stakeBaseUnits": "1000000",
+      "claimTransaction": "4HcgMesQSie9v66xmhi6tBiVaJMnuVfcYUDosUAvrjDU",
+      "testMethod": "operator-run near-api-js signers, followed by PCC redemption and OpenCode; not browser wallets"
+    },
     "automatedTestnetMatches": [
       {
         "id": "6",
@@ -170,6 +178,16 @@
   },
   "redemptionTreasury": {
     "accountId": "treasury.ryanlau1220.testnet",
+    "journeyPayment": {
+      "transferTransaction": "GVZ5vTjo1uE7NZwHyXTbqs96a6Rf5adDt4AYsaWZMbDP",
+      "receiptId": "H7JjJhX8RvjVFwiQCCinP9fK7tnxZKj1h4i4vJwb5YbG",
+      "account": "ryanlau1220.testnet",
+      "amountBaseUnits": "5000000",
+      "model": "Qwen/Qwen3-30B-A3B-Instruct-2507",
+      "scope": "operator-only match 10 winner; real Testnet payment, replay check, streaming tool call and OpenCode file read",
+      "allowanceBeforeMicrounits": 1995424,
+      "allowanceAfterClientMicrounits": 1991287
+    },
     "registrationTransaction": "7aZDgUCvyoGiXQgdw29YJTBBJjjBqUWtxqhB8cSU8oFJ",
     "accountingSmokeTest": {
       "transferTransaction": "Urq21z7wv6NuWQ5jgCaYPQQku9cq4gLPmDKgqmEyC8p",
