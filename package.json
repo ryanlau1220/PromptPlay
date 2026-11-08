@@ -11,6 +11,7 @@
     "dev:server": "bun run --filter @promptplay/server dev",
     "build": "bun run build:contracts && bun run --filter @promptplay/web build",
     "build:contracts": "cd contracts/compute-credit && cargo near build non-reproducible-wasm && cd ../rps-game && cargo near build non-reproducible-wasm",
+    "build:contracts:release": "bun scripts/build-contracts-release.ts",
     "build:web": "bun run --filter @promptplay/web build",
     "test": "bun run test:apps && bun run test:contracts",
     "test:apps": "bun run --parallel --filter \"@promptplay/*\" test",
