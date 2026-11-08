@@ -17,7 +17,7 @@
     "test:apps": "bun run --parallel --filter \"@promptplay/*\" test",
     "test:contracts": "bun run build:contracts && cd contracts/compute-credit && cargo test --lib && cd ../rps-game && cargo test",
     "typecheck": "bun run --parallel --filter \"@promptplay/*\" typecheck",
-    "lint": "biome lint apps/web/src apps/web/test apps/server/src apps/server/test && cd contracts/compute-credit && cargo fmt --check && cd ../rps-game && cargo fmt --check",
+    "lint": "biome lint . --error-on-warnings && cd contracts/compute-credit && cargo fmt --check && cd ../rps-game && cargo fmt --check",
     "check": "bun run lint && bun run typecheck",
     "demo:mock": "bun run --filter @promptplay/server demo:mock",
     "economy:increase-cap": "bun apps/server/src/increase-demo-cap.ts",

@@ -1,6 +1,6 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.3.11/schema.json",
-  "files": { "includes": ["**", "!**/routeTree.gen.ts"] },
+  "files": { "includes": ["**", "!tmp", "!**/routeTree.gen.ts", "!**/node_modules", "!**/target", "!**/dist"] },
   "linter": {
     "rules": {
       "recommended": false,
