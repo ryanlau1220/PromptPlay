@@ -19,6 +19,7 @@
     "lint": "biome lint apps/web/src apps/web/test apps/server/src apps/server/test && cd contracts/compute-credit && cargo fmt --check && cd ../rps-game && cargo fmt --check",
     "check": "bun run lint && bun run typecheck",
     "demo:mock": "bun run --filter @promptplay/server demo:mock",
+    "economy:increase-cap": "bun apps/server/src/increase-demo-cap.ts",
     "verify:testnet": "bun scripts/verify-testnet.mjs",
     "test:testnet-match": "bun apps/server/src/testnet-match.ts",
     "test:timeouts": "bun run build:contracts && cd contracts/rps-game && cargo test --test timeouts -- --ignored"
