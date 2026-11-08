@@ -6,14 +6,20 @@
     "decimals": 6,
     "deploymentTransaction": "AruzAdNzrvdPqtMtsZhaHoMsDyGVfBQApaG4nDA7Xmrf",
     "initialMintTransaction": "7X7EswKoc69xJqKBtNeoBcfj5p8WMYGWwoXGc8Si1xQ1",
-    "wasmSha256": "46b18a90e20241b2cd7bde1c5ea20bc9619c5cb26e928e2a57c4c3ba20832d2d"
+    "previousWasmSha256": "46b18a90e20241b2cd7bde1c5ea20bc9619c5cb26e928e2a57c4c3ba20832d2d",
+    "upgradeTransaction": "5VQRuo2C7xyLyzLbuH1Mq2gMQ5uPow12JncEUq6bFjvW",
+    "sourceCommit": "1d5ecdbb0b2544f66d4cae33cc8f60c832db9edb",
+    "wasmSha256": "9385ad897631bbe1b22fa798e2efca6fd166481ecc1c8dc2bad01500e0252bc9"
   },
   "rpsGame": {
     "accountId": "game.ryanlau1220.testnet",
     "token": "token.ryanlau1220.testnet",
     "deploymentTransaction": "G5xsJymEjJW1MSuEkfHmCK21hfhqCHxrfbkdr5ofNqev",
     "tokenRegistrationTransaction": "5szyhuxUvRqoTKBrPCQ26hKDnomRKXzm4BKUokmASnbi",
-    "wasmSha256": "e6fc8794aced94113f946088d9c55fe083d8a5930d4d64d297b3e559e9d8094f",
+    "previousWasmSha256": "e6fc8794aced94113f946088d9c55fe083d8a5930d4d64d297b3e559e9d8094f",
+    "upgradeTransaction": "AL73GA8mRwegH9m5sxhZoztnfP8Kf89bmu9B4JM5qPYk",
+    "sourceCommit": "1d5ecdbb0b2544f66d4cae33cc8f60c832db9edb",
+    "wasmSha256": "b6703557c5a56105e622ceb84dfd2ab14502d851255c76cdf99be3265a8f9db6",
     "verifiedMatch": {
       "id": "0",
       "players": [
@@ -56,6 +62,14 @@
       "balancesBefore": ["14000000", "16000000"],
       "balancesAfter": ["14000000", "16000000"],
       "testMethod": "two isolated Chromium profiles using Meteor Wallet extension 0.8.11; app and server restarted during reveal"
+    },
+    "upgradedBrowserMatch": {
+      "id": "25",
+      "players": ["arcade-a.ryanlau1220.testnet", "arcade-b.ryanlau1220.testnet"],
+      "winner": "arcade-a.ryanlau1220.testnet",
+      "stakeBaseUnits": "1000000",
+      "claimTransaction": "BchhSRr3NY735X7hPKX5GWxJaZfanfzLFCPABwYAT53Z",
+      "testMethod": "automated Meteor wallet match and real redemption after reproducible contract upgrades"
     },
     "automatedBrowserRedemption": {
       "id": "23",
@@ -210,6 +224,13 @@
   },
   "redemptionTreasury": {
     "accountId": "treasury.ryanlau1220.testnet",
+    "upgradedBrowserPayment": {
+      "transferTransaction": "4w6fta2zxfU3PZquHrh77S5utSkMDd7vnncv2QBUN6CQ",
+      "account": "arcade-a.ryanlau1220.testnet",
+      "amountBaseUnits": "5000000",
+      "model": "Qwen/Qwen3-30B-A3B-Instruct-2507",
+      "scope": "operator-only Meteor match 25 winner; replay check and metered browser and OpenCode inference after contract upgrades"
+    },
     "browserRecoveryPayment": {
       "transferTransaction": "8d6FATkxYT6V3Y3EorFwaAdbrZEN3d9GSdnCt8sErZk4",
       "account": "arcade-a.ryanlau1220.testnet",

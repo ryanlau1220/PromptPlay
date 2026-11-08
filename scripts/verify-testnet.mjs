@@ -82,13 +82,13 @@ try {
   const status = await rpc('status', [])
   assert.equal(status.chain_id, 'testnet', 'RPC must be connected to NEAR Testnet')
   const contracts = [
-    await verifyCode(evidence.computeCredit, '../contracts/compute-credit/target/near/compute_credit.wasm'),
-    await verifyCode(evidence.rpsGame, '../contracts/rps-game/target/near/rps_game.wasm')
+    await verifyCode(evidence.computeCredit, '../contracts/compute-credit/target/reproducible/compute_credit.wasm'),
+    await verifyCode(evidence.rpsGame, '../contracts/rps-game/target/reproducible/rps_game.wasm')
   ]
   const matches = []
-  for (const match of [evidence.rpsGame.verifiedMatch, evidence.rpsGame.meteorBrowserMatch, evidence.rpsGame.meteorBrowserTie, evidence.rpsGame.journeyMatch, evidence.rpsGame.automatedMeteorMatch, evidence.rpsGame.automatedMeteorTie, evidence.rpsGame.automatedMeteorRestart, evidence.rpsGame.automatedBrowserRedemption]) matches.push(await verifyMatch(match))
+  for (const match of [evidence.rpsGame.verifiedMatch, evidence.rpsGame.meteorBrowserMatch, evidence.rpsGame.meteorBrowserTie, evidence.rpsGame.journeyMatch, evidence.rpsGame.automatedMeteorMatch, evidence.rpsGame.automatedMeteorTie, evidence.rpsGame.automatedMeteorRestart, evidence.rpsGame.automatedBrowserRedemption, evidence.rpsGame.upgradedBrowserMatch]) matches.push(await verifyMatch(match))
 
-  const payments = [evidence.redemptionTreasury.openCodeGatewaySmokeTest, evidence.redemptionTreasury.localOperatorGatewaySmokeTest, evidence.redemptionTreasury.journeyPayment, evidence.redemptionTreasury.browserRecoveryPayment]
+  const payments = [evidence.redemptionTreasury.openCodeGatewaySmokeTest, evidence.redemptionTreasury.localOperatorGatewaySmokeTest, evidence.redemptionTreasury.journeyPayment, evidence.redemptionTreasury.browserRecoveryPayment, evidence.redemptionTreasury.upgradedBrowserPayment]
   for (const payment of payments) {
     const sender = payment.account ?? evidence.rpsGame.verifiedMatch.winner
     const tx = await rpc('tx', { tx_hash: payment.transferTransaction, sender_account_id: sender, wait_until: 'FINAL' })
