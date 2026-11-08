@@ -46,13 +46,11 @@ impl Contract {
         };
         require!(!env::state_exists(), "Already initialized");
         metadata.assert_valid();
-        let this = Self {
+        Self {
             issuer,
             token: FungibleToken::new(StorageKey::FungibleToken),
             metadata: LazyOption::new(StorageKey::Metadata, Some(&metadata)),
-        };
-
-        this
+        }
     }
     /// Mint demo credits to an already registered account.
     #[payable]

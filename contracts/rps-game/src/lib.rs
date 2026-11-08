@@ -42,10 +42,12 @@ pub struct Match {
 }
 
 #[ext_contract(ext_ft)]
+#[allow(dead_code)]
 trait Token {
     fn ft_transfer(&mut self, receiver_id: AccountId, amount: U128, memo: Option<String>);
 }
 #[ext_contract(ext_self)]
+#[allow(dead_code)]
 trait Callback {
     fn on_payout(&mut self, match_id: U64, player: u8, amount: U128) -> bool;
 }
