@@ -61,9 +61,9 @@ async function verifyMatch(recorded) {
 try {
   const status = await rpc('status', [])
   assert.equal(status.chain_id, 'testnet', 'RPC must be connected to NEAR Testnet')
-  const matches = await Promise.all([evidence.rpsGame.verifiedMatch, evidence.rpsGame.meteorBrowserMatch, evidence.rpsGame.meteorBrowserTie, evidence.rpsGame.journeyMatch, evidence.rpsGame.automatedMeteorMatch, evidence.rpsGame.automatedMeteorTie, evidence.rpsGame.automatedMeteorRestart].map(verifyMatch))
+  const matches = await Promise.all([evidence.rpsGame.verifiedMatch, evidence.rpsGame.meteorBrowserMatch, evidence.rpsGame.meteorBrowserTie, evidence.rpsGame.journeyMatch, evidence.rpsGame.automatedMeteorMatch, evidence.rpsGame.automatedMeteorTie, evidence.rpsGame.automatedMeteorRestart, evidence.rpsGame.automatedBrowserRedemption].map(verifyMatch))
 
-  const payments = [evidence.redemptionTreasury.openCodeGatewaySmokeTest, evidence.redemptionTreasury.localOperatorGatewaySmokeTest, evidence.redemptionTreasury.journeyPayment]
+  const payments = [evidence.redemptionTreasury.openCodeGatewaySmokeTest, evidence.redemptionTreasury.localOperatorGatewaySmokeTest, evidence.redemptionTreasury.journeyPayment, evidence.redemptionTreasury.browserRecoveryPayment]
   await Promise.all(payments.map(async payment => {
     const sender = payment.account ?? evidence.rpsGame.verifiedMatch.winner
     const tx = await rpc('tx', { tx_hash: payment.transferTransaction, sender_account_id: sender, wait_until: 'FINAL' })

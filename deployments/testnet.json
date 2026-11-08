@@ -57,6 +57,14 @@
       "balancesAfter": ["14000000", "16000000"],
       "testMethod": "two isolated Chromium profiles using Meteor Wallet extension 0.8.11; app and server restarted during reveal"
     },
+    "automatedBrowserRedemption": {
+      "id": "23",
+      "players": ["arcade-a.ryanlau1220.testnet", "arcade-b.ryanlau1220.testnet"],
+      "winner": "arcade-a.ryanlau1220.testnet",
+      "stakeBaseUnits": "1000000",
+      "claimTransaction": "5dewAfrhejX9fLk4wCb1gwLKmABA19nH6GF2ZePeNXFi",
+      "testMethod": "automated Meteor wallet match; winner redeemed PCC after interrupted verification and used OpenCode"
+    },
     "automatedMeteorRestart": {
       "id": "19",
       "players": ["arcade-a.ryanlau1220.testnet", "arcade-b.ryanlau1220.testnet"],
@@ -202,6 +210,13 @@
   },
   "redemptionTreasury": {
     "accountId": "treasury.ryanlau1220.testnet",
+    "browserRecoveryPayment": {
+      "transferTransaction": "8d6FATkxYT6V3Y3EorFwaAdbrZEN3d9GSdnCt8sErZk4",
+      "account": "arcade-a.ryanlau1220.testnet",
+      "amountBaseUnits": "5000000",
+      "model": "Qwen/Qwen3-30B-A3B-Instruct-2507",
+      "scope": "operator-only Meteor match 23 winner; verification interrupted, recovered after reload, replay rejected, real browser and OpenCode inference"
+    },
     "journeyPayment": {
       "transferTransaction": "GVZ5vTjo1uE7NZwHyXTbqs96a6Rf5adDt4AYsaWZMbDP",
       "receiptId": "H7JjJhX8RvjVFwiQCCinP9fK7tnxZKj1h4i4vJwb5YbG",
