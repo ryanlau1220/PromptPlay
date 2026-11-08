@@ -334,6 +334,8 @@ export function Redemption() {
                     <span>Submit 5 PCC Transfer in Wallet</span>
                   </button>
 
+                  {submitted && !hash && <p>Payment attempt recorded. Check wallet history for a transaction hash; if the wallet rejected it, contact the operator before retrying.</p>}
+
                   <div style={{ borderTop: '1px solid var(--border)', paddingTop: '16px' }}>
                     <label className="field-label">
                       <span>Transaction Recovery Hash</span>
