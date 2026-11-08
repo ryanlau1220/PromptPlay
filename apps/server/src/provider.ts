@@ -42,9 +42,9 @@ export function createProvider(config:{liveEnabled:boolean;endpoint:string;model
         while(true){
           const part=await reader.read();buffer=(buffer+decoder.decode(part.value,{stream:!part.done})).replace(/\r\n/g,'\n')
           if(buffer.length>1_000_000) throw new Error('Provider stream frame too large')
-          let end:number
-          while((end=buffer.indexOf('\n\n'))>=0){
-            const frame=buffer.slice(0,end);buffer=buffer.slice(end+2)
+          let end=buffer.indexOf('\n\n')
+          while(end>=0){
+            const frame=buffer.slice(0,end);buffer=buffer.slice(end+2);end=buffer.indexOf('\n\n')
             const data=frame.split('\n').filter(line=>line.startsWith('data:')).map(line=>line.slice(5).trimStart()).join('\n')
             if(!data) continue
             if(data==='[DONE]'){done=true;break}

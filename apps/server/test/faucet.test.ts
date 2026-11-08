@@ -10,7 +10,7 @@ test('faucet makes one bounded claim per account',async()=>{
  await expect(faucet.claim('bob.testnet')).rejects.toThrow('exhausted')
 })
 test('uncertain transfer is not retried and unregistered accounts cannot claim',async()=>{
- const db=new Database(':memory:');let sends=0;const rpc={callFunction:async({args}:any)=>args.account_id==='unregistered.testnet'?null:{total:'1'}} as unknown as JsonRpcProvider
+ const db=new Database(':memory:');let sends=0;const rpc={callFunction:async({args}:{args:{account_id:string}})=>args.account_id==='unregistered.testnet'?null:{total:'1'}} as unknown as JsonRpcProvider
  const faucet=new Faucet(db,rpc,async()=>{sends++;throw new Error('uncertain')})
  await expect(faucet.claim('unregistered.testnet')).rejects.toThrow('Register')
  await expect(faucet.claim('alice.testnet')).rejects.toThrow('uncertain')

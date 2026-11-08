@@ -1,4 +1,4 @@
-import { Database } from "bun:sqlite";
+import type { Database } from "bun:sqlite";
 
 // Receipts may be credited only by a trusted verifier after finalized chain execution.
 export class Accounting {
@@ -58,7 +58,7 @@ export class Accounting {
   }
   issuanceLimit(): number { return this.spendingCap }
   usage(accountId: string) {
-    return this.db.query("SELECT id, reserved, charged, input_tokens, output_tokens, state FROM requests WHERE account_id = ? ORDER BY rowid DESC LIMIT 100").all(accountId)
+    return this.db.query("SELECT id, reserved, charged, input_tokens, output_tokens, state FROM requests WHERE account_id = ? ORDER BY rowid DESC LIMIT 100").all(accountId) as Array<{id:string; reserved:number; charged:number|null; input_tokens:number|null; output_tokens:number|null; state:string}>
   }
   balance(accountId: string): number {
     return (this.db.query("SELECT balance FROM accounts WHERE id = ?").get(accountId) as {balance:number} | null)?.balance ?? 0;

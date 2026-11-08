@@ -35,7 +35,7 @@ test('mock gateway authenticates keys and meters real reported mock usage', asyn
   expect((await call('/v1/models','GET',undefined,'bad')).status).toBe(401)
   const response=await call('/v1/chat/completions','POST',{model:'mock-model',messages:[{role:'user',content:'hello'}],max_tokens:10},key.key)
   expect(response.status).toBe(200)
-  const body=await response.json() as any;expect(body.choices[0].message.content).toBe('Mock response');expect(body.usage.total_tokens).toBe(4)
+  const body=await response.json() as {choices:Array<{message:{content:string}}>;usage:{total_tokens:number}};expect(body.choices[0].message.content).toBe('Mock response');expect(body.usage.total_tokens).toBe(4)
   expect(ledger.balance('alice.testnet')).toBe(994)
   expect((await call('/v1/chat/completions','POST',{model:'mock-model',messages:[{role:'user',content:'hello'}],max_tokens:10,stream:true},key.key)).status).toBe(400)
   expect((await call('/v1/chat/completions','POST',{model:'mock-model',messages:[{role:'user',content:'hello'}],max_tokens:10,tools:[]},key.key)).status).toBe(200)
@@ -47,8 +47,9 @@ test('room sockets only send resync hints to the same match', async () => {
   const db=new Database(':memory:'),rpc=new JsonRpcProvider({url:'https://test.rpc.fastnear.com'}),ledger=new Accounting(db,100)
   const auth=new WalletAuth(db,rpc,async()=>{}),redemption=new Redemption(db,ledger,rpc),keys=new GatewayKeys(db)
   const app=createApp({auth,redemption,ledger,keys,gateway:null,faucet:null,allowRedemption:false,redemptionAllowlist:new Set(),origin:'http://localhost:3000'}).listen({hostname:'127.0.0.1',port:0})
-  const port=app.server!.port
-  const open=(id:string)=>new Promise<WebSocket>((resolve,reject)=>{const ws=new WebSocket(`ws://127.0.0.1:${port}/rooms/${id}/ws`,{headers:{redemptionAllowlist:new Set(),origin:'http://localhost:3000'}} as any);ws.onopen=()=>resolve(ws);ws.onerror=()=>reject(new Error('socket failed'))})
+  if (!app.server) throw new Error('Server failed to start')
+  const port=app.server.port
+  const open=(id:string)=>new Promise<WebSocket>((resolve,reject)=>{const ws=new WebSocket(`ws://127.0.0.1:${port}/rooms/${id}/ws`,{headers:{origin:'http://localhost:3000'}} as unknown as string[]);ws.onopen=()=>resolve(ws);ws.onerror=()=>reject(new Error('socket failed'))})
   try {
     const a=await open('7'); const initial=await new Promise<string>(resolve=>{a.onmessage=e=>resolve(String(e.data))})
     expect(JSON.parse(initial)).toEqual({type:'resync_required'})
@@ -92,7 +93,7 @@ test('chat endpoint passes tool calls and streams metered events',async()=>{
  const gateway=new Gateway(ledger,keys,provider,'model',{inputMicrosPerMillion:1000000,outputMicrosPerMillion:2000000,microsPerUnit:1000000,contextTokens:100,maxOutputTokens:10},'Mock',{streaming:true,toolCalls:true})
  const app=createApp({auth,redemption,ledger,keys,gateway,faucet:null,allowRedemption:false,redemptionAllowlist:new Set(),origin:'http://localhost:3000'})
  const send=(stream:boolean,store=false)=>app.handle(new Request('http://localhost/v1/chat/completions',{method:'POST',headers:{'content-type':'application/json',authorization:`Bearer ${key.key}`},body:JSON.stringify({model:'model',messages:[{role:'user',content:'test'}],tools:[{type:'function',function:{name:'lookup',parameters:{type:'object'}}}],tool_choice:'auto',stream,store})}))
- const first=await send(false);expect(first.status).toBe(200);expect((await first.json() as any).choices[0].message.tool_calls[0].function.name).toBe('lookup');expect(received).toMatchObject({tool_choice:'auto'})
+ const first=await send(false);expect(first.status).toBe(200);expect((await first.json() as {choices:Array<{message:{tool_calls:Array<{function:{name:string}}>}}>}).choices[0].message.tool_calls[0].function.name).toBe('lookup');expect(received).toMatchObject({tool_choice:'auto'})
  const second=await send(true);expect(second.status).toBe(200);expect(second.headers.get('content-type')).toContain('text/event-stream');expect(await second.text()).toContain('data: [DONE]');expect(ledger.balance('alice.testnet')).toBe(988)
  expect((await send(false,true)).status).toBe(400)
 })

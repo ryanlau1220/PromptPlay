@@ -1,4 +1,4 @@
-import { Database } from 'bun:sqlite'
+import type { Database } from 'bun:sqlite'
 import type { JsonRpcProvider } from 'near-api-js'
 const TOKEN='token.ryanlau1220.testnet'
 const AMOUNT='10000000'

@@ -34,7 +34,7 @@ test('uncertain provider failure keeps the reservation',async()=>{
  expect(ledger.balance('alice')).toBe(880);expect(ledger.usage('alice')[0]).toMatchObject({reserved:120,state:'reserved'})
  await expect(g.complete(key.key,'model',[{role:'user',content:'again'}],10)).rejects.toThrow('timeout')
  await expect(g.complete(key.key,'model',[{role:'user',content:'again'}],10)).rejects.toThrow('timeout')
- expect(ledger.usage('alice').filter((request:any)=>request.state==='reserved')).toHaveLength(3)
+ expect(ledger.usage('alice').filter((request)=>request.state==='reserved')).toHaveLength(3)
 })
 test('simultaneous requests cannot spend the same key quota',async()=>{
  const db=new Database(':memory:'),ledger=new Accounting(db,1000),keys=new GatewayKeys(db)
@@ -64,9 +64,9 @@ test('limits total concurrency across accounts',async()=>{
  const gateway=new Gateway(ledger,keys,{complete:async()=>{await waiting;return {text:'ok',inputTokens:2,outputTokens:2,finishReason:'stop'}}},'model',pricing)
  const created=Array.from({length:9},(_,i)=>{const id=`player-${i}`;ledger.creditReceipt(`r${i}`,`i${i}`,id,10000);return keys.create(id,10000)})
  const calls=created.slice(0,8).map(key=>gateway.complete(key.key,'model',[{role:'user',content:'hi'}],10))
- await expect(gateway.complete(created[8]!.key,'model',[{role:'user',content:'hi'}],10)).rejects.toThrow('Concurrency limit')
+ await expect(gateway.complete(created[8].key,'model',[{role:'user',content:'hi'}],10)).rejects.toThrow('Concurrency limit')
  release();await Promise.all(calls)
- await expect(gateway.complete(created[8]!.key,'model',[{role:'user',content:'hi'}],10)).resolves.toBeDefined()
+ await expect(gateway.complete(created[8].key,'model',[{role:'user',content:'hi'}],10)).resolves.toBeDefined()
 })
 
 test('releases a cancelled stream slot without releasing its uncertain reservation',async()=>{
@@ -78,7 +78,7 @@ test('releases a cancelled stream slot without releasing its uncertain reservati
  expect(()=>gateway.stream(key.key,'model',messages,10)).toThrow('Concurrency limit')
  await a.cancel()
  const c=gateway.stream(key.key,'model',messages,10).getReader();await c.read();await c.cancel();await b.cancel()
- expect(ledger.usage('alice').filter((r:any)=>r.state==='reserved')).toHaveLength(3)
+ expect(ledger.usage('alice').filter((r)=>r.state==='reserved')).toHaveLength(3)
 })
 
 test('rejects a demo rate that cannot cover the reserved request',()=>{
@@ -109,5 +109,5 @@ test('retains reservation when stream has no usage or is cancelled',async()=>{
  await expect(new Response(gateway.stream(key.key,'model',[{role:'user',content:'hello'}],10)).text()).rejects.toThrow()
  expect(ledger.usage('alice')[0]).toMatchObject({state:'reserved',reserved:120})
  const reader=gateway.stream(key.key,'model',[{role:'user',content:'hello'}],10).getReader();await reader.read();await reader.cancel()
- expect(ledger.usage('alice').filter((r:any)=>r.state==='reserved')).toHaveLength(2)
+ expect(ledger.usage('alice').filter((r)=>r.state==='reserved')).toHaveLength(2)
 })

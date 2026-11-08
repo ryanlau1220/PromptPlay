@@ -10,10 +10,10 @@ const ids = [process.env.TESTNET_PLAYER_A, process.env.TESTNET_PLAYER_B]
 if (paths.some(path => !path)) throw new Error('Set TESTNET_PLAYER_A_KEY and TESTNET_PLAYER_B_KEY to separate Testnet credential files.')
 if (ids.some(id => !id?.endsWith('.testnet')) || ids[0] === ids[1]) throw new Error('Set TESTNET_PLAYER_A and TESTNET_PLAYER_B to distinct Testnet accounts.')
 const players = ids as [string, string]
-const creds = await Promise.all(paths.map(path => Bun.file(path!).json() as Promise<{ private_key: string }>))
+const creds = await Promise.all(paths.map(path => { assert(path, 'Missing credential path'); return Bun.file(path).json() as Promise<{ private_key: string }> }))
 const rpc = new JsonRpcProvider({ url: process.env.NEAR_RPC_URL || 'https://test.rpc.fastnear.com' })
 if (await rpc.getNetworkId() !== 'testnet') throw new Error('RPC is not NEAR Testnet.')
-const accounts = creds.map((credential, index) => new Account(players[index]!, rpc, KeyPairSigner.fromSecretKey(credential.private_key as KeyPairString)))
+const accounts = creds.map((credential, index) => new Account(players[index], rpc, KeyPairSigner.fromSecretKey(credential.private_key as KeyPairString)))
 const stake = '1000000'
 const outcome = process.env.TESTNET_MATCH_OUTCOME || 'win'
 if (outcome !== 'win' && outcome !== 'tie') throw new Error('TESTNET_MATCH_OUTCOME must be win or tie.')
@@ -32,7 +32,7 @@ await writeFile(secretPath, JSON.stringify({ players, secrets }), { mode: 0o600 
 await save()
 async function call(index: number, step: string, contractId: string, methodName: string, args: object, deposit: bigint) {
   trace.pendingStep = step; await save()
-  const outcome = await accounts[index]!.callFunctionRaw({ contractId, methodName, args, gas: 100000000000000n, deposit, waitUntil: 'FINAL' })
+  const outcome = await accounts[index].callFunctionRaw({ contractId, methodName, args, gas: 100000000000000n, deposit, waitUntil: 'FINAL' })
   trace.transactions.push({ step, hash: outcome.transaction.hash }); await save()
   assert.equal(outcome.final_execution_status, 'FINAL', `${step} is not final`)
   assert.ok(outcome.status && typeof outcome.status === 'object' && 'SuccessValue' in outcome.status, `${step} failed`)
@@ -51,8 +51,8 @@ try {
   }
   const choices = [0, outcome === 'tie' ? 0 : 2]
   for (let i = 0; i < 2; i++) {
-    const bytes = Uint8Array.from(atob(secrets[i]!), char => char.charCodeAt(0))
-    const hash = await commitment(players[i]!, id, choices[i]!, bytes)
+    const bytes = Uint8Array.from(atob(secrets[i]), char => char.charCodeAt(0))
+    const hash = await commitment(players[i], id, choices[i], bytes)
     await call(i, `commit-${i}`, GAME, 'commit_move', { match_id: id, commitment: hash }, 0n)
   }
   for (let i = 0; i < 2; i++) await call(i, `reveal-${i}`, GAME, 'reveal_move', { match_id: id, choice: choices[i], secret: secrets[i] }, 0n)
@@ -67,8 +67,8 @@ try {
   match = await view<Match>(GAME, 'get_match', { match_id: id })
   assert.ok(match.players.every(player => player.claim === '0' && !player.pending))
   trace.after = await Promise.all(players.map(account_id => view<string>(TOKEN, 'ft_balance_of', { account_id })))
-  assert.equal(BigInt(trace.after[0]!) - BigInt(before[0]!), outcome === 'tie' ? 0n : BigInt(stake))
-  assert.equal(BigInt(trace.after[1]!) - BigInt(before[1]!), outcome === 'tie' ? 0n : -BigInt(stake))
+  assert.equal(BigInt(trace.after[0]) - BigInt(before[0]), outcome === 'tie' ? 0n : BigInt(stake))
+  assert.equal(BigInt(trace.after[1]) - BigInt(before[1]), outcome === 'tie' ? 0n : -BigInt(stake))
   trace.status = 'passed'; await save(); await unlink(secretPath)
   console.log(`Testnet match ${id} passed. Trace: ${tracePath}`)
 } catch (error) {

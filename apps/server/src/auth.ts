@@ -1,6 +1,6 @@
-import { Database } from 'bun:sqlite'
+import type { Database } from 'bun:sqlite'
 import { createHash, randomBytes } from 'node:crypto'
-import { JsonRpcProvider } from 'near-api-js'
+import type { JsonRpcProvider } from 'near-api-js'
 import { verifyMessage } from 'near-api-js/nep413'
 
 const MESSAGE = 'Sign in to PromptPlay on NEAR Testnet.'

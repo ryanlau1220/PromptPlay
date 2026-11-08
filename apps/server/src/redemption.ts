@@ -1,7 +1,7 @@
-import { Database } from 'bun:sqlite'
+import type { Database } from 'bun:sqlite'
 import { randomBytes } from 'node:crypto'
 import type { JsonRpcProvider } from 'near-api-js'
-import { Accounting } from './accounting'
+import type { Accounting } from './accounting'
 import { inspectTransfer } from './receipt'
 
 const PCC_PER_UNIT = 5_000_000n

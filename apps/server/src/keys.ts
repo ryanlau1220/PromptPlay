@@ -1,4 +1,4 @@
-import { Database } from 'bun:sqlite'
+import type { Database } from 'bun:sqlite'
 import { createHash, randomBytes } from 'node:crypto'
 const hash = (s:string) => createHash('sha256').update(s).digest('hex')
 export class GatewayKeys {
