@@ -11,7 +11,7 @@ function AgentTerminal({ started, reduced }: { started: boolean; reduced: boolea
   return (
     <div className="hero-window hero-agent">
       <div className="hero-window-bar"><div className="hero-window-title"><Code2 size={14} /> Workspace</div><span className="hero-window-badge">SIMULATED</span></div>
-      <div className={`agent-content ${started ? 'agent-active' : ''}`} aria-label="Illustrative agent activity">
+      <section className={`agent-content ${started ? 'agent-active' : ''}`} aria-label="Illustrative agent activity">
         <AnimatePresence mode="wait" initial={false}>
           {!started ? <motion.div key="prompt" className="agent-request" exit={reduced ? undefined : { opacity: 0, height: 0, y: -18, margin: 0, paddingTop: 0, paddingBottom: 0 }} transition={{ duration: .45 }}>
             <div className="agent-prompt-label">PROMPT</div>
@@ -32,7 +32,7 @@ function AgentTerminal({ started, reduced }: { started: boolean; reduced: boolea
             <div className="agent-thinking"><span className="thinking-spinner" /> Working<span className="thinking-dots">...</span></div>
           </motion.div>}
         </AnimatePresence>
-      </div>
+      </section>
       <div className="hero-window-bottom"><span><span className="agent-status-dot" /> {started ? 'RUNNING' : 'READY'}</span><span>~ / workspace</span></div>
     </div>
   )
@@ -57,17 +57,17 @@ function GameTerminal({ started }: { started: boolean }) {
     timer = window.setTimeout(advance, index === 0 ? 9000 : 3800)
     return () => clearTimeout(timer)
   }, [reduced, started, index])
-  const phase = reduced ? 'select' : phases[index]!
+  const phase = reduced ? 'select' : phases[index]
   return (
     <div className="hero-window hero-game">
       <div className="hero-window-bar"><div className="hero-window-title"><Gamepad2 size={15} /> arcade</div><span className="hero-window-badge">SIMULATED</span></div>
-      <div className="game-terminal-stage" aria-label="Simulated arcade flow: choose a game, invite a friend, deposit, commit, reveal, and claim.">
+      <section className="game-terminal-stage" aria-label="Simulated arcade flow: choose a game, invite a friend, deposit, commit, reveal, and claim.">
         <AnimatePresence mode="wait" initial={false}>
           <motion.div className="demo-frame" key={phase} initial={reduced ? false : { opacity: 0, y: 9 }} animate={{ opacity: 1, y: 0 }} exit={reduced ? undefined : { opacity: 0, y: -7 }} transition={{ duration: .25 }}>
             <PhaseScreen phase={phase} />
           </motion.div>
         </AnimatePresence>
-      </div>
+      </section>
       <div className="hero-window-bottom"><span>ARCADE / {practiceGames.length + 1}</span><div className="demo-progress" aria-hidden="true">{phases.map((step, i) => <span className={i === (reduced ? 0 : index) ? 'active' : ''} key={step} />)}</div></div>
     </div>
   )

@@ -1,6 +1,6 @@
 import { useNearWallet } from 'near-connect-hooks'
 import { getTransactionLastResult } from 'near-api-js'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import confetti from 'canvas-confetti'
 import { motion } from 'framer-motion'
 import {
@@ -60,21 +60,21 @@ export function GameRoom() {
 
   const confettiFired = useRef<string | null>(null)
 
-  async function checkRegistration() {
+  const checkRegistration = useCallback(async () => {
     const value = await viewFunction({
       contractId: TOKEN,
       method: 'storage_balance_of',
       args: { account_id: account }
     })
     setRegistered(value !== null)
-  }
+  }, [account, viewFunction])
 
   useEffect(() => {
     setRegistered(null)
     void checkRegistration().catch(() => setMessage('Could not check PCC storage registration.'))
     const timer = window.setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(timer)
-  }, [account])
+  }, [checkRegistration])
 
   const me = room?.players.find((p) => p.account === account)
 
@@ -93,7 +93,7 @@ export function GameRoom() {
     }
   }, [room, account])
 
-  async function refresh(matchId = id) {
+  const refresh = useCallback(async (matchId = id) => {
     if (!/^\d+$/.test(matchId) || BigInt(matchId) > 2n ** 64n - 1n) {
       setRoom(null)
       return
@@ -104,7 +104,7 @@ export function GameRoom() {
       args: { match_id: matchId }
     })) as Match | null
     setRoom(state)
-  }
+  }, [id, viewFunction])
 
   useEffect(() => {
     if (!/^\d+$/.test(id) || BigInt(id) > 2n ** 64n - 1n) {
@@ -130,7 +130,7 @@ export function GameRoom() {
       stopped = true
       clearInterval(timer)
     }
-  }, [id, account])
+  }, [id, viewFunction])
 
   useEffect(() => {
     if (!/^\d+$/.test(id) || BigInt(id) > 2n ** 64n - 1n) return
@@ -169,7 +169,7 @@ export function GameRoom() {
       socket.current?.close()
       socket.current = null
     }
-  }, [id, account])
+  }, [id, refresh])
 
   async function callFunction(params: Parameters<typeof callFunctionRaw>[0]) {
     const outcome = await callFunctionRaw(params)
@@ -210,13 +210,13 @@ export function GameRoom() {
     setMessage('Authenticating wallet challenge for Testnet faucet…')
     try {
       const auth = token || (await login())
-      const previous = await request('/api/faucet', 'GET', undefined, auth)
+      const previous = await request<{claim?:{tx_hash?:string; state:string}}>('/api/faucet', 'GET', undefined, auth)
       if (previous.claim) {
         if (previous.claim.tx_hash) setTxHash(previous.claim.tx_hash)
         setMessage(previous.claim.state === 'complete' ? 'Faucet claim already completed (10 PCC).' : 'Faucet claim is currently pending.')
         return
       }
-      const result = await request('/api/faucet', 'POST', undefined, auth)
+      const result = await request<{claim?:{tx_hash?:string; state:string}}>('/api/faucet', 'POST', undefined, auth)
       if (result.claim?.tx_hash) setTxHash(result.claim.tx_hash)
       window.dispatchEvent(new Event('promptplay:balance'))
       setMessage(result.claim?.state === 'complete' ? '10 PCC transferred to your wallet!' : 'Faucet transfer submitted.')
@@ -356,7 +356,7 @@ export function GameRoom() {
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
           {registered === false && (
-            <button
+            <button type="button"
               className="btn-accent"
               style={{ fontSize: '12px', padding: '6px 14px' }}
               disabled={pending}
@@ -378,7 +378,7 @@ export function GameRoom() {
           )}
 
           {config?.faucetAvailable && registered && (
-            <button
+            <button type="button"
               className="btn-ghost"
               style={{ fontSize: '12px', padding: '6px 14px', borderColor: 'var(--amber)', color: 'var(--amber)' }}
               disabled={pending}
@@ -397,7 +397,7 @@ export function GameRoom() {
 
       {/* MATCH STEPPER */}
       {room && (
-        <div className="arena-stepper" aria-label="Match progression">
+        <section className="arena-stepper" aria-label="Match progression">
           {[
             { phase: 'Funding', label: 'Deposit' },
             { phase: 'Committing', label: 'Commit' },
@@ -419,7 +419,7 @@ export function GameRoom() {
               </div>
             )
           })}
-        </div>
+        </section>
       )}
 
       {/* ACTIVE MATCH HUD */}
@@ -441,7 +441,7 @@ export function GameRoom() {
                   <span>{timeLeft}s</span>
                 </div>
               )}
-              <button className="btn-ghost" style={{ fontSize: '12px', padding: '6px 12px' }} onClick={copyInvite}>
+              <button type="button" className="btn-ghost" style={{ fontSize: '12px', padding: '6px 12px' }} onClick={copyInvite}>
                 {copiedLink ? <Check size={14} color="var(--emerald)" /> : <Copy size={14} />}
                 <span>{copiedLink ? 'Copied' : 'Invite Link'}</span>
               </button>
@@ -521,7 +521,7 @@ export function GameRoom() {
           {/* GAME ACTION CONTROLS */}
           {me && room.phase === 'Funding' && !me.funded && (
             <div style={{ textAlign: 'center', padding: '16px 0' }}>
-              <button className="btn-primary" disabled={pending || (confirmedDeposit?.account === account && confirmedDeposit.matchId === room.id)} onClick={() => void action(fund)}>
+              <button type="button" className="btn-primary" disabled={pending || (confirmedDeposit?.account === account && confirmedDeposit.matchId === room.id)} onClick={() => void action(fund)}>
                 <ShieldCheck size={18} />
                 <span>{confirmedDeposit?.account === account && confirmedDeposit.matchId === room.id ? 'Deposit confirmed · updating match…' : `Deposit ${pcc(room.stake)} PCC Into Escrow`}</span>
               </button>
@@ -581,7 +581,7 @@ export function GameRoom() {
 
           {me && room.phase === 'Revealing' && me.revealed === null && (
             <div style={{ textAlign: 'center', padding: '20px 0' }}>
-              <button className="btn-accent" disabled={pending} onClick={() => void action(reveal)}>
+              <button type="button" className="btn-accent" disabled={pending} onClick={() => void action(reveal)}>
                 <Eye size={18} />
                 <span>Reveal Secret Move</span>
               </button>
@@ -619,7 +619,7 @@ export function GameRoom() {
 
               {me && BigInt(me.claim) > 0n && (
                 <div style={{ marginTop: '20px', display: 'flex', gap: '14px', justifyContent: 'center', flexWrap: 'wrap' }}>
-                  <button
+                  <button type="button"
                     className="btn-primary"
                     disabled={pending || me.pending}
                     onClick={() =>
@@ -650,7 +650,7 @@ export function GameRoom() {
           {['Funding', 'Committing', 'Revealing'].includes(room.phase) &&
             now >= Number(BigInt(room.deadline) / 1000000n) && (
               <div style={{ textAlign: 'center', marginTop: '20px' }}>
-                <button
+                <button type="button"
                   className="btn-ghost"
                   style={{ borderColor: 'var(--crimson)', color: 'var(--crimson)' }}
                   disabled={pending}
@@ -734,7 +734,7 @@ export function GameRoom() {
                 ))}
               </div>
 
-              <button className="btn-primary" disabled={pending} style={{ width: '100%' }}>
+              <button type="submit" className="btn-primary" disabled={pending} style={{ width: '100%' }}>
                 <Gamepad2 size={16} />
                 <span>Create Duel · 0.01 NEAR</span>
               </button>
@@ -761,7 +761,7 @@ export function GameRoom() {
                 />
               </label>
 
-              <button
+              <button type="button"
                 className="btn-ghost"
                 disabled={pending || !id}
                 onClick={() => void refresh(id)}
@@ -783,7 +783,7 @@ export function GameRoom() {
 
       {/* STATUS TOAST NOTIFICATION */}
       {message && (
-        <div className="status-toast" role="status">
+        <output className="status-toast">
           <span>{message}</span>
           {txHash && (
             <a
@@ -796,7 +796,7 @@ export function GameRoom() {
               <ExternalLink size={13} />
             </a>
           )}
-        </div>
+        </output>
       )}
     </div>
   )

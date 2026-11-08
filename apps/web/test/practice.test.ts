@@ -13,7 +13,7 @@ describe('practice game rules', () => {
   })
   test('drops to the bottom and rejects a full column', () => {
     let board: (string|null)[] = Array(42).fill(null)
-    for (let i = 0; i < 6; i++) board = drop(board, 0, 'X')!
+    for (let i = 0; i < 6; i++) { const next = drop(board, 0, 'X'); if (!next) throw new Error('Column filled too early'); board = next }
     expect(drop(board, 0, 'O')).toBeNull()
     expect(board[35]).toBe('X')
   })

@@ -100,7 +100,7 @@ function Content() {
               <h2 style={{ fontFamily: 'var(--font-display)', margin: '0 0 20px' }}>
                 Enter Duel Arena
               </h2>
-              <button className="btn-primary" onClick={() => void connectWallet()} disabled={loading} style={{ width: '100%' }}>
+              <button type="button" className="btn-primary" onClick={() => void connectWallet()} disabled={loading} style={{ width: '100%' }}>
                 <span>Connect NEAR Wallet</span>
               </button>
             </div>
@@ -117,7 +117,7 @@ function Content() {
               <h2 style={{ fontFamily: 'var(--font-display)', margin: '0 0 20px' }}>
                 Inference Terminal
               </h2>
-              <button className="btn-accent" onClick={() => void connectWallet()} disabled={loading} style={{ width: '100%' }}>
+              <button type="button" className="btn-accent" onClick={() => void connectWallet()} disabled={loading} style={{ width: '100%' }}>
                 <span>Connect NEAR Wallet</span>
               </button>
             </div>

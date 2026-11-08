@@ -5,9 +5,10 @@ const config = { redemptionAvailable: true, redemptionUnitsAvailable:1, faucetAv
 
 describe('agent configuration', () => {
   test('uses the gateway model and limits with an environment-based key', () => {
-    const snippets = agentSnippets('http://localhost:3001', config)!
-    const opencode = JSON.parse(snippets.opencode!)
-    const pi = JSON.parse(snippets.pi!)
+    const snippets = agentSnippets('http://localhost:3001', config)
+    if (!snippets?.opencode || !snippets.pi) throw new Error('Expected agent configurations')
+    const opencode = JSON.parse(snippets.opencode)
+    const pi = JSON.parse(snippets.pi)
     expect(opencode.provider.promptplay.models['example/model'].limit).toEqual({ context: 8192, output: 256 })
     expect(opencode.provider.promptplay.options.apiKey).toBe('{env:PROMPTPLAY_API_KEY}')
     expect(pi.providers.promptplay.models[0]).toMatchObject({ id: 'example/model', contextWindow: 8192, maxTokens: 256 })
@@ -19,7 +20,8 @@ describe('agent configuration', () => {
   })
   test('only offers coding-agent configs when streaming and tool calling are verified', () => {
     for (const capabilities of [{streaming:false,toolCalls:true},{streaming:true,toolCalls:false}]) {
-      const snippets=agentSnippets('http://localhost:3001',{...config,capabilities})!
+      const snippets=agentSnippets('http://localhost:3001',{...config,capabilities})
+      if (!snippets) throw new Error('Expected gateway configuration')
       expect(snippets.opencode).toBeNull();expect(snippets.pi).toBeNull();expect(snippets.curl).toContain('example/model')
     }
   })

@@ -15,7 +15,7 @@ export type GameId = typeof practiceGames[number]['id']
 export const isGameId = (value: string): value is GameId => practiceGames.some(game => game.id === value)
 export function shuffle<T>(items: T[]): T[] {
   const result = [...items]
-  for (let i = result.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [result[i], result[j]] = [result[j]!, result[i]!] }
+  for (let i = result.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [result[i], result[j]] = [result[j], result[i]] }
   return result
 }
 export function winner(board: (string | null)[], width: number, height: number, run: number): string | null {
@@ -45,14 +45,14 @@ export function adjacent(index: number, width: number, height: number, diagonals
 export function slide(board: number[], index: number): number[] | null {
   const empty = board.indexOf(0)
   if (!adjacent(empty, 4, 4).includes(index)) return null
-  const next = [...board]; [next[empty], next[index]] = [next[index]!, next[empty]!]; return next
+  const next = [...board]; [next[empty], next[index]] = [next[index], next[empty]]; return next
 }
 export function move2048(board: number[], direction: 'left' | 'right' | 'up' | 'down'): number[] {
   const next = [...board]
   for (let line = 0; line < 4; line++) {
     const indices = Array.from({ length: 4 }, (_, n) => direction === 'left' ? line * 4 + n : direction === 'right' ? line * 4 + 3 - n : direction === 'up' ? n * 4 + line : (3 - n) * 4 + line)
-    const vals = indices.map(i => board[i]!).filter(Boolean), merged: number[] = []
-    for (let i = 0; i < vals.length; i++) { if (vals[i] === vals[i + 1]) { merged.push(vals[i]! * 2); i++ } else merged.push(vals[i]!) }
+    const vals = indices.map(i => board[i]).filter(Boolean), merged: number[] = []
+    for (let i = 0; i < vals.length; i++) { if (vals[i] === vals[i + 1]) { merged.push(vals[i] * 2); i++ } else merged.push(vals[i]) }
     indices.forEach((index, i) => { next[index] = merged[i] ?? 0 })
   }
   return next
@@ -60,7 +60,7 @@ export function move2048(board: number[], direction: 'left' | 'right' | 'up' | '
 export function codeFeedback(secret: string, guess: string) {
   let exact = 0, misplaced = 0
   const remainingSecret: string[] = [], remainingGuess: string[] = []
-  for (let i = 0; i < secret.length; i++) { if (secret[i] === guess[i]) exact++; else { remainingSecret.push(secret[i]!); remainingGuess.push(guess[i]!) } }
+  for (let i = 0; i < secret.length; i++) { if (secret[i] === guess[i]) exact++; else { remainingSecret.push(secret[i]); remainingGuess.push(guess[i]) } }
   for (const digit of remainingGuess) { const i = remainingSecret.indexOf(digit); if (i !== -1) { misplaced++; remainingSecret.splice(i, 1) } }
   return { exact, misplaced }
 }

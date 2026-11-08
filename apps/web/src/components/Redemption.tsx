@@ -1,5 +1,5 @@
 import { useNearWallet } from 'near-connect-hooks'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
   Coins,
   Key,
@@ -69,11 +69,11 @@ export function Redemption() {
 
   const slot = `promptplay:redemption:${account}`
 
-  async function refresh(token = session) {
+  const refresh = useCallback(async (token = session) => {
     const [b, k, u] = await Promise.all([
-      request('/api/inference/balance', 'GET', undefined, token),
-      request('/api/keys', 'GET', undefined, token),
-      request('/api/inference/usage', 'GET', undefined, token)
+      request<{units:number}>('/api/inference/balance', 'GET', undefined, token),
+      request<{keys:KeyItem[]}>('/api/keys', 'GET', undefined, token),
+      request<{requests:typeof usage}>('/api/inference/usage', 'GET', undefined, token)
     ])
     setBalance(b.units)
     setKeys(k.keys)
@@ -82,7 +82,7 @@ export function Redemption() {
     const saved = localStorage.getItem(slot)
     if (saved) {
       const data = JSON.parse(saved) as { id: string; hash?: string; submitted?: boolean }
-      const i = await request(`/api/redemptions/${encodeURIComponent(data.id)}`, 'GET', undefined, token)
+      const i = await request<Intent>(`/api/redemptions/${encodeURIComponent(data.id)}`, 'GET', undefined, token)
       setIntent(i)
       setSubmitted(data.submitted === true || !!data.hash || !!i.attempted)
       setHash(data.hash ?? i.tx_hash ?? '')
@@ -96,10 +96,10 @@ export function Redemption() {
         localStorage.setItem(slot, JSON.stringify({ id: pending.id }))
       }
     }
-  }
+  }, [session, request, slot])
 
   useEffect(() => {
-    setIntent(null)
+    setIntent(previous => previous?.account_id === account ? previous : null)
     setHash('')
     setSubmitted(false)
     setNewKey('')
@@ -108,7 +108,7 @@ export function Redemption() {
 
   useEffect(() => {
     if (session) void refresh(session).catch(() => setMessage('Could not load your inference account.'))
-  }, [session])
+  }, [session, refresh])
 
   async function action(fn: () => Promise<void>) {
     setBusy(true)
@@ -123,7 +123,7 @@ export function Redemption() {
   }
 
   async function createIntent() {
-    const created = await request('/api/redemptions', 'POST', { units: 1 })
+    const created = await request<{id:string}>('/api/redemptions', 'POST', { units: 1 })
     localStorage.setItem(slot, JSON.stringify({ id: created.id }))
     await refresh()
   }
@@ -168,7 +168,7 @@ export function Redemption() {
   }
 
   async function createKey() {
-    const result = await request('/api/keys', 'POST', { quota: 1_000_000 })
+    const result = await request<{key:string}>('/api/keys', 'POST', { quota: 1_000_000 })
     setNewKey(result.key)
     await refresh()
   }
@@ -179,7 +179,7 @@ export function Redemption() {
     const model = models.data[0]?.id
     if (!model) throw new Error('No gateway model is currently configured.')
 
-    const response = await request(
+    const response = await request<{choices:Array<{message:{content:string}}> }>(
       '/v1/chat/completions',
       'POST',
       {
@@ -257,7 +257,7 @@ export function Redemption() {
         <div className="terminal-card" style={{ maxWidth: '540px', margin: '40px auto', textAlign: 'center' }}>
           <Lock size={36} color="var(--cyan)" style={{ margin: '0 auto 12px' }} />
           <h3 style={{ justifyContent: 'center', marginBottom: '20px' }}>Gateway Terminal Authentication</h3>
-          <button
+          <button type="button"
             className="btn-primary"
             disabled={busy}
             onClick={() =>
@@ -303,7 +303,7 @@ export function Redemption() {
               {!intent && config.redemptionAvailable && config.redemptionUnitsAvailable === 0 && <p>All demo units are currently allocated.</p>}
               {!intent && config.redemptionAvailable && config.redemptionUnitsAvailable !== 0 && (
                 <div>
-                  <button className="btn-primary" disabled={busy} onClick={() => void action(createIntent)}>
+                  <button type="button" className="btn-primary" disabled={busy} onClick={() => void action(createIntent)}>
                     <ArrowRight size={16} />
                     <span>Create 1-Unit Intent (5 PCC)</span>
                   </button>
@@ -325,7 +325,7 @@ export function Redemption() {
                     </div>
                   </div>
 
-                  <button
+                  <button type="button"
                     className="btn-primary"
                     disabled={busy || submitted || !!hash || !config.redemptionAvailable}
                     onClick={() => void action(transfer)}
@@ -346,7 +346,7 @@ export function Redemption() {
                         placeholder="Paste transaction hash if wallet disconnected"
                       />
                     </label>
-                    <button
+                    <button type="button"
                       className="btn-ghost"
                       style={{ marginTop: '10px', width: '100%' }}
                       disabled={busy || !hash}
@@ -366,7 +366,7 @@ export function Redemption() {
                   <div style={{ fontSize: '12px', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', marginTop: '4px' }}>
                     Receipt: {intent.receipt_id.slice(0, 16)}...
                   </div>
-                  <button
+                  <button type="button"
                     className="btn-ghost"
                     style={{ marginTop: '14px' }}
                     onClick={() => {
@@ -389,7 +389,7 @@ export function Redemption() {
                   <Key size={20} color="var(--cyan)" />
                   <span>Gateway API Keys</span>
                 </h3>
-                <button
+                <button type="button"
                   className="btn-primary"
                   style={{ fontSize: '12px', padding: '6px 14px' }}
                   disabled={busy || !config.redemptionAvailable}
@@ -406,7 +406,7 @@ export function Redemption() {
                     <strong style={{ fontSize: '13px', color: 'var(--amber)' }}>
                       Copy Key Now (Shown Once)
                     </strong>
-                    <button className="btn-ghost" style={{ padding: '4px 8px', fontSize: '12px' }} onClick={copyKeyToClipboard}>
+                    <button type="button" className="btn-ghost" style={{ padding: '4px 8px', fontSize: '12px' }} onClick={copyKeyToClipboard}>
                       {copiedKey ? <Check size={14} color="var(--emerald)" /> : <Copy size={14} />}
                       <span>{copiedKey ? 'Copied' : 'Copy'}</span>
                     </button>
@@ -436,7 +436,7 @@ export function Redemption() {
                     <code style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', color: 'var(--cyan)' }}>
                       key_{k.id.slice(0, 12)}...
                     </code>
-                    <button
+                    <button type="button"
                       className="btn-disconnect"
                       disabled={busy}
                       title="Revoke key"
@@ -473,7 +473,7 @@ export function Redemption() {
                     placeholder="Enter test prompt for live metered completion..."
                   />
 
-                  <button
+                  <button type="button"
                     className="btn-accent"
                     style={{ alignSelf: 'flex-start' }}
                     disabled={busy || !prompt.trim()}
@@ -503,7 +503,7 @@ export function Redemption() {
                 <Code2 size={20} color="var(--cyan)" />
                 <span>Coding Agent Configuration Snippets</span>
               </h3>
-              <button
+              <button type="button"
                 className="btn-ghost"
                 style={{ fontSize: '12px', padding: '6px 12px' }}
                 disabled={!snippetContent?.[activeSnippetTab]}
@@ -614,9 +614,9 @@ export function Redemption() {
 
       {/* TOAST MESSAGE */}
       {message && (
-        <div className="status-toast" role="status">
+        <output className="status-toast">
           <span>{message}</span>
-        </div>
+        </output>
       )}
     </div>
   )
