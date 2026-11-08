@@ -28,6 +28,9 @@ async fn escrow_settles_a_two_player_tie() -> testresult::TestResult<()> {
     let token = near_api::Account(token_id.clone()).as_contract();
     let game = near_api::Account(game_id.clone()).as_contract();
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let baseline_token = std::env::var_os("PROMPTPLAY_BASELINE_TOKEN_WASM");
+    let baseline_game = std::env::var_os("PROMPTPLAY_BASELINE_GAME_WASM");
+    assert_eq!(baseline_token.is_some(), baseline_game.is_some());
     for (id, file, args) in [
         (
             token_id.clone(),
@@ -42,9 +45,14 @@ async fn escrow_settles_a_two_player_tie() -> testresult::TestResult<()> {
     ] {
         near_api::Contract::deploy(id)
             .use_code(std::fs::read(if file == "compute_credit.wasm" {
-                root.join("../compute-credit/target/near").join(file)
+                baseline_token.clone().map_or_else(
+                    || root.join("../compute-credit/target/near").join(file),
+                    Into::into,
+                )
             } else {
-                root.join("target/near").join(file)
+                baseline_game
+                    .clone()
+                    .map_or_else(|| root.join("target/near").join(file), Into::into)
             })?)
             .with_init_call("new", args)?
             .with_signer(signer.clone())
@@ -140,6 +148,23 @@ async fn escrow_settles_a_two_player_tie() -> testresult::TestResult<()> {
             .send_to(&network)
             .await?
             .assert_success();
+    }
+    if baseline_token.is_some() {
+        for (id, path) in [
+            (
+                token_id.clone(),
+                root.join("../compute-credit/target/near/compute_credit.wasm"),
+            ),
+            (game_id.clone(), root.join("target/near/rps_game.wasm")),
+        ] {
+            near_api::Contract::deploy(id)
+                .use_code(std::fs::read(path)?)
+                .without_init_call()
+                .with_signer(signer.clone())
+                .send_to(&network)
+                .await?
+                .assert_success();
+        }
     }
     for who in [alice.clone(), bob.clone()] {
         game.call_function(
