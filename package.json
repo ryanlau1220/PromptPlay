@@ -23,7 +23,7 @@
     "verify:testnet": "bun scripts/verify-testnet.mjs",
     "test:testnet-match": "bun apps/server/src/testnet-match.ts",
     "test:testnet-journey": "bun apps/server/src/testnet-journey.ts",
-    "test:browser": "python3 scripts/test-browser-match.py",
+    "test:browser": "bun scripts/test-browser-match.ts",
     "test:timeouts": "bun run build:contracts && cd contracts/rps-game && cargo test --test timeouts -- --ignored"
   },
   "devDependencies": {
