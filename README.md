@@ -47,7 +47,7 @@ For a transfer that was submitted but not credited, sign in with the same wallet
 
 Run these commands from the repository root:
 
-- `bun run check` runs JavaScript/TypeScript lint, Rust formatting checks and both app type checks. The lint rules cover selected correctness and suspicious patterns; they are not a full security audit.
+- `bun run check` runs Biome's recommended lint rules across project files with warnings treated as errors, Rust formatting checks and both app type checks. It is not a security audit.
 - `bun run build:contracts:release` uses Docker and an isolated checkout of the recorded source commit to rebuild the deployed contracts, checks both hashes, and stores verified artifacts under each contract's ignored `target/reproducible` directory.
 - `bun run build` builds both NEAR contracts and the web app; `bun run build:web` and `bun run build:contracts` run them separately.
 - `bun run test` builds the contracts, runs both app test suites and the contract tests, including the NEAR sandbox integration test. Use `bun run test:apps` or `bun run test:contracts` for a subset.

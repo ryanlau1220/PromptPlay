@@ -3,7 +3,7 @@
   "files": { "includes": ["**", "!tmp", "!**/routeTree.gen.ts", "!**/node_modules", "!**/target", "!**/dist"] },
   "linter": {
     "rules": {
-      "recommended": false,
+      "recommended": true,
       "correctness": { "noUnreachable": "error", "noConstantCondition": "error" },
       "suspicious": { "noDebugger": "error", "noDuplicateCase": "error", "noDuplicateObjectKeys": "error" }
     }
