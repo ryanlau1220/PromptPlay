@@ -1,7 +1,7 @@
 from playwright.sync_api import sync_playwright
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
-import json, os, re, tempfile, time
+import base64, json, os, re, signal, socket, subprocess, tempfile, time
 from urllib.request import Request, urlopen
 
 extension=Path(os.environ['METEOR_EXTENSION_PATH']).resolve()
@@ -17,8 +17,42 @@ if any(not (profiles/f'profile-{i}').is_dir() for i in range(2)): raise ValueErr
 Path('tmp').mkdir(exist_ok=True)
 base=Path(tempfile.mkdtemp(prefix='browser-match-',dir='tmp')).resolve();base.chmod(0o700)
 trace={'network':'testnet','players':ids,'outcome':outcome,'status':'setup','steps':[], 'transactions':[]}
+restart_server=os.environ.get('BROWSER_TEST_RESTART_SERVER')=='true'
+resume=os.environ.get('BROWSER_TEST_RESUME_MATCH','')
+if resume and (not resume.isdigit() or int(resume)>2**64-1): raise ValueError('Invalid match ID for resume')
+server=None
 def save(step):
  trace['steps'].append(step);(base/'trace.json').write_text(json.dumps(trace,indent=2));print(step,flush=True)
+def port_open():
+ try:
+  with socket.create_connection(('127.0.0.1',3001),timeout=1): return True
+ except OSError: return False
+def start_server():
+ global server
+ if port_open(): raise RuntimeError('Port 3001 is in use; stop the existing server before running the restart test')
+ with (base/'server.log').open('ab') as log:
+  server=subprocess.Popen(['bun','run','dev:server'],stdout=log,stderr=subprocess.STDOUT,start_new_session=True)
+ deadline=time.monotonic()+45
+ while time.monotonic()<deadline:
+  if server.poll() is not None: raise RuntimeError('Test server exited during startup; inspect the server log')
+  try:
+   with urlopen('http://127.0.0.1:3001/health',timeout=1) as response:
+    if json.load(response).get('ok') is True: return
+  except (OSError,ValueError): pass
+  time.sleep(.2)
+ raise RuntimeError('Test server did not become healthy; inspect the server log')
+def stop_server():
+ global server
+ if server is None: return
+ if server.poll() is None:
+  os.killpg(server.pid,signal.SIGTERM)
+  try: server.wait(timeout=10)
+  except subprocess.TimeoutExpired:
+   os.killpg(server.pid,signal.SIGKILL);server.wait(timeout=5)
+ server=None
+ deadline=time.monotonic()+10
+ while port_open() and time.monotonic()<deadline: time.sleep(.1)
+ if port_open(): raise RuntimeError('Port 3001 remained in use after the test server stopped')
 def waitfor(fn,timeout=30):
  end=time.monotonic()+timeout
  while time.monotonic()<end:
@@ -49,6 +83,8 @@ def sign(c,a,name):
  save('confirmed '+name)
 contexts=[]
 try:
+ if restart_server:
+  start_server();save('test-owned server started')
  with sync_playwright() as p:
   apps=[]
   for i in range(2):
@@ -75,21 +111,37 @@ try:
    a.locator('header').get_by_text(ids[i]).wait_for(timeout=30000)
    save(f'wallet {i} connected')
   a,b=apps;ca,cb=contexts
-  a.get_by_placeholder('friend.testnet').fill(ids[1]);a.get_by_role('button',name='1 PCC',exact=True).click()
-  if os.environ.get('BROWSER_TEST_REJECT_CREATE')=='true':
-   save('opening create for rejection')
-   previous=set(ca.pages);a.get_by_role('button',name='Create Duel').first.click();wallet_prompt(popup(ca,previous),False)
-   status=a.get_by_role('status');status.get_by_text(re.compile('reject|denied|cancel',re.I)).wait_for(timeout=30000)
-   if parse_qs(urlparse(a.url).query).get('match') or a.locator('a[href^="https://testnet.nearblocks.io/txns/"]').count(): raise RuntimeError('Rejected create unexpectedly returned a transaction or match')
-   if not a.get_by_role('button',name='Create Duel').first.is_enabled(): raise RuntimeError('Create button did not recover after rejection')
-   save('wallet rejection handled')
-  sign(ca,a,'Create Duel')
-  match=parse_qs(urlparse(a.url).query).get('match',[None])[0]
-  if not match or not match.isdigit():raise RuntimeError('Match ID missing after creation')
-  trace['matchId']=match;save('created match '+match)
-  b.goto(f'http://localhost:3000/?match={match}#play',wait_until='domcontentloaded')
-  sign(ca,a,'Deposit 1 PCC Into Escrow');sign(cb,b,'Deposit 1 PCC Into Escrow')
-  sign(ca,a,'Rock');sign(cb,b,'Rock' if outcome=='tie' else 'Scissors')
+  if resume:
+   request=Request(os.environ.get('NEAR_RPC_URL','https://archival-rpc.testnet.near.org'),data=json.dumps({'jsonrpc':'2.0','id':1,'method':'query','params':{'request_type':'call_function','finality':'final','account_id':'game.ryanlau1220.testnet','method_name':'get_match','args_base64':base64.b64encode(json.dumps({'match_id':resume}).encode()).decode()}}).encode(),headers={'content-type':'application/json'})
+   with urlopen(request,timeout=30) as response: result=json.load(response)
+   if 'error' in result: raise RuntimeError('Cannot verify match before resume')
+   state=json.loads(bytes(result['result']['result']))
+   if not state or state['phase']!='Revealing' or state['stake']!='1000000' or [player['account'] for player in state['players']]!=ids or any(not player['commitment'] or player['revealed'] is not None for player in state['players']): raise RuntimeError('Resume requires these players with both moves committed and neither revealed')
+   match=resume;trace['matchId']=match;save('resuming unrevealed match '+match)
+   for page in apps: page.goto(f'http://localhost:3000/?match={match}#play',wait_until='domcontentloaded')
+   for i,page in enumerate(apps):
+    key=f'promptplay:testnet:game.ryanlau1220.testnet:{ids[i]}:{match}'
+    raw=page.evaluate('(key)=>localStorage.getItem(key)',key)
+    if not raw or json.loads(raw).get('choice')!=(0 if i==0 or outcome=='tie' else 2): raise RuntimeError('Saved browser moves do not match the requested outcome; preserve profiles for manual recovery')
+  else:
+   a.get_by_placeholder('friend.testnet').fill(ids[1]);a.get_by_role('button',name='1 PCC',exact=True).click()
+   if os.environ.get('BROWSER_TEST_REJECT_CREATE')=='true':
+    save('opening create for rejection')
+    previous=set(ca.pages);a.get_by_role('button',name='Create Duel').first.click();wallet_prompt(popup(ca,previous),False)
+    status=a.get_by_role('status');status.get_by_text(re.compile('reject|denied|cancel',re.I)).wait_for(timeout=30000)
+    if parse_qs(urlparse(a.url).query).get('match') or a.locator('a[href^="https://testnet.nearblocks.io/txns/"]').count(): raise RuntimeError('Rejected create unexpectedly returned a transaction or match')
+    if not a.get_by_role('button',name='Create Duel').first.is_enabled(): raise RuntimeError('Create button did not recover after rejection')
+    save('wallet rejection handled')
+   sign(ca,a,'Create Duel')
+   match=parse_qs(urlparse(a.url).query).get('match',[None])[0]
+   if not match or not match.isdigit():raise RuntimeError('Match ID missing after creation')
+   trace['matchId']=match;save('created match '+match)
+   b.goto(f'http://localhost:3000/?match={match}#play',wait_until='domcontentloaded')
+   sign(ca,a,'Deposit 1 PCC Into Escrow');sign(cb,b,'Deposit 1 PCC Into Escrow')
+   sign(ca,a,'Rock');sign(cb,b,'Rock' if outcome=='tie' else 'Scissors')
+  if restart_server:
+   save('restarting test-owned server during reveal')
+   stop_server();start_server();save('test-owned server restarted')
   a.reload(wait_until='domcontentloaded');save('refreshed before reveal')
   sign(ca,a,'Reveal Secret Move');sign(cb,b,'Reveal Secret Move')
   if outcome=='tie':
@@ -104,7 +156,6 @@ try:
    with urlopen(request,timeout=30) as response: result=json.load(response)
    if 'error' in result: raise RuntimeError('Testnet RPC failed verification')
    return result['result']
-  import base64
   query=call('query',{'request_type':'call_function','finality':'final','account_id':'game.ryanlau1220.testnet','method_name':'get_match','args_base64':base64.b64encode(json.dumps({'match_id':match}).encode()).decode()})
   state=json.loads(bytes(query['result']))
   if state['id']!=match or state['stake']!='1000000' or state['phase']!='Completed' or state['winner']!=(None if outcome=='tie' else ids[0]) or any(player['claim']!='0' or player['pending'] for player in state['players']): raise RuntimeError('Final on-chain match state did not match the browser result')
@@ -131,3 +182,5 @@ except Exception as e:
  raise
 else:
  print('Browser match passed:',trace['matchId'],'trace:',base/'trace.json',flush=True)
+finally:
+ stop_server()

@@ -57,7 +57,9 @@ Run these commands from the repository root:
 
 For a local Playwright installation, run `python3 -m venv tmp/browser-venv`, `tmp/browser-venv/bin/pip install playwright==1.64.1` and `tmp/browser-venv/bin/python -m playwright install chromium`. Set `BROWSER_TEST_PYTHON` to the virtual environment's Python executable when running the root browser-test command. The browser and wallet extension are separate from Bun's application dependencies. Local configuration may be placed in the ignored root `.env.local`; keep the password and browser profiles private.
 
-The browser runner completed wins in Meteor Testnet matches 13, 14, 15 and 17 and a tie in match 16 on 8 November 2026. Each run refreshed before reveal; match 17 first rejected a create prompt and then completed a new match. Match 14's payout and both match 16 refunds are also checked by `bun run verify:testnet`. The browser runner does not automate inference redemption or server restarts.
+To test a backend restart, run `bun run dev:web` separately and then run `BROWSER_TEST_RESTART_SERVER=true bun run test:browser`. The runner starts and stops its own backend, refuses to run if port 3001 is already in use, and restarts it during reveal. To resume an interrupted match with both moves committed and neither revealed, use `BROWSER_TEST_RESUME_MATCH=<id>` with the original profiles and the matching `BROWSER_TEST_OUTCOME`; the runner checks chain state and saved moves before proceeding. Other interrupted states require manual reconciliation.
+
+The browser runner completed wins in Meteor Testnet matches 13, 14, 15, 17 and 19 and a tie in match 16 on 8 November 2026. Each run refreshed before reveal; match 17 first rejected a create prompt, and match 19 restarted the test-owned backend during reveal. Match 18 was safely resumed after a restart-test shutdown race and both refunds were verified. Match 14 and 19 payouts and both match 16 refunds are also checked by `bun run verify:testnet`. The browser runner does not automate inference redemption.
 
 Contract builds require the Rust WASM target and `cargo-near`; sandbox tests require access to the NEAR sandbox binary.
 
