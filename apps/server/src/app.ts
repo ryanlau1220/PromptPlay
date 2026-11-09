@@ -8,6 +8,7 @@ import type { Gateway } from './gateway'
 import type { ChatMessage, ChatOptions } from './provider'
 import type { Faucet } from './faucet'
 import { RequestError, UpstreamError } from './errors'
+import { responsesInput, responsesStream, responsesTools } from './responses'
 
 type Services = {auth:WalletAuth; redemption:Redemption; ledger:Accounting; allowRedemption:boolean; origin:string; keys:GatewayKeys; gateway:Gateway|null; faucet:Faucet|null; redemptionAllowlist:Set<string>}
 export function createApp({auth, redemption, ledger, allowRedemption, origin, keys, gateway, faucet, redemptionAllowlist}:Services) {
@@ -47,19 +48,31 @@ export function createApp({auth, redemption, ledger, allowRedemption, origin, ke
       const raw=token(headers.authorization)
       if(!keys.authenticate(raw)){set.status=401;return {error:{message:'Invalid API key',type:'authentication_error',code:'invalid_api_key'}}}
       if(!gateway){set.status=503;return {error:{message:'Inference is unavailable',type:'server_error',code:'unavailable'}}}
-      const messages:ChatMessage[]=[...(body.instructions ? [{role:'system' as const,content:body.instructions}] : []),...(typeof body.input==='string' ? [{role:'user' as const,content:body.input}] : body.input)]
+      if(new TextEncoder().encode(JSON.stringify(body)).length>256_000)throw new RequestError('Request too large',400)
+      const messages=responsesInput(body.input,body.instructions)
+      const options=responsesTools(body.tools,body.tool_choice,body.parallel_tool_calls)
       try {
-        const result=await gateway.complete(raw,body.model,messages,body.max_output_tokens ?? Math.min(128,gateway.maxOutputTokens))
+        const max=body.max_output_tokens ?? gateway.maxOutputTokens
+        if(body.stream) return new Response(responsesStream(gateway.stream(raw,body.model,messages,max,options),body.model),{headers:{'content-type':'text/event-stream','cache-control':'no-cache','x-accel-buffering':'no'}})
+        const result=await gateway.complete(raw,body.model,messages,max,options)
         const choice=result.choices[0]
-        if(typeof choice.message.content!=='string' || choice.message.tool_calls || !['stop','length'].includes(choice.finish_reason)) throw new Error('Unsupported provider result')
+        if(!['stop','length','tool_calls'].includes(choice.finish_reason)) throw new Error('Unsupported provider result')
         const incomplete=choice.finish_reason==='length'
-        return {id:result.id.replace('chatcmpl-','resp_'),object:'response',created_at:result.created,status:incomplete?'incomplete':'completed',model:result.model,output:[{id:result.id.replace('chatcmpl-','msg_'),type:'message',status:incomplete?'incomplete':'completed',role:'assistant',content:[{type:'output_text',text:choice.message.content,annotations:[]}]}],usage:{input_tokens:result.usage.prompt_tokens,output_tokens:result.usage.completion_tokens,total_tokens:result.usage.total_tokens},error:null,incomplete_details:incomplete?{reason:'max_output_tokens'}:null}
+        const output:unknown[]=[]
+        if(typeof choice.message.content==='string') output.push({id:result.id.replace('chatcmpl-','msg_'),type:'message',status:incomplete?'incomplete':'completed',role:'assistant',content:[{type:'output_text',text:choice.message.content,annotations:[]}]})
+        for(const [i,entry] of (choice.message.tool_calls ?? []).entries()) {
+          const call=entry as {id?:unknown;type?:unknown;function?:{name?:unknown;arguments?:unknown}}
+          if(call?.type!=='function'||typeof call.id!=='string'||typeof call.function?.name!=='string'||typeof call.function.arguments!=='string') throw new Error('Unsupported provider result')
+          output.push({id:`fc_${result.id.slice(9)}_${i}`,type:'function_call',status:'completed',call_id:call.id,name:call.function.name,arguments:call.function.arguments})
+        }
+        if(output.length===0) throw new Error('Unsupported provider result')
+        return {id:result.id.replace('chatcmpl-','resp_'),object:'response',created_at:result.created,status:incomplete?'incomplete':'completed',model:result.model,output,usage:{input_tokens:result.usage.prompt_tokens,output_tokens:result.usage.completion_tokens,total_tokens:result.usage.total_tokens},error:null,incomplete_details:incomplete?{reason:'max_output_tokens'}:null}
       } catch(e) {
-        const msg=e instanceof Error?e.message:'';const payment=msg==='Insufficient allowance'||msg==='Key quota exceeded or revoked';const limited=msg==='Project spending cap exceeded'||msg==='Rate limit exceeded'||msg==='Concurrency limit exceeded';const invalid=msg==='Model is not supported'||msg==='Invalid output limit'||msg==='Invalid messages';const upstream=e instanceof UpstreamError
+        const msg=e instanceof Error?e.message:'';const payment=msg==='Insufficient allowance'||msg==='Key quota exceeded or revoked';const limited=msg==='Project spending cap exceeded'||msg==='Rate limit exceeded'||msg==='Concurrency limit exceeded';const invalid=msg==='Model is not supported'||msg==='Invalid output limit'||msg==='Invalid messages'||msg==='Streaming is not supported'||msg==='Tool calling is not supported';const upstream=e instanceof UpstreamError
         set.status=payment?402:limited?429:invalid?400:upstream?502:500
         return {error:{message:payment?'Insufficient allowance or key quota':limited?'Spending or rate limit reached':invalid?msg:'Inference request could not be completed',type:payment?'insufficient_quota':limited?'rate_limit_error':invalid?'invalid_request_error':'server_error',code:payment?'insufficient_quota':limited?'rate_limit':invalid?'invalid_request':upstream?'upstream_error':'internal_error'}}
       }
-    },{body:t.Object({model:t.String({minLength:1,maxLength:200}),input:t.Union([t.String({minLength:1,maxLength:100000}),t.Array(t.Object({role:t.Union([t.Literal('system'),t.Literal('developer'),t.Literal('user'),t.Literal('assistant')]),content:t.String({maxLength:100000})},{additionalProperties:false}),{minItems:1,maxItems:32})]),instructions:t.Optional(t.String({maxLength:100000})),max_output_tokens:t.Optional(t.Integer({minimum:1,maximum:4096})),stream:t.Optional(t.Literal(false)),store:t.Optional(t.Literal(false))},{additionalProperties:false})})
+    },{body:t.Object({model:t.String({minLength:1,maxLength:200}),input:t.Unknown(),instructions:t.Optional(t.String({maxLength:100000})),max_output_tokens:t.Optional(t.Integer({minimum:1,maximum:4096})),stream:t.Optional(t.Boolean()),store:t.Optional(t.Literal(false)),tools:t.Optional(t.Unknown()),tool_choice:t.Optional(t.Unknown()),parallel_tool_calls:t.Optional(t.Boolean()),reasoning:t.Optional(t.Object({effort:t.Literal('none'),summary:t.Optional(t.Union([t.Literal('auto'),t.Null()]))},{additionalProperties:false})),include:t.Optional(t.Array(t.Literal('reasoning.encrypted_content'),{maxItems:1})),prompt_cache_key:t.Optional(t.String({maxLength:256})),client_metadata:t.Optional(t.Record(t.String({maxLength:128}),t.String({maxLength:1024}),{maxProperties:32}))},{additionalProperties:false})})
     .post('/v1/chat/completions',async({headers,body,set})=>{
       const raw=token(headers.authorization)
       if(!keys.authenticate(raw)){set.status=401;return {error:{message:'Invalid API key',type:'authentication_error',code:'invalid_api_key'}}}

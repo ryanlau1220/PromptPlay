@@ -74,7 +74,10 @@ export class Gateway {
         if(result.done){if(!counts) throw new Error('Provider stream lacks usage');settle(requestId,counts.inputTokens,counts.outputTokens,maxTokens);controller.enqueue(encoder.encode('data: [DONE]\n\n'));controller.close();release();return}
         if(result.value.usage){if(counts) throw new Error('Duplicate provider usage');counts=result.value.usage}
         controller.enqueue(encoder.encode(`data: ${result.value.data}\n\n`))
-      }catch{await iterator.return(undefined).catch(()=>{});release();controller.error(new Error('Inference stream could not be completed'))}},
+      }catch(error){
+        const detail=error instanceof Error && (/^Provider returned HTTP \d{3}$/.test(error.message) || ['Provider stream unavailable','Provider stream frame too large','Provider stream ended unexpectedly','Provider stream lacks usage','Invalid provider usage','Duplicate provider usage','Provider usage exceeds configured limits','Usage exceeds reservation'].includes(error.message)) ? error.message : 'Unexpected provider stream error'
+        console.error(`Inference stream failed: ${detail}`)
+        await iterator.return(undefined).catch(()=>{});release();controller.error(new Error('Inference stream could not be completed'))}},
       async cancel(){try{await iterator.return(undefined).catch(()=>{})}finally{release()}}
     })
   }

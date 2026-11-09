@@ -204,7 +204,71 @@ test('Responses text subset is authenticated, metered and rejects unsupported fe
  const response=await send({model:'model',input:'hello',instructions:'Be brief',max_output_tokens:10,store:false})
  expect(response.status).toBe(200);expect(await response.json()).toMatchObject({object:'response',status:'completed',output:[{role:'assistant',content:[{type:'output_text',text:'Mock response'}]}],usage:{input_tokens:2,output_tokens:2,total_tokens:4}})
  expect(ledger.balance('alice.testnet')).toBe(994)
- for(const extra of [{stream:true},{store:true},{previous_response_id:'resp_old'},{tools:[]},{input:[{role:'user',content:[{type:'input_image',image_url:'https://example.test/a.png'}]}]}]) expect((await send({model:'model',input:'hello',...extra})).status).toBe(400)
+ for(const extra of [{stream:true},{store:true},{previous_response_id:'resp_old'},{tools:[{type:'web_search'}]},{input:[{role:'user',content:[{type:'input_image',image_url:'https://example.test/a.png'}]}]}]) expect((await send({model:'model',input:'hello',...extra})).status).toBe(400)
+ expect((await send({model:'model',input:[{role:'user',content:'hi',id:'x'.repeat(260000)}]})).status).toBe(400)
  expect(ledger.balance('alice.testnet')).toBe(994)
+ db.close()
+})
+
+test('Responses function calls preserve tool ids and account for every turn',async()=>{
+ const {Gateway}=await import('../src/gateway')
+ const db=new Database(':memory:'),rpc=new JsonRpcProvider({url:'https://test.rpc.fastnear.com'}),ledger=new Accounting(db,1000),auth=new WalletAuth(db,rpc,async()=>{}),redemption=new Redemption(db,ledger,rpc),keys=new GatewayKeys(db)
+ ledger.creditReceipt('tool-r','tool-i','alice.testnet',1000);const key=keys.create('alice.testnet',1000)
+ const seen:unknown[]=[]
+ const provider={async complete(messages:unknown,_max:number,options:unknown){seen.push({messages,options});return seen.length===1?{text:null,toolCalls:[{id:'call_1',type:'function',function:{name:'lookup',arguments:'{"query":"x"}'}}],inputTokens:2,outputTokens:2,finishReason:'tool_calls'}:{text:'found',inputTokens:2,outputTokens:2,finishReason:'stop'}}}
+ const gateway=new Gateway(ledger,keys,provider,'model',{inputMicrosPerMillion:1000000,outputMicrosPerMillion:2000000,microsPerUnit:1000000,contextTokens:100,maxOutputTokens:10},'Mock',{streaming:false,toolCalls:true})
+ const app=createApp({auth,redemption,ledger,keys,gateway,faucet:null,allowRedemption:false,redemptionAllowlist:new Set(),origin:'http://localhost:3000'})
+ const send=(input:unknown)=>app.handle(new Request('http://localhost/v1/responses',{method:'POST',headers:{'content-type':'application/json',authorization:`Bearer ${key.key}`},body:JSON.stringify({model:'model',input,max_output_tokens:10,tools:[{type:'function',name:'lookup',parameters:{type:'object',properties:{query:{type:'string'}}},strict:false}],tool_choice:'auto'})}))
+ const first=await send('Find x');expect(first.status).toBe(200)
+ const body=await first.json() as {output:unknown[]};expect(body.output).toMatchObject([{type:'function_call',call_id:'call_1',name:'lookup',arguments:'{"query":"x"}'}])
+ const second=await send([{role:'user',content:'Find x'},body.output[0],{type:'function_call_output',call_id:'call_1',output:'value'}]);expect(second.status).toBe(200)
+ expect(await second.json()).toMatchObject({output:[{type:'message',content:[{text:'found'}]}]})
+ expect(seen[1]).toMatchObject({messages:[{role:'user',content:'Find x'},{role:'assistant',tool_calls:[{id:'call_1',function:{name:'lookup'}}]},{role:'tool',tool_call_id:'call_1',content:'value'}],options:{tools:[{type:'function',function:{name:'lookup'}}],tool_choice:'auto'}})
+ expect(ledger.balance('alice.testnet')).toBe(988);db.close()
+})
+
+test('Responses streaming translates deltas and settles only after provider completion',async()=>{
+ const {Gateway}=await import('../src/gateway')
+ const db=new Database(':memory:'),rpc=new JsonRpcProvider({url:'https://test.rpc.fastnear.com'}),ledger=new Accounting(db,1000),auth=new WalletAuth(db,rpc,async()=>{}),redemption=new Redemption(db,ledger,rpc),keys=new GatewayKeys(db)
+ ledger.creditReceipt('stream-r','stream-i','alice.testnet',1000);const key=keys.create('alice.testnet',1000)
+ const provider={async complete(){return {text:'unused',inputTokens:2,outputTokens:2,finishReason:'stop'}},async *stream(){yield {data:JSON.stringify({choices:[{delta:{role:'assistant',content:'Hello '},finish_reason:null}]})};yield {data:JSON.stringify({choices:[{delta:{content:'world',tool_calls:[{index:0,id:'call_1',type:'function',function:{name:'lookup',arguments:'{"x":'}}]},finish_reason:null}]})};yield {data:JSON.stringify({choices:[{delta:{tool_calls:[{index:0,function:{arguments:'1}'}}]},finish_reason:'tool_calls'}]})};yield {data:JSON.stringify({choices:[],usage:{prompt_tokens:2,completion_tokens:2,total_tokens:4}}),usage:{inputTokens:2,outputTokens:2}}}}
+ const gateway=new Gateway(ledger,keys,provider,'model',{inputMicrosPerMillion:1000000,outputMicrosPerMillion:2000000,microsPerUnit:1000000,contextTokens:100,maxOutputTokens:10},'Mock',{streaming:true,toolCalls:true})
+ const app=createApp({auth,redemption,ledger,keys,gateway,faucet:null,allowRedemption:false,redemptionAllowlist:new Set(),origin:'http://localhost:3000'})
+ const response=await app.handle(new Request('http://localhost/v1/responses',{method:'POST',headers:{'content-type':'application/json',authorization:`Bearer ${key.key}`},body:JSON.stringify({model:'model',input:'hi',max_output_tokens:10,stream:true,tools:[{type:'function',name:'lookup',parameters:{type:'object'}}]})}))
+ expect(response.status).toBe(200);expect(response.headers.get('content-type')).toContain('text/event-stream')
+ const frames=(await response.text()).trim().split('\n\n').map(frame=>JSON.parse(frame.split('\n').find(line=>line.startsWith('data: '))?.slice(6) ?? '{}')) as Array<{type:string;sequence_number:number;response?:{output:unknown[];usage:unknown}}>
+ expect(frames.map(frame=>frame.sequence_number)).toEqual(frames.map((_,i)=>i))
+ expect(frames.map(frame=>frame.type)).toContain('response.function_call_arguments.delta')
+ expect(frames.at(-1)).toMatchObject({type:'response.completed',response:{output:[{type:'message',content:[{text:'Hello world'}]},{type:'function_call',call_id:'call_1',name:'lookup',arguments:'{"x":1}'}],usage:{input_tokens:2,output_tokens:2,total_tokens:4}}})
+ expect(ledger.balance('alice.testnet')).toBe(994);db.close()
+})
+
+test('interrupted Responses stream retains the uncertain reservation',async()=>{
+ const {Gateway}=await import('../src/gateway')
+ const db=new Database(':memory:'),rpc=new JsonRpcProvider({url:'https://test.rpc.fastnear.com'}),ledger=new Accounting(db,1000),auth=new WalletAuth(db,rpc,async()=>{}),redemption=new Redemption(db,ledger,rpc),keys=new GatewayKeys(db)
+ ledger.creditReceipt('broken-r','broken-i','alice.testnet',1000);const key=keys.create('alice.testnet',1000)
+ const provider={async complete(){return {text:'unused',inputTokens:2,outputTokens:2,finishReason:'stop'}},async *stream(){yield {data:JSON.stringify({choices:[{delta:{content:'partial'},finish_reason:null}]})};throw new Error('upstream disconnected')}}
+ const gateway=new Gateway(ledger,keys,provider,'model',{inputMicrosPerMillion:1000000,outputMicrosPerMillion:2000000,microsPerUnit:1000000,contextTokens:100,maxOutputTokens:10},'Mock',{streaming:true,toolCalls:false})
+ const app=createApp({auth,redemption,ledger,keys,gateway,faucet:null,allowRedemption:false,redemptionAllowlist:new Set(),origin:'http://localhost:3000'})
+ const response=await app.handle(new Request('http://localhost/v1/responses',{method:'POST',headers:{'content-type':'application/json',authorization:`Bearer ${key.key}`},body:JSON.stringify({model:'model',input:'hi',max_output_tokens:10,stream:true})}))
+ await expect(response.text()).rejects.toThrow()
+ expect(ledger.usage('alice.testnet')[0]).toMatchObject({state:'reserved',reserved:120});expect(ledger.balance('alice.testnet')).toBe(880)
+ db.close()
+})
+
+test('cancelled Responses stream keeps the uncertain reservation',async()=>{
+ const {Gateway}=await import('../src/gateway')
+ const db=new Database(':memory:'),rpc=new JsonRpcProvider({url:'https://test.rpc.fastnear.com'}),ledger=new Accounting(db,1000),auth=new WalletAuth(db,rpc,async()=>{}),redemption=new Redemption(db,ledger,rpc),keys=new GatewayKeys(db)
+ ledger.creditReceipt('cancel-r','cancel-i','alice.testnet',1000);const key=keys.create('alice.testnet',1000)
+ let release=()=>{};const waiting=new Promise<void>(resolve=>{release=resolve})
+ const provider={async complete(){return {text:'unused',inputTokens:2,outputTokens:2,finishReason:'stop'}},async *stream(){yield {data:JSON.stringify({choices:[{delta:{content:'partial'},finish_reason:null}]})};await waiting;yield {data:JSON.stringify({choices:[],usage:{prompt_tokens:2,completion_tokens:2,total_tokens:4}}),usage:{inputTokens:2,outputTokens:2}}}}
+ const gateway=new Gateway(ledger,keys,provider,'model',{inputMicrosPerMillion:1000000,outputMicrosPerMillion:2000000,microsPerUnit:1000000,contextTokens:100,maxOutputTokens:10},'Mock',{streaming:true,toolCalls:false})
+ const app=createApp({auth,redemption,ledger,keys,gateway,faucet:null,allowRedemption:false,redemptionAllowlist:new Set(),origin:'http://localhost:3000'})
+ const response=await app.handle(new Request('http://localhost/v1/responses',{method:'POST',headers:{'content-type':'application/json',authorization:`Bearer ${key.key}`},body:JSON.stringify({model:'model',input:'hi',max_output_tokens:10,stream:true})}))
+ if(!response.body)throw new Error('Missing stream')
+ const reader=response.body.getReader();let received=''
+ while(!received.includes('response.output_text.delta')){const part=await reader.read();if(part.done)throw new Error('Stream ended early');received+=new TextDecoder().decode(part.value)}
+ const cancellation=reader.cancel();release();await cancellation
+ expect(ledger.usage('alice.testnet')[0]).toMatchObject({state:'reserved',reserved:120});expect(ledger.balance('alice.testnet')).toBe(880)
  db.close()
 })
