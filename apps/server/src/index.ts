@@ -25,7 +25,7 @@ const pricing={inputMicrosPerMillion:Number(process.env.INPUT_MICROS_PER_MILLION
 let gateway:Gateway|null=null
 if(live) {
   try {
-    if(redemptionAllowlist.size===0 || [...redemptionAllowlist].some(id=>!id.endsWith('.testnet'))) throw new Error('A Testnet demo allowlist is required')
+    if(redemptionAllowlist.size===0 || [...redemptionAllowlist].some(id=>id!=='*' && !id.endsWith('.testnet'))) throw new Error('A Testnet redemption allowlist is required')
     await verifyProviderModel(config)
     const candidate=new Gateway(ledger,keys,createProvider(config),config.model,pricing,config.name,config.capabilities)
     freezeEconomy(db,{model:config.model,endpoint:config.endpoint,cap,...pricing})

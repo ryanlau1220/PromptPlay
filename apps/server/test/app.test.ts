@@ -73,6 +73,18 @@ test('only enrolled wallets can reserve funded redemption capacity',async()=>{
  expect((await attempt(alice)).status).toBe(409)
 })
 
+test('wildcard enrollment permits authenticated Testnet wallets within the shared cap',async()=>{
+ const db=new Database(':memory:'),rpc=new JsonRpcProvider({url:'https://test.rpc.fastnear.com'}),ledger=new Accounting(db,2000000),auth=new WalletAuth(db,rpc,async()=>{}),redemption=new Redemption(db,ledger,rpc),keys=new GatewayKeys(db)
+ const app=createApp({auth,redemption,ledger,keys,gateway:null,faucet:null,allowRedemption:true,redemptionAllowlist:new Set(['*']),origin:'http://localhost:3000'})
+ async function login(accountId:string){const challenge=auth.challenge();return (await auth.signIn({challengeId:challenge.id,accountId,publicKey:`ed25519:${'1'.repeat(32)}`,signature:Buffer.alloc(64).toString('base64')})).token}
+ const send=async(token?:string)=>app.handle(new Request('http://localhost/api/redemptions',{method:'POST',headers:{'content-type':'application/json',...(token?{authorization:`Bearer ${token}`}:{})},body:JSON.stringify({units:1})}))
+ expect((await send()).status).toBe(401)
+ const alice=await login('alice.testnet'),bob=await login('bob.testnet')
+ expect((await send(alice)).status).toBe(200);expect((await send(bob)).status).toBe(200)
+ expect((await send(alice)).status).toBe(409)
+ db.close()
+})
+
 test('gateway status distinguishes enabled inference from exhausted redemption allocation',async()=>{
  const {Gateway}=await import('../src/gateway');const {mockProvider}=await import('../src/provider')
  const db=new Database(':memory:'),rpc=new JsonRpcProvider({url:'https://test.rpc.fastnear.com'}),ledger=new Accounting(db,1000000),auth=new WalletAuth(db,rpc,async()=>{}),redemption=new Redemption(db,ledger,rpc),keys=new GatewayKeys(db)
