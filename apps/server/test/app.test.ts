@@ -284,3 +284,19 @@ test('Responses streaming respects downstream backpressure and releases the read
  expect(cancelled).toBe(true)
  expect(source.locked).toBe(false)
 })
+
+test('chat forwards bounded assistant reasoning context for a tool follow-up',async()=>{
+ const {Gateway}=await import('../src/gateway')
+ const db=new Database(':memory:'),rpc=new JsonRpcProvider({url:'https://test.rpc.fastnear.com'}),ledger=new Accounting(db,1000),auth=new WalletAuth(db,rpc,async()=>{}),redemption=new Redemption(db,ledger,rpc),keys=new GatewayKeys(db)
+ ledger.creditReceipt('reason-r','reason-i','alice.testnet',1000);const key=keys.create('alice.testnet',1000)
+ let seen:unknown
+ const provider={async complete(messages:unknown){seen=messages;return {text:'done',inputTokens:2,outputTokens:2,finishReason:'stop'}}}
+ const gateway=new Gateway(ledger,keys,provider,'model',{inputMicrosPerMillion:1000000,outputMicrosPerMillion:2000000,microsPerUnit:1000000,contextTokens:100,maxOutputTokens:10},'Mock',{streaming:false,toolCalls:true})
+ const app=createApp({auth,redemption,ledger,keys,gateway,faucet:null,allowRedemption:false,redemptionAllowlist:new Set(),origin:'http://localhost:3000'})
+ const send=(messages:unknown)=>app.handle(new Request('http://localhost/v1/chat/completions',{method:'POST',headers:{'content-type':'application/json',authorization:`Bearer ${key.key}`},body:JSON.stringify({model:'model',messages,max_tokens:10})}))
+ const messages=[{role:'assistant',content:'',reasoning_content:'provider reasoning',tool_calls:[{id:'call_1',type:'function',function:{name:'lookup',arguments:'{}'}}]},{role:'tool',tool_call_id:'call_1',content:'result'}]
+ expect((await send(messages)).status).toBe(200);expect(seen).toEqual(messages)
+ expect((await send([{role:'user',content:'hi',reasoning_content:'not assistant'}])).status).toBe(400)
+ expect((await send([{role:'assistant',content:'',reasoning_content:'x'.repeat(100001)}])).status).toBe(400)
+ db.close()
+})
