@@ -12,6 +12,25 @@
     "codexFileRead": true,
     "codexRestrictions": "isolated bubblewrap workspace; web search, plugins, apps and multi-agent disabled; stateless Responses; reasoning effort none"
   },
+  "reservationReconciliation": {
+    "account": "arcade-a.ryanlau1220.testnet",
+    "requestCount": 10,
+    "amountMicrounits": 265230,
+    "decision": "owner-directed charge at the reserved maximum",
+    "providerUsageVerified": false,
+    "balanceChangedAtSettlement": false,
+    "localTraceId": "52db5399-aadb-4633-aa43-4e4be2809d42"
+  },
+  "diagnosticReservationReconciliation": {
+    "account": "arcade-a.ryanlau1220.testnet",
+    "requestCount": 1,
+    "amountMicrounits": 26254,
+    "reason": "an additional interrupted provider compatibility retest",
+    "decision": "charged at the same owner-selected reserved maximum",
+    "providerUsageVerified": false,
+    "balanceChangedAtSettlement": false,
+    "localTraceId": "a94d3ba2-697a-405e-a1b8-8fb5acfe7e73"
+  },
   "arcadeSettlement": {
     "accountId": "arcade.ryanlau1220.testnet",
     "token": "token.ryanlau1220.testnet",
