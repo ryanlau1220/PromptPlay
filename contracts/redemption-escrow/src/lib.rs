@@ -25,6 +25,14 @@ pub struct Deposit {
     pub approved: bool,
     pub status: Status,
 }
+#[near(serializers=[json])]
+pub struct Settings {
+    pub token: AccountId,
+    pub owner: AccountId,
+    pub treasury: AccountId,
+    pub cap: U64,
+    pub allocated: U64,
+}
 #[ext_contract(ext_ft)]
 #[allow(dead_code)]
 trait Token {
@@ -47,6 +55,7 @@ pub struct Contract {
     withdrawable: u128,
     withdrawal_pending: bool,
     deposits: LookupMap<(AccountId, String), Deposit>,
+    pending_by_account: LookupMap<AccountId, u64>,
 }
 #[near]
 impl Contract {
@@ -62,6 +71,7 @@ impl Contract {
             withdrawable: 0,
             withdrawal_pending: false,
             deposits: LookupMap::new(b"d"),
+            pending_by_account: LookupMap::new(b"p"),
         }
     }
     pub fn get_deposit(&self, account: AccountId, id: String) -> Option<Deposit> {
@@ -70,12 +80,23 @@ impl Contract {
     pub fn capacity(&self) -> U64 {
         U64(self.cap - self.allocated)
     }
-    #[payable]
-    pub fn approve(&mut self, account: AccountId, id: String) {
-        near_sdk::assert_one_yocto();
+    pub fn settings(&self) -> Settings {
+        Settings {
+            token: self.token.clone(),
+            owner: self.owner.clone(),
+            treasury: self.treasury.clone(),
+            cap: U64(self.cap),
+            allocated: U64(self.allocated),
+        }
+    }
+    pub fn approve(&mut self, account: AccountId, id: String, amount: U128, expires: U64) {
         require!(env::predecessor_account_id() == self.owner, "Only owner");
         let key = (account, id);
         let mut d = self.deposits.get(&key).expect("Unknown deposit");
+        require!(
+            d.amount == amount && d.expires == expires,
+            "Deposit changed"
+        );
         require!(
             d.status == Status::Pending && env::block_timestamp() < d.expires.0,
             "Deposit unavailable"
@@ -96,6 +117,7 @@ impl Contract {
             .checked_add(d.amount.0)
             .expect("Amount overflow");
         d.status = Status::Consumed;
+        self.release_pending(&d.account, d.units.0);
         self.deposits.insert(&key, &d);
     }
     #[payable]
@@ -132,6 +154,7 @@ impl Contract {
                 .allocated
                 .checked_sub(d.units.0)
                 .expect("Invalid allocation");
+            self.release_pending(&d.account, d.units.0);
             self.deposits.remove(&key);
             env::log_str(&format!(
                 "EVENT_JSON:{}",
@@ -210,6 +233,13 @@ impl FungibleTokenReceiver for Contract {
         let Ok(units) = u64::try_from(amount.0 / PCC_PER_UNIT) else {
             return PromiseOrValue::Value(amount);
         };
+        let old_pending = self.pending_by_account.get(&sender_id).unwrap_or(0);
+        let Some(new_pending) = old_pending.checked_add(units) else {
+            return PromiseOrValue::Value(amount);
+        };
+        if new_pending > 2 {
+            return PromiseOrValue::Value(amount);
+        }
         let Some(total) = self.allocated.checked_add(units) else {
             return PromiseOrValue::Value(amount);
         };
@@ -231,13 +261,35 @@ impl FungibleTokenReceiver for Contract {
                 status: Status::Pending,
             },
         );
+        self.pending_by_account.insert(&key.0, &new_pending);
         let cost = u128::from(env::storage_usage()) * env::storage_byte_cost().as_yoctonear();
         if env::account_balance().as_yoctonear() < cost {
             self.deposits.remove(&key);
+            if old_pending == 0 {
+                self.pending_by_account.remove(&key.0);
+            } else {
+                self.pending_by_account.insert(&key.0, &old_pending);
+            }
             return PromiseOrValue::Value(amount);
         }
         self.allocated = total;
         PromiseOrValue::Value(U128(0))
+    }
+}
+
+impl Contract {
+    fn release_pending(&mut self, account: &AccountId, units: u64) {
+        let remaining = self
+            .pending_by_account
+            .get(account)
+            .expect("Missing pending allocation")
+            .checked_sub(units)
+            .expect("Invalid pending allocation");
+        if remaining == 0 {
+            self.pending_by_account.remove(account);
+        } else {
+            self.pending_by_account.insert(account, &remaining);
+        }
     }
 }
 
@@ -289,8 +341,13 @@ mod tests {
         let mut c = setup();
         let a = "a".repeat(32);
         send(&mut c, accounts(1), PCC_PER_UNIT, &a);
-        ctx(accounts(0), 2, 1);
-        c.approve(accounts(1), a.clone());
+        ctx(accounts(0), 2, 0);
+        c.approve(
+            accounts(1),
+            a.clone(),
+            U128(PCC_PER_UNIT),
+            U64(EXPIRY_NS + 1),
+        );
         ctx(accounts(1), 2, 0);
         c.consume(a.clone());
         assert_eq!(
@@ -307,8 +364,13 @@ mod tests {
         let mut c = setup();
         let a = "a".repeat(32);
         send(&mut c, accounts(1), PCC_PER_UNIT, &a);
-        ctx(accounts(0), 2, 1);
-        c.approve(accounts(1), a.clone());
+        ctx(accounts(0), 2, 0);
+        c.approve(
+            accounts(1),
+            a.clone(),
+            U128(PCC_PER_UNIT),
+            U64(EXPIRY_NS + 1),
+        );
         ctx(accounts(1), EXPIRY_NS + 1, 1);
         let _ = c.refund(a.clone());
         let mut cb = VMContextBuilder::new();
@@ -364,12 +426,41 @@ mod tests {
         assert_eq!(c.get_deposit(accounts(2), id).unwrap().account, accounts(2));
     }
     #[test]
+    fn account_pending_cap_is_released_after_consumption() {
+        let mut c = setup();
+        c.cap = 4;
+        let a = "a".repeat(32);
+        let b = "b".repeat(32);
+        let third = "c".repeat(32);
+        assert_eq!(send(&mut c, accounts(1), PCC_PER_UNIT, &a), 0);
+        assert_eq!(send(&mut c, accounts(1), PCC_PER_UNIT, &b), 0);
+        assert_eq!(
+            send(&mut c, accounts(1), PCC_PER_UNIT, &third),
+            PCC_PER_UNIT
+        );
+        ctx(accounts(0), 2, 0);
+        c.approve(
+            accounts(1),
+            a.clone(),
+            U128(PCC_PER_UNIT),
+            U64(EXPIRY_NS + 1),
+        );
+        ctx(accounts(1), 2, 0);
+        c.consume(a);
+        assert_eq!(send(&mut c, accounts(1), PCC_PER_UNIT, &third), 0);
+    }
+    #[test]
     fn failed_treasury_withdrawal_can_be_retried() {
         let mut c = setup();
         let id = "w".repeat(32);
         send(&mut c, accounts(1), PCC_PER_UNIT, &id);
-        ctx(accounts(0), 2, 1);
-        c.approve(accounts(1), id.clone());
+        ctx(accounts(0), 2, 0);
+        c.approve(
+            accounts(1),
+            id.clone(),
+            U128(PCC_PER_UNIT),
+            U64(EXPIRY_NS + 1),
+        );
         ctx(accounts(1), 2, 0);
         c.consume(id);
         ctx(accounts(0), 3, 1);
@@ -405,7 +496,16 @@ mod tests {
         let mut c = setup();
         let id = "u".repeat(32);
         send(&mut c, accounts(1), PCC_PER_UNIT, &id);
-        ctx(accounts(2), 2, 1);
-        c.approve(accounts(1), id);
+        ctx(accounts(2), 2, 0);
+        c.approve(accounts(1), id, U128(PCC_PER_UNIT), U64(EXPIRY_NS + 1));
+    }
+    #[test]
+    #[should_panic(expected = "Deposit changed")]
+    fn approval_rejects_stale_deposit_expiry() {
+        let mut c = setup();
+        let id = "u".repeat(32);
+        send(&mut c, accounts(1), PCC_PER_UNIT, &id);
+        ctx(accounts(0), 2, 0);
+        c.approve(accounts(1), id, U128(PCC_PER_UNIT), U64(EXPIRY_NS + 2));
     }
 }

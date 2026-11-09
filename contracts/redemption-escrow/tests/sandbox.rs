@@ -1,3 +1,4 @@
+use near_api::types::{AccessKeyPermission, transaction::actions::FunctionCallPermission};
 use near_api::{AccountId, NearGas, NearToken};
 use near_sdk::serde_json::{Value, json};
 #[tokio::test]
@@ -23,6 +24,22 @@ async fn capacity_rejection_refunds_and_consumed_pcc_reaches_treasury() -> testr
     let token_id: AccountId = "token.sandbox".parse()?;
     let escrow_id: AccountId = "escrow.sandbox".parse()?;
     let alice: AccountId = "alice.sandbox".parse()?;
+    let restricted_key = near_api::signer::generate_secret_key()?;
+    let restricted_signer = near_api::Signer::from_secret_key(restricted_key)?;
+    let restricted_public_key = restricted_signer.get_public_key().await?;
+    near_api::Account(alice.clone())
+        .add_key(
+            AccessKeyPermission::FunctionCall(FunctionCallPermission {
+                allowance: Some(NearToken::from_near(1)),
+                receiver_id: "escrow.sandbox".to_string(),
+                method_names: vec!["approve".to_string()],
+            }),
+            restricted_public_key,
+        )
+        .with_signer(signer.clone())
+        .send_to(&network)
+        .await?
+        .assert_success();
     let token = near_api::Account(token_id.clone()).as_contract();
     let escrow = near_api::Account(escrow_id.clone()).as_contract();
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
@@ -115,10 +132,9 @@ async fn capacity_rejection_refunds_and_consumed_pcc_reaches_treasury() -> testr
         .await?
         .assert_failure();
     escrow
-        .call_function("approve", json!({"account":"alice.sandbox","id":first}))
+        .call_function("approve", json!({"account":"alice.sandbox","id":first,"amount":"5000000","expires":deposit["expires"]}))
         .transaction()
-        .deposit(NearToken::from_yoctonear(1))
-        .with_signer(alice.clone(), signer.clone())
+        .with_signer(alice.clone(), restricted_signer)
         .send_to(&network)
         .await?
         .assert_success();
