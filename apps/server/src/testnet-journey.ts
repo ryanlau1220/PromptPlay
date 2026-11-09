@@ -40,7 +40,16 @@ try{
  trace.intentId=intent.id;trace.status='intent-created';await save()
  await request(`/api/redemptions/${intent.id}/attempt`,'POST',undefined,session)
  trace.status='payment-attempted';await save()
- const tx=await signer.callFunctionRaw({contractId:intent.token,methodName:'ft_transfer',args:{receiver_id:intent.treasury,amount:intent.amount,memo:intent.memo},gas:30000000000000n,deposit:1n,waitUntil:'FINAL'})
+ let tx:Awaited<ReturnType<typeof signer.callFunctionRaw>>
+ try {
+  tx=await signer.callFunctionRaw({contractId:intent.token,methodName:'ft_transfer',args:{receiver_id:intent.treasury,amount:intent.amount,memo:intent.memo},gas:30000000000000n,deposit:1n,waitUntil:'FINAL'})
+ } catch(error) {
+  const result=(error as {transactionResult?:{transaction?:{hash?:unknown};final_execution_status?:unknown}})?.transactionResult
+  if(typeof result?.transaction?.hash==='string') trace.transactionHash=result.transaction.hash
+  if(typeof result?.final_execution_status==='string') trace.transactionFinality=result.final_execution_status
+  await save()
+  throw error
+ }
  trace.transactionHash=tx.transaction.hash;trace.status='transfer-returned';await save()
  const first=await (await request(`/api/redemptions/${intent.id}/verify`,'POST',{transactionHash:tx.transaction.hash},session)).json() as {credited:boolean; receiptId:string}
  const replay=await (await request(`/api/redemptions/${intent.id}/verify`,'POST',{transactionHash:tx.transaction.hash},session)).json() as {credited:boolean; receiptId:string}
