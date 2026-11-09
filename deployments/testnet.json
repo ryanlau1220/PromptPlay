@@ -5,9 +5,9 @@
     "provider": "Nebius Token Factory",
     "model": "Qwen/Qwen3-30B-A3B-Instruct-2507",
     "account": "arcade-a.ryanlau1220.testnet",
-    "toolStreamAllowanceBefore": 4707873,
-    "toolStreamAllowanceAfter": 4707851,
-    "codexAllowanceAfter": 4706614,
+    "toolStreamAllowanceBefore": 4706614,
+    "toolStreamAllowanceAfter": 4706592,
+    "codexAllowanceAfter": 4705352,
     "codexVersion": "0.166.0",
     "codexFileRead": true,
     "codexRestrictions": "isolated bubblewrap workspace; web search, plugins, apps and multi-agent disabled; stateless Responses; reasoning effort none"
