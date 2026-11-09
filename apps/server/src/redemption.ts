@@ -27,6 +27,8 @@ export class Redemption {
     const id=randomBytes(24).toString('base64url'); const memo=`promptplay:${randomBytes(24).toString('base64url')}`
     const created=Date.now(), expires=created+TTL_MS, amount=(BigInt(units)*PCC_PER_UNIT).toString()
     this.db.transaction(()=>{
+      const outstanding=this.db.query('SELECT COALESCE(SUM(units),0) AS units FROM redemption_intents WHERE account_id=? AND receipt_id IS NULL AND NOT EXISTS(SELECT 1 FROM redemption_failures WHERE intent_id=redemption_intents.id) AND (expires > ? OR EXISTS(SELECT 1 FROM redemption_attempts WHERE intent_id=redemption_intents.id))').get(account,created) as {units:number}
+      if(outstanding.units + units > 2) throw new RequestError('Account pending redemption limit reached',409)
       const {issued}=this.db.query('SELECT COALESCE(SUM(amount),0) AS issued FROM receipts').get() as {issued:number}
       const {pending}=this.db.query('SELECT COALESCE(SUM(units),0) AS pending FROM redemption_intents WHERE receipt_id IS NULL AND NOT EXISTS(SELECT 1 FROM redemption_failures WHERE intent_id=redemption_intents.id) AND (expires > ? OR EXISTS(SELECT 1 FROM redemption_attempts WHERE intent_id=redemption_intents.id))').get(created) as {pending:number}
       if (!Number.isSafeInteger(issued + (pending + units)*1_000_000) || issued + (pending + units)*1_000_000 > this.ledger.issuanceLimit()) throw new RequestError('Demo funding is fully allocated', 409)

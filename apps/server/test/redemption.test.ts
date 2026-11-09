@@ -53,6 +53,14 @@ test('only one payment attempt is recorded across server instances',()=>{
  expect(()=>b.beginTransfer(intent.id,'alice.testnet')).toThrow('already recorded')
  expect(b.get(intent.id,'alice.testnet')?.attempted).toBe(1)
 })
+test('one account cannot reserve more than two pending units',()=>{
+ const db=new Database(':memory:'),ledger=new Accounting(db,10000000),redemption=new Redemption(db,ledger,{} as JsonRpcProvider)
+ expect(()=>redemption.create('alice.testnet',3)).toThrow('pending redemption limit')
+ redemption.create('alice.testnet',2)
+ expect(()=>redemption.create('alice.testnet',1)).toThrow('pending redemption limit')
+ expect(redemption.create('bob.testnet',1).units).toBe(1)
+ expect(redemption.remainingUnits()).toBe(7);db.close()
+})
 
 test('expired unattempted intents release capacity while attempted payments remain reserved',async()=>{
  const db=new Database(':memory:'),ledger=new Accounting(db,2000000),redemption=new Redemption(db,ledger,{} as JsonRpcProvider)
