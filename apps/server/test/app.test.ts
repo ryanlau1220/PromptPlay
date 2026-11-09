@@ -272,3 +272,15 @@ test('cancelled Responses stream keeps the uncertain reservation',async()=>{
  expect(ledger.usage('alice.testnet')[0]).toMatchObject({state:'reserved',reserved:120});expect(ledger.balance('alice.testnet')).toBe(880)
  db.close()
 })
+
+test('Responses streaming respects downstream backpressure and releases the reader on cancel', async () => {
+ const { responsesStream }=await import('../src/responses')
+ let pulls=0,cancelled=false
+ const source=new ReadableStream<Uint8Array>({pull(controller){pulls++;controller.enqueue(new TextEncoder().encode('data: {"choices":[]}\n\n'))},cancel(){cancelled=true}})
+ const output=responsesStream(source,'model')
+ await Bun.sleep(20)
+ expect(pulls).toBeLessThanOrEqual(1)
+ await output.cancel()
+ expect(cancelled).toBe(true)
+ expect(source.locked).toBe(false)
+})

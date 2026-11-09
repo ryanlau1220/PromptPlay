@@ -126,6 +126,13 @@ export function responsesStream(source: ReadableStream<Uint8Array>, model: strin
     finish = '',
     counts: { input_tokens: number; output_tokens: number; total_tokens: number } | undefined
   const output: RecordValue[] = []
+  let readerReleased = false
+  const releaseReader = () => {
+    if (!readerReleased) {
+      reader.releaseLock()
+      readerReleased = true
+    }
+  }
   const response = (status: string) => ({
     id,
     object: 'response',
@@ -137,180 +144,187 @@ export function responsesStream(source: ReadableStream<Uint8Array>, model: strin
     incomplete_details: status === 'incomplete' ? { reason: 'max_output_tokens' } : null,
     ...(counts ? { usage: counts } : {}),
   })
-  return new ReadableStream<Uint8Array>({
-    async start(controller) {
-      const emit = (type: string, fields: RecordValue) =>
-        controller.enqueue(
-          encoder.encode(
-            `event: ${type}\ndata: ${JSON.stringify({ type, sequence_number: sequence++, ...fields })}\n\n`,
-          ),
-        )
-      const message = () => ({ id: messageId, type: 'message', status: 'in_progress', role: 'assistant', content: [] })
-      try {
-        emit('response.created', { response: response('in_progress') })
-        emit('response.in_progress', { response: response('in_progress') })
-        while (true) {
-          const chunk = await reader.read()
-          buffer += decoder.decode(chunk.value, { stream: !chunk.done })
-          if (buffer.length > 1_000_000) throw new Error('Stream frame too large')
-          let end = buffer.indexOf('\n\n')
-          while (end >= 0) {
-            const frame = buffer.slice(0, end)
-            buffer = buffer.slice(end + 2)
-            end = buffer.indexOf('\n\n')
-            const payload = frame
-              .split('\n')
-              .filter((line) => line.startsWith('data:'))
-              .map((line) => line.slice(5).trimStart())
-              .join('\n')
-            if (!payload) continue
-            if (payload === '[DONE]') {
-              ended = true
-              continue
-            }
-            const data = JSON.parse(payload) as {
-              choices?: Array<{
-                delta?: {
-                  role?: string
-                  content?: string | null
-                  tool_calls?: Array<{
-                    index: number
-                    id?: string
-                    type?: string
-                    function?: { name?: string; arguments?: string }
-                  }>
-                }
-                finish_reason?: string | null
-              }>
-              usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number }
-            }
-            if (data.usage)
-              counts = {
-                input_tokens: data.usage.prompt_tokens,
-                output_tokens: data.usage.completion_tokens,
-                total_tokens: data.usage.prompt_tokens + data.usage.completion_tokens,
+  async function* events(): AsyncGenerator<Uint8Array> {
+    const emit = (type: string, fields: RecordValue) =>
+      encoder.encode(`event: ${type}\ndata: ${JSON.stringify({ type, sequence_number: sequence++, ...fields })}\n\n`)
+    const message = () => ({ id: messageId, type: 'message', status: 'in_progress', role: 'assistant', content: [] })
+    try {
+      yield emit('response.created', { response: response('in_progress') })
+      yield emit('response.in_progress', { response: response('in_progress') })
+      while (true) {
+        const chunk = await reader.read()
+        buffer += decoder.decode(chunk.value, { stream: !chunk.done })
+        if (buffer.length > 1_000_000) throw new Error('Stream frame too large')
+        let end = buffer.indexOf('\n\n')
+        while (end >= 0) {
+          const frame = buffer.slice(0, end)
+          buffer = buffer.slice(end + 2)
+          end = buffer.indexOf('\n\n')
+          const payload = frame
+            .split('\n')
+            .filter((line) => line.startsWith('data:'))
+            .map((line) => line.slice(5).trimStart())
+            .join('\n')
+          if (!payload) continue
+          if (payload === '[DONE]') {
+            ended = true
+            continue
+          }
+          const data = JSON.parse(payload) as {
+            choices?: Array<{
+              delta?: {
+                role?: string
+                content?: string | null
+                tool_calls?: Array<{
+                  index: number
+                  id?: string
+                  type?: string
+                  function?: { name?: string; arguments?: string }
+                }>
               }
-            const choice = data.choices?.[0]
-            if (!choice) continue
-            if (choice.finish_reason) finish = choice.finish_reason
-            const delta = choice.delta
-            if (!delta) continue
-            if (delta.content) {
-              if (typeof delta.content !== 'string' || textValue.length + delta.content.length > 1_000_000)
-                throw new Error('Invalid text delta')
-              if (!started) {
-                started = true
-                emit('response.output_item.added', { response_id: id, output_index: 0, item: message() })
-                emit('response.content_part.added', {
-                  response_id: id,
-                  item_id: messageId,
-                  output_index: 0,
-                  content_index: 0,
-                  part: { type: 'output_text', text: '', annotations: [] },
-                })
-              }
-              textValue += delta.content
-              emit('response.output_text.delta', {
+              finish_reason?: string | null
+            }>
+            usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number }
+          }
+          if (data.usage)
+            counts = {
+              input_tokens: data.usage.prompt_tokens,
+              output_tokens: data.usage.completion_tokens,
+              total_tokens: data.usage.prompt_tokens + data.usage.completion_tokens,
+            }
+          const choice = data.choices?.[0]
+          if (!choice) continue
+          if (choice.finish_reason) finish = choice.finish_reason
+          const delta = choice.delta
+          if (!delta) continue
+          if (delta.content) {
+            if (typeof delta.content !== 'string' || textValue.length + delta.content.length > 1_000_000)
+              throw new Error('Invalid text delta')
+            if (!started) {
+              started = true
+              yield emit('response.output_item.added', { response_id: id, output_index: 0, item: message() })
+              yield emit('response.content_part.added', {
                 response_id: id,
                 item_id: messageId,
                 output_index: 0,
                 content_index: 0,
-                delta: delta.content,
+                part: { type: 'output_text', text: '', annotations: [] },
               })
             }
-            for (const call of delta.tool_calls ?? []) {
-              if (
-                !Number.isInteger(call.index) ||
-                call.index < 0 ||
-                call.index >= 128 ||
-                (call.type && call.type !== 'function')
-              )
-                throw new Error('Invalid function delta')
-              const current = tools.get(call.index) ?? { id: '', name: '', arguments: '' }
-              current.id += call.id ?? ''
-              current.name += call.function?.name ?? ''
-              current.arguments += call.function?.arguments ?? ''
-              if (current.id.length > 256 || current.name.length > 256 || current.arguments.length > 256000)
-                throw new Error('Function delta too large')
-              tools.set(call.index, current)
-            }
-          }
-          if (chunk.done) break
-        }
-        if (!ended || !counts || !['stop', 'length', 'tool_calls'].includes(finish))
-          throw new Error('Incomplete provider stream')
-        if (started) {
-          const part = { type: 'output_text', text: textValue, annotations: [] },
-            item = {
-              id: messageId,
-              type: 'message',
-              status: finish === 'length' ? 'incomplete' : 'completed',
-              role: 'assistant',
-              content: [part],
-            }
-          emit('response.output_text.done', {
-            response_id: id,
-            item_id: messageId,
-            output_index: 0,
-            content_index: 0,
-            text: textValue,
-          })
-          emit('response.content_part.done', {
-            response_id: id,
-            item_id: messageId,
-            output_index: 0,
-            content_index: 0,
-            part,
-          })
-          emit('response.output_item.done', { response_id: id, output_index: 0, item })
-          output.push(item)
-        }
-        for (const [index, call] of [...tools.entries()].sort((a, b) => a[0] - b[0])) {
-          if (!call.id || !call.name) throw new Error('Invalid function call')
-          const outputIndex = output.length,
-            itemId = `fc_${id.slice(5)}_${index}`,
-            item = {
-              id: itemId,
-              type: 'function_call',
-              status: 'completed',
-              call_id: call.id,
-              name: call.name,
-              arguments: call.arguments,
-            }
-          emit('response.output_item.added', {
-            response_id: id,
-            output_index: outputIndex,
-            item: { ...item, status: 'in_progress', arguments: '' },
-          })
-          if (call.arguments)
-            emit('response.function_call_arguments.delta', {
+            textValue += delta.content
+            yield emit('response.output_text.delta', {
               response_id: id,
-              item_id: itemId,
-              output_index: outputIndex,
-              delta: call.arguments,
+              item_id: messageId,
+              output_index: 0,
+              content_index: 0,
+              delta: delta.content,
             })
-          emit('response.function_call_arguments.done', {
+          }
+          for (const call of delta.tool_calls ?? []) {
+            if (
+              !Number.isInteger(call.index) ||
+              call.index < 0 ||
+              call.index >= 128 ||
+              (call.type && call.type !== 'function')
+            )
+              throw new Error('Invalid function delta')
+            const current = tools.get(call.index) ?? { id: '', name: '', arguments: '' }
+            current.id += call.id ?? ''
+            current.name += call.function?.name ?? ''
+            current.arguments += call.function?.arguments ?? ''
+            if (current.id.length > 256 || current.name.length > 256 || current.arguments.length > 256000)
+              throw new Error('Function delta too large')
+            tools.set(call.index, current)
+          }
+        }
+        if (chunk.done) break
+      }
+      if (!ended || !counts || !['stop', 'length', 'tool_calls'].includes(finish))
+        throw new Error('Incomplete provider stream')
+      if (started) {
+        const part = { type: 'output_text', text: textValue, annotations: [] },
+          item = {
+            id: messageId,
+            type: 'message',
+            status: finish === 'length' ? 'incomplete' : 'completed',
+            role: 'assistant',
+            content: [part],
+          }
+        yield emit('response.output_text.done', {
+          response_id: id,
+          item_id: messageId,
+          output_index: 0,
+          content_index: 0,
+          text: textValue,
+        })
+        yield emit('response.content_part.done', {
+          response_id: id,
+          item_id: messageId,
+          output_index: 0,
+          content_index: 0,
+          part,
+        })
+        yield emit('response.output_item.done', { response_id: id, output_index: 0, item })
+        output.push(item)
+      }
+      for (const [index, call] of [...tools.entries()].sort((a, b) => a[0] - b[0])) {
+        if (!call.id || !call.name) throw new Error('Invalid function call')
+        const outputIndex = output.length,
+          itemId = `fc_${id.slice(5)}_${index}`,
+          item = {
+            id: itemId,
+            type: 'function_call',
+            status: 'completed',
+            call_id: call.id,
+            name: call.name,
+            arguments: call.arguments,
+          }
+        yield emit('response.output_item.added', {
+          response_id: id,
+          output_index: outputIndex,
+          item: { ...item, status: 'in_progress', arguments: '' },
+        })
+        if (call.arguments)
+          yield emit('response.function_call_arguments.delta', {
             response_id: id,
             item_id: itemId,
             output_index: outputIndex,
-            arguments: call.arguments,
+            delta: call.arguments,
           })
-          emit('response.output_item.done', { response_id: id, output_index: outputIndex, item })
-          output.push(item)
-        }
-        if (!output.length) throw new Error('Empty provider stream')
-        const status = finish === 'length' ? 'incomplete' : 'completed'
-        emit(status === 'completed' ? 'response.completed' : 'response.incomplete', { response: response(status) })
-        controller.close()
+        yield emit('response.function_call_arguments.done', {
+          response_id: id,
+          item_id: itemId,
+          output_index: outputIndex,
+          arguments: call.arguments,
+        })
+        yield emit('response.output_item.done', { response_id: id, output_index: outputIndex, item })
+        output.push(item)
+      }
+      if (!output.length) throw new Error('Empty provider stream')
+      const status = finish === 'length' ? 'incomplete' : 'completed'
+      yield emit(status === 'completed' ? 'response.completed' : 'response.incomplete', { response: response(status) })
+    } catch (error) {
+      await reader.cancel().catch(() => {})
+      throw error
+    } finally {
+      releaseReader()
+    }
+  }
+  const iterator = events()
+  return new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      try {
+        const result = await iterator.next()
+        if (result.done) controller.close()
+        else controller.enqueue(result.value)
       } catch (error) {
-        await reader.cancel().catch(() => {})
         controller.error(error)
-      } finally {
-        reader.releaseLock()
       }
     },
     async cancel() {
       await reader.cancel().catch(() => {})
+      await iterator.return(undefined).catch(() => {})
+      releaseReader()
     },
   })
 }
