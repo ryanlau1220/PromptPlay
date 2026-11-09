@@ -36,25 +36,28 @@ try{
  const challenge=await (await request('/api/auth/challenge','POST')).json() as {id:string; message:string; recipient:string; nonce:string}
  const signed=await signMessage({signerAccount:signer,payload:{message:challenge.message,recipient:challenge.recipient,nonce:Uint8Array.from(Buffer.from(challenge.nonce,'base64'))}})
  const auth=await (await request('/api/auth/verify','POST',{challengeId:challenge.id,accountId:account,publicKey:pair.getPublicKey().toString(),signature:Buffer.from(signed.signature).toString('base64')})).json() as {token:string};session=auth.token
- const intent=await (await request('/api/redemptions','POST',{units:1},session)).json() as {id:string; token:string; treasury:string; amount:string; memo:string}
- trace.intentId=intent.id;trace.status='intent-created';await save()
- await request(`/api/redemptions/${intent.id}/attempt`,'POST',undefined,session)
- trace.status='payment-attempted';await save()
+ const intent=await (await request('/api/redemptions','POST',{},session)).json() as {id:string;token:string;escrow:string;amount:string}
+ trace.intentId=intent.id;trace.escrow=intent.escrow;trace.status='intent-created';await save()
+ trace.status='deposit-attempted';await save()
  let tx:Awaited<ReturnType<typeof signer.callFunctionRaw>>
  try {
-  tx=await signer.callFunctionRaw({contractId:intent.token,methodName:'ft_transfer',args:{receiver_id:intent.treasury,amount:intent.amount,memo:intent.memo},gas:30000000000000n,deposit:1n,waitUntil:'FINAL'})
+  tx=await signer.callFunctionRaw({contractId:intent.token,methodName:'ft_transfer_call',args:{receiver_id:intent.escrow,amount:intent.amount,memo:null,msg:intent.id},gas:100000000000000n,deposit:1n,waitUntil:'FINAL'})
  } catch(error) {
   const result=(error as {transactionResult?:{transaction?:{hash?:unknown};final_execution_status?:unknown}})?.transactionResult
-  if(typeof result?.transaction?.hash==='string') trace.transactionHash=result.transaction.hash
-  if(typeof result?.final_execution_status==='string') trace.transactionFinality=result.final_execution_status
-  await save()
-  throw error
+  if(typeof result?.transaction?.hash==='string')trace.transactionHash=result.transaction.hash
+  if(typeof result?.final_execution_status==='string')trace.transactionFinality=result.final_execution_status
+  await save();throw error
  }
- trace.transactionHash=tx.transaction.hash;trace.status='transfer-returned';await save()
- const first=await (await request(`/api/redemptions/${intent.id}/verify`,'POST',{transactionHash:tx.transaction.hash},session)).json() as {credited:boolean; receiptId:string}
- const replay=await (await request(`/api/redemptions/${intent.id}/verify`,'POST',{transactionHash:tx.transaction.hash},session)).json() as {credited:boolean; receiptId:string}
+ trace.transactionHash=tx.transaction.hash;trace.status='deposit-returned';await save()
+ const state=await (await request(`/api/redemptions/${intent.id}`,'GET',undefined,session)).json() as {deposit:{status:string}|null}
+ if(!state.deposit)throw new Error('Escrow did not accept the deposit; reconcile the transaction before retrying')
+ await request(`/api/redemptions/${intent.id}/approve`,'POST',undefined,session);trace.status='approved';await save()
+ const consumption=await signer.callFunctionRaw({contractId:intent.escrow,methodName:'consume',args:{id:intent.id},gas:30000000000000n,deposit:0n,waitUntil:'FINAL'})
+ trace.consumptionHash=consumption.transaction.hash;trace.status='consumed';await save()
+ const first=await (await request(`/api/redemptions/${intent.id}/claim`,'POST',undefined,session)).json() as {credited:boolean}
+ const replay=await (await request(`/api/redemptions/${intent.id}/claim`,'POST',undefined,session)).json() as {credited:boolean}
  if(!first.credited || replay.credited)throw new Error('Unexpected redemption replay result')
- trace.receiptId=first.receiptId;trace.status='credited';trace.allowanceBefore=(await (await request('/api/inference/balance','GET',undefined,session)).json() as {units:number}).units;await save()
+ trace.receiptId=`${intent.escrow}:${account}:${intent.id}`;trace.status='credited';trace.allowanceBefore=(await (await request('/api/inference/balance','GET',undefined,session)).json() as {units:number}).units;await save()
  const available=(await (await request('/api/inference/balance','GET',undefined,session)).json() as {units:number}).units
  if(!Number.isSafeInteger(available)||available<1)throw new Error('No gateway allowance remains')
  const key=await (await request('/api/keys','POST',{quota:Math.min(available,1000000000)},session)).json() as {id:string; key:string};keyId=key.id

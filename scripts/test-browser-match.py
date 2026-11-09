@@ -158,16 +158,16 @@ try:
    with a.expect_response(lambda r:r.url.endswith('/api/redemptions') and r.request.method=='POST' and r.ok) as created:
     a.get_by_role('button',name='Create 1-Unit Intent').click(timeout=30000)
    intent_id=created.value.json()['id'];trace['intentId']=intent_id;save('isolated redemption intent created')
-   previous=set(ca.pages);a.get_by_role('button',name='Submit 5 PCC Transfer in Wallet').click();wallet_prompt(popup(ca,previous),False)
+   previous=set(ca.pages);a.get_by_role('button',name='Deposit PCC').click();wallet_prompt(popup(ca,previous),False)
    a.get_by_role('status').get_by_text(re.compile('reject|denied|cancel',re.I)).wait_for(timeout=30000)
-   if not a.get_by_role('button',name='Submit 5 PCC Transfer in Wallet').is_disabled(): raise RuntimeError('Rejected payment unexpectedly became retryable')
+   if a.get_by_role('button',name='Deposit PCC').count(): raise RuntimeError('Rejected payment unexpectedly became retryable')
    a.reload(wait_until='domcontentloaded')
    previous=set(ca.pages);a.get_by_role('button',name='Sign NEP-413 Challenge').click(timeout=30000)
    with a.expect_response(lambda r:r.url.endswith('/api/redemptions/'+intent_id) and r.ok) as restored:
     wallet_prompt(popup(ca,previous))
-   if restored.value.json().get('attempted')!=1: raise RuntimeError('Payment attempt was not preserved across reload')
-   if not a.get_by_role('button',name='Submit 5 PCC Transfer in Wallet').is_disabled(): raise RuntimeError('Payment attempt became retryable after reload')
-   a.get_by_text('Payment attempt recorded.',exact=False).wait_for(timeout=10000)
+   if not json.loads(a.evaluate('(key)=>localStorage.getItem(key)',f'promptplay:redemption:{ids[0]}')).get('submitted'): raise RuntimeError('Payment attempt was not preserved across reload')
+   if a.get_by_role('button',name='Deposit PCC').count(): raise RuntimeError('Payment attempt became retryable after reload')
+   a.get_by_text('Check wallet history',exact=False).wait_for(timeout=10000)
    trace['status']='passed';save('rejected payment remained blocked after reload')
    for c in contexts:c.close()
    contexts=[]
@@ -231,27 +231,30 @@ try:
    save('opening browser redemption')
    a.goto('http://localhost:3000/#redeem',wait_until='domcontentloaded')
    previous=set(ca.pages);a.get_by_role('button',name='Sign NEP-413 Challenge').click(timeout=30000);wallet_prompt(popup(ca,previous))
-   previous_redemption=a.get_by_role('button',name='Create Another Redemption')
+   previous_redemption=a.get_by_role('button',name='Create another redemption')
    previous_redemption.or_(a.get_by_role('button',name='Create 1-Unit Intent')).first.wait_for(timeout=30000)
    if previous_redemption.is_visible(): previous_redemption.click()
    a.get_by_role('button',name='Create 1-Unit Intent').click(timeout=30000)
    save('created redemption intent')
+   previous=set(ca.pages);a.get_by_role('button',name='Deposit PCC').click();wallet_prompt(popup(ca,previous))
+   for _ in range(30):
+    if a.get_by_role('button',name='Authorize and consume').count(): break
+    a.get_by_role('button',name='Refresh status').click(timeout=30000);a.wait_for_timeout(2000)
+   a.get_by_role('button',name='Authorize and consume').wait_for(timeout=10000)
    failed_verifications=[]
    if interrupt_verification:
-    a.on('requestfailed',lambda request:failed_verifications.append(request.url) if '/api/redemptions/' in request.url and request.url.endswith('/verify') else None)
-    a.route('**/api/redemptions/*/verify',lambda route:route.abort())
-   previous=set(ca.pages);a.get_by_role('button',name='Submit 5 PCC Transfer in Wallet').click();wallet_prompt(popup(ca,previous))
+    a.on('requestfailed',lambda request:failed_verifications.append(request.url) if '/api/redemptions/' in request.url and request.url.endswith('/claim') else None)
+    a.route('**/api/redemptions/*/claim',lambda route:route.abort())
+   previous=set(ca.pages);a.get_by_role('button',name='Authorize and consume').click();wallet_prompt(popup(ca,previous))
    if interrupt_verification:
-    recovery=a.get_by_placeholder('Paste transaction hash if wallet disconnected')
-    waitfor(lambda:recovery.input_value(),90)
-    waitfor(lambda:failed_verifications,30)
-    a.unroute('**/api/redemptions/*/verify');save('verification interrupted after wallet transfer')
+    waitfor(lambda:failed_verifications,90)
+    a.unroute('**/api/redemptions/*/claim');save('claim interrupted after escrow consumption')
     a.reload(wait_until='domcontentloaded')
     previous=set(ca.pages);a.get_by_role('button',name='Sign NEP-413 Challenge').click(timeout=30000);wallet_prompt(popup(ca,previous))
-    a.get_by_role('button',name='Verify Finalized Transfer').click(timeout=30000)
-   a.get_by_text('Payment Verified & Credited').wait_for(timeout=90000)
+    a.get_by_role('button',name='Claim gateway units').click(timeout=30000)
+   a.get_by_role('button',name='Create another redemption').wait_for(timeout=90000)
    saved=json.loads(a.evaluate('(key)=>localStorage.getItem(key)',f'promptplay:redemption:{ids[0]}'))
-   trace['redemptionTransaction']=saved['hash'];save('browser redemption credited')
+   trace['redemptionTransaction']=saved.get('hash');save('browser escrow credited')
    with a.expect_response(lambda r:r.url.endswith('/api/keys') and r.request.method=='POST' and r.ok) as created:
     a.get_by_role('button',name='Generate Key').click()
    key_result=created.value.json();gateway_key=key_result['key'];key_id=key_result['id']
@@ -261,7 +264,7 @@ try:
     a.get_by_text('200 OK — Model Response:',exact=False).wait_for(timeout=90000)
     balance_before=balance_response.value.json()['units']
     authorization=balance_response.value.request.headers['authorization']
-    replay_request=Request('http://127.0.0.1:3001/api/redemptions/'+saved['id']+'/verify',data=json.dumps({'transactionHash':saved['hash']}).encode(),headers={'authorization':authorization,'content-type':'application/json'})
+    replay_request=Request('http://127.0.0.1:3001/api/redemptions/'+saved['id']+'/claim',data=b'{}',headers={'authorization':authorization,'content-type':'application/json'})
     with urlopen(replay_request,timeout=30) as response: replay=json.load(response)
     if replay.get('credited') is not False: raise RuntimeError('Redemption replay did not remain idempotent')
     save('redemption replay did not credit twice')
