@@ -41,7 +41,7 @@ type KeyItem = {
 
 export function Redemption() {
   const { signedAccountId: account, callFunctionRaw } = useNearWallet()
-  const { config, token: session, login, request } = useSession()
+  const { config, refreshConfig, token: session, login, request } = useSession()
 
   const [balance, setBalance] = useState<number | null>(null)
   const [intent, setIntent] = useState<Intent | null>(null)
@@ -183,6 +183,7 @@ export function Redemption() {
     setSubmitted(false)
     setHash('')
     await refresh()
+    await refreshConfig()
     setMessage('Failed transfer confirmed. You can create a new intent.')
   }
 
@@ -233,11 +234,7 @@ export function Redemption() {
             {balance === null ? '—' : (balance / 1_000_000).toFixed(4)}{' '}
             <small style={{ fontSize: '14px', color: 'var(--text-muted)' }}>UNITS</small>
           </span>
-          <span className="hint">
-            {balance === null ? 'Sign challenge to inspect' : config?.microsPerUnit
-              ? `Funded capacity: $${(config.microsPerUnit / 1_000_000 * (balance / 1_000_000)).toFixed(4)} USD`
-              : 'Funding terms unavailable'}
-          </span>
+          {balance === null && <span className="hint">Sign challenge to inspect</span>}
         </div>
 
         <div className="telemetry-card highlight-amber">

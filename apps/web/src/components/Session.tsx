@@ -3,11 +3,12 @@ import { useNearWallet } from 'near-connect-hooks'
 import { fromBase64 } from '../lib/game'
 export const API = import.meta.env.VITE_API_URL || 'http://localhost:3001'
 export type ServerConfig = {redemptionAvailable:boolean;redemptionUnitsAvailable:number|null;faucetAvailable:boolean;provider:string|null;model:string|null;capabilities:{streaming:boolean;toolCalls:boolean}|null;contextTokens:number|null;microsPerUnit:number|null;maxOutputTokens:number|null;pccPerUnit:string}
-type Session = {token:string;config:ServerConfig|null;login:()=>Promise<string>;request:<T = unknown>(path:string,method?:string,body?:unknown,token?:string)=>Promise<T>}
+type Session = {token:string;config:ServerConfig|null;refreshConfig:()=>Promise<void>;login:()=>Promise<string>;request:<T = unknown>(path:string,method?:string,body?:unknown,token?:string)=>Promise<T>}
 const Context=createContext<Session|null>(null)
 export function useSession(){const value=useContext(Context);if(!value)throw new Error('Session provider missing');return value}
 export function SessionProvider({children}:{children:ReactNode}){
   const {signedAccountId:account,signNEP413Message}=useNearWallet();const [session,setSession]=useState<{account:string;token:string}|null>(null);const token=session?.account===account ? session.token : '';const [config,setConfig]=useState<ServerConfig|null>(null)
+  const refreshConfig=useCallback(async()=>{const response=await fetch(`${API}/config`);if(!response.ok)throw new Error('Could not refresh gateway configuration');setConfig(await response.json() as ServerConfig)},[])
   useEffect(()=>{let active=true;setSession(previous=>previous?.account===account?previous:null);fetch(`${API}/config`).then(r=>r.json()).then(c=>{if(active)setConfig(c)}).catch(()=>{if(active)setConfig(null)});return()=>{active=false}},[account])
   const request = useCallback(async <T = unknown,>(path:string,method='GET',body?:unknown,auth=token):Promise<T> => {
     const res=await fetch(`${API}${path}`,{method,headers:{...(body?{'content-type':'application/json'}:{}),...(auth?{authorization:`Bearer ${auth}`}:{})},body:body?JSON.stringify(body):undefined})
@@ -19,5 +20,5 @@ export function SessionProvider({children}:{children:ReactNode}){
     const result=await request<{token:string}>('/api/auth/verify','POST',{challengeId:c.id,accountId:signed.accountId,publicKey:signed.publicKey,signature:signed.signature})
     setSession({account,token:result.token});return result.token as string
   }
-  return <Context.Provider value={{token,config,login,request}}>{children}</Context.Provider>
+  return <Context.Provider value={{token,config,refreshConfig,login,request}}>{children}</Context.Provider>
 }
