@@ -279,6 +279,19 @@
   },
   "redemptionTreasury": {
     "accountId": "treasury.ryanlau1220.testnet",
+    "liteLLMOperatorPayment": {
+      "transferTransaction": "CX1Dc21vc6nC9RJv1GDRe6eWP76tm3dopN9fad5vMWQf",
+      "receiptId": "E372RiHGVvjBjhoh9ByssoAsoZHLbbcCse54VSYAHmAG",
+      "account": "arcade-a.ryanlau1220.testnet",
+      "amountBaseUnits": "5000000",
+      "model": "deepseek-v4.1-flash",
+      "scope": "operator-only SDK match 27 winner; isolated persistent ledger, replay check and metered streaming tool call; subsequent OpenCode stream interrupted",
+      "allowanceBeforeMicrounits": 1000000,
+      "allowanceAfterFirstRequestMicrounits": 999849,
+      "inputTokens": 271,
+      "outputTokens": 30,
+      "uncertainRequest": {"reservedMicrounits": 500256, "resolution": "charged reserved maximum; provider usage unverified"}
+    },
     "upgradedBrowserPayment": {
       "transferTransaction": "4w6fta2zxfU3PZquHrh77S5utSkMDd7vnncv2QBUN6CQ",
       "account": "arcade-a.ryanlau1220.testnet",
