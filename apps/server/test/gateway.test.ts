@@ -4,7 +4,49 @@ import { Accounting } from '../src/accounting'
 import { GatewayKeys } from '../src/keys'
 import { Gateway } from '../src/gateway'
 import { mockProvider } from '../src/provider'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 const pricing={inputMicrosPerMillion:1_000_000,outputMicrosPerMillion:2_000_000,microsPerUnit:1_000_000,contextTokens:100,maxOutputTokens:10}
+test('coordinates account concurrency and rate limits across gateway instances',async()=>{
+ const folder=mkdtempSync(join(tmpdir(),'promptplay-shared-')),path=join(folder,'ledger.sqlite')
+ const one=new Database(path),two=new Database(path)
+ try{
+  const firstLedger=new Accounting(one,10000),secondLedger=new Accounting(two,10000),firstKeys=new GatewayKeys(one),secondKeys=new GatewayKeys(two)
+  firstLedger.creditReceipt('shared-r','shared-i','alice',10000);const key=firstKeys.create('alice',10000)
+  let release!:()=>void;const pending=new Promise<void>(resolve=>{release=resolve})
+  const provider={async complete(){await pending;return {text:'ok',inputTokens:2,outputTokens:2,finishReason:'stop'}}}
+  const first=new Gateway(firstLedger,firstKeys,provider,'model',pricing),second=new Gateway(secondLedger,secondKeys,provider,'model',pricing)
+  const a=first.complete(key.key,'model',[{role:'user',content:'one'}],10),b=second.complete(key.key,'model',[{role:'user',content:'two'}],10)
+  await expect(second.complete(key.key,'model',[{role:'user',content:'three'}],10)).rejects.toThrow('Concurrency limit')
+  release();await Promise.all([a,b])
+  for(let i=0;i<8;i++)await (i%2?first:second).complete(key.key,'model',[{role:'user',content:'next'}],10)
+  await expect(first.complete(key.key,'model',[{role:'user',content:'limited'}],10)).rejects.toThrow('Rate limit')
+ }finally{one.close();two.close();rmSync(folder,{recursive:true,force:true})}
+})
+test('expired activity leases do not release uncertain spending reservations',()=>{
+ const db=new Database(':memory:'),ledger=new Accounting(db,10000)
+ ledger.creditReceipt('lease-r','lease-i','alice',10000)
+ ledger.reserve('first','alice',100,undefined,1000);ledger.reserve('second','alice',100,undefined,1000)
+ expect(()=>ledger.reserve('third','alice',100,undefined,1001)).toThrow('Concurrency limit')
+ ledger.reserve('third','alice',100,undefined,151000)
+ expect(ledger.usage('alice').filter(request=>request.state==='reserved')).toHaveLength(3)
+ expect(ledger.balance('alice')).toBe(9700);db.close()
+})
+test('coordinates the global concurrency limit across database connections',async()=>{
+ const folder=mkdtempSync(join(tmpdir(),'promptplay-shared-')),path=join(folder,'ledger.sqlite')
+ const one=new Database(path),two=new Database(path)
+ try{
+  const a=new Accounting(one,100000),b=new Accounting(two,100000),firstKeys=new GatewayKeys(one),secondKeys=new GatewayKeys(two)
+  let release!:()=>void;const pending=new Promise<void>(resolve=>{release=resolve})
+  const provider={async complete(){await pending;return {text:'ok',inputTokens:2,outputTokens:2,finishReason:'stop'}}}
+  const first=new Gateway(a,firstKeys,provider,'model',pricing),second=new Gateway(b,secondKeys,provider,'model',pricing)
+  const keys=Array.from({length:9},(_,i)=>{const account=`shared-${i}`;a.creditReceipt(`receipt-${i}`,`intent-${i}`,account,1000);return firstKeys.create(account,1000)})
+  const calls=keys.slice(0,8).map((key,i)=>(i%2?first:second).complete(key.key,'model',[{role:'user',content:'hi'}],10))
+  await expect(second.complete(keys[8].key,'model',[{role:'user',content:'hi'}],10)).rejects.toThrow('Concurrency limit')
+  release();await Promise.all(calls)
+ }finally{one.close();two.close();rmSync(folder,{recursive:true,force:true})}
+})
 test('preserves assistant reasoning in non-streaming tool responses',async()=>{
  const db=new Database(':memory:'),ledger=new Accounting(db,1000),keys=new GatewayKeys(db)
  ledger.creditReceipt('r','i','alice',1000);const key=keys.create('alice',1000)

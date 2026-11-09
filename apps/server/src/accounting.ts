@@ -4,10 +4,12 @@ import type { Database } from "bun:sqlite";
 export class Accounting {
   constructor(private db: Database, private spendingCap: number) {
     amount(spendingCap);
-    db.exec(`PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;
+    db.exec(`PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;
       CREATE TABLE IF NOT EXISTS accounts (id TEXT PRIMARY KEY, balance INTEGER NOT NULL DEFAULT 0 CHECK(balance >= 0));
       CREATE TABLE IF NOT EXISTS receipts (receipt_id TEXT PRIMARY KEY, intent_id TEXT NOT NULL UNIQUE, account_id TEXT NOT NULL REFERENCES accounts(id), amount INTEGER NOT NULL CHECK(amount > 0));
-      CREATE TABLE IF NOT EXISTS requests (id TEXT PRIMARY KEY, account_id TEXT NOT NULL REFERENCES accounts(id), key_id TEXT, reserved INTEGER NOT NULL CHECK(reserved > 0), charged INTEGER, input_tokens INTEGER, output_tokens INTEGER, state TEXT NOT NULL CHECK(state IN ('reserved','settled','released')));`);
+      CREATE TABLE IF NOT EXISTS requests (id TEXT PRIMARY KEY, account_id TEXT NOT NULL REFERENCES accounts(id), key_id TEXT, reserved INTEGER NOT NULL CHECK(reserved > 0), charged INTEGER, input_tokens INTEGER, output_tokens INTEGER, state TEXT NOT NULL CHECK(state IN ('reserved','settled','released')));
+      CREATE TABLE IF NOT EXISTS gateway_active (request_id TEXT PRIMARY KEY, account_id TEXT NOT NULL, expires INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS gateway_rates (account_id TEXT PRIMARY KEY, start INTEGER NOT NULL, count INTEGER NOT NULL);`);
   }
   creditReceipt(receiptId: string, intentId: string, accountId: string, units: number): boolean {
     id(receiptId); id(intentId); id(accountId); amount(units);
@@ -25,9 +27,19 @@ export class Accounting {
       return true;
     }).immediate();
   }
-  reserve(requestId: string, accountId: string, units: number, keyId?: string): void {
+  reserve(requestId: string, accountId: string, units: number, keyId?: string, now?: number): void {
     id(requestId); id(accountId); amount(units);
     this.db.transaction(() => {
+      if (now !== undefined) {
+        if (!Number.isSafeInteger(now) || now < 0) throw new Error("Invalid request time");
+        this.db.query("DELETE FROM gateway_active WHERE expires <= ?").run(now);
+        const active = this.db.query("SELECT COUNT(*) AS total, COALESCE(SUM(account_id = ?),0) AS user FROM gateway_active").get(accountId) as {total:number; user:number};
+        if (active.total >= 8 || active.user >= 2) throw new Error("Concurrency limit exceeded");
+        const rate = this.db.query("SELECT start,count FROM gateway_rates WHERE account_id = ?").get(accountId) as {start:number;count:number}|null;
+        if (rate && now - rate.start < 60_000 && rate.count >= 10) throw new Error("Rate limit exceeded");
+        this.db.query("INSERT INTO gateway_rates VALUES (?,?,1) ON CONFLICT(account_id) DO UPDATE SET start = CASE WHEN excluded.start - start >= 60000 THEN excluded.start ELSE start END, count = CASE WHEN excluded.start - start >= 60000 THEN 1 ELSE count + 1 END").run(accountId,now);
+        this.db.query("INSERT INTO gateway_active VALUES (?,?,?)").run(requestId,accountId,now+150_000);
+      }
       const {total} = this.db.query("SELECT COALESCE(SUM(CASE WHEN state = 'reserved' THEN reserved WHEN state = 'settled' THEN charged ELSE 0 END), 0) AS total FROM requests").get() as {total:number};
       if (!Number.isSafeInteger(total + units) || total + units > this.spendingCap) throw new Error("Project spending cap exceeded");
       if (keyId) {
@@ -39,6 +51,7 @@ export class Accounting {
       this.db.query("INSERT INTO requests (id, account_id, key_id, reserved, state) VALUES (?, ?, ?, ?, 'reserved')").run(requestId, accountId, keyId ?? null, units);
     }).immediate();
   }
+  endActivity(requestId:string):void { this.db.query("DELETE FROM gateway_active WHERE request_id = ?").run(requestId) }
   settle(requestId: string, used: number, usage?: {inputTokens:number; outputTokens:number}): void {
     if (!Number.isSafeInteger(used) || used < 0) throw new Error("Invalid usage");
     if (usage && (!Number.isSafeInteger(usage.inputTokens) || usage.inputTokens < 0 || !Number.isSafeInteger(usage.outputTokens) || usage.outputTokens < 0)) throw new Error("Invalid token usage");
