@@ -3,7 +3,7 @@ import type { Database } from 'bun:sqlite'
 import { randomBytes } from 'node:crypto'
 import type { JsonRpcProvider } from 'near-api-js'
 import type { Accounting } from './accounting'
-import { inspectTransfer } from './receipt'
+import { inspectFailedTransfer, inspectTransfer } from './receipt'
 
 const PCC_PER_UNIT = 5_000_000n
 const TTL_MS = 15 * 60_000
@@ -14,11 +14,12 @@ const TREASURY = 'treasury.ryanlau1220.testnet'
 export class Redemption {
   constructor(private db:Database, private ledger:Accounting, private rpc:JsonRpcProvider) {
     db.exec(`CREATE TABLE IF NOT EXISTS redemption_intents (id TEXT PRIMARY KEY, account_id TEXT NOT NULL, amount TEXT NOT NULL, units INTEGER NOT NULL, memo TEXT NOT NULL UNIQUE, created INTEGER NOT NULL, expires INTEGER NOT NULL, receipt_id TEXT UNIQUE, tx_hash TEXT);
-      CREATE TABLE IF NOT EXISTS redemption_attempts (intent_id TEXT PRIMARY KEY REFERENCES redemption_intents(id), created INTEGER NOT NULL)`)
+      CREATE TABLE IF NOT EXISTS redemption_attempts (intent_id TEXT PRIMARY KEY REFERENCES redemption_intents(id), created INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS redemption_failures (intent_id TEXT PRIMARY KEY REFERENCES redemption_intents(id), tx_hash TEXT NOT NULL UNIQUE)`)
   }
   remainingUnits() {
     const {issued}=this.db.query('SELECT COALESCE(SUM(amount),0) AS issued FROM receipts').get() as {issued:number}
-    const {pending}=this.db.query('SELECT COALESCE(SUM(units),0) AS pending FROM redemption_intents WHERE receipt_id IS NULL AND (expires > ? OR EXISTS(SELECT 1 FROM redemption_attempts WHERE intent_id=redemption_intents.id))').get(Date.now()) as {pending:number}
+    const {pending}=this.db.query('SELECT COALESCE(SUM(units),0) AS pending FROM redemption_intents WHERE receipt_id IS NULL AND NOT EXISTS(SELECT 1 FROM redemption_failures WHERE intent_id=redemption_intents.id) AND (expires > ? OR EXISTS(SELECT 1 FROM redemption_attempts WHERE intent_id=redemption_intents.id))').get(Date.now()) as {pending:number}
     return Math.max(0,Math.floor((this.ledger.issuanceLimit()-issued)/1_000_000)-pending)
   }
   create(account:string, units:number) {
@@ -27,15 +28,15 @@ export class Redemption {
     const created=Date.now(), expires=created+TTL_MS, amount=(BigInt(units)*PCC_PER_UNIT).toString()
     this.db.transaction(()=>{
       const {issued}=this.db.query('SELECT COALESCE(SUM(amount),0) AS issued FROM receipts').get() as {issued:number}
-      const {pending}=this.db.query('SELECT COALESCE(SUM(units),0) AS pending FROM redemption_intents WHERE receipt_id IS NULL AND (expires > ? OR EXISTS(SELECT 1 FROM redemption_attempts WHERE intent_id=redemption_intents.id))').get(created) as {pending:number}
+      const {pending}=this.db.query('SELECT COALESCE(SUM(units),0) AS pending FROM redemption_intents WHERE receipt_id IS NULL AND NOT EXISTS(SELECT 1 FROM redemption_failures WHERE intent_id=redemption_intents.id) AND (expires > ? OR EXISTS(SELECT 1 FROM redemption_attempts WHERE intent_id=redemption_intents.id))').get(created) as {pending:number}
       if (!Number.isSafeInteger(issued + (pending + units)*1_000_000) || issued + (pending + units)*1_000_000 > this.ledger.issuanceLimit()) throw new RequestError('Demo funding is fully allocated', 409)
       this.db.query('INSERT INTO redemption_intents (id,account_id,amount,units,memo,created,expires) VALUES (?,?,?,?,?,?,?)').run(id,account,amount,units,memo,created,expires)
     }).immediate()
     return {id,account,amount,units,memo,created,expires,token:TOKEN,treasury:TREASURY}
   }
-  list(account:string) { return this.db.query('SELECT id, account_id, amount, units, memo, created, expires, receipt_id, tx_hash, EXISTS(SELECT 1 FROM redemption_attempts WHERE intent_id=redemption_intents.id) AS attempted FROM redemption_intents WHERE account_id=? ORDER BY created DESC LIMIT 50').all(account) }
+  list(account:string) { return this.db.query('SELECT id, account_id, amount, units, memo, created, expires, receipt_id, tx_hash, EXISTS(SELECT 1 FROM redemption_attempts WHERE intent_id=redemption_intents.id) AS attempted, EXISTS(SELECT 1 FROM redemption_failures WHERE intent_id=redemption_intents.id) AS failed FROM redemption_intents WHERE account_id=? ORDER BY created DESC LIMIT 50').all(account) }
   get(id:string, account:string) {
-    return this.db.query('SELECT id, account_id, amount, units, memo, created, expires, receipt_id, tx_hash, EXISTS(SELECT 1 FROM redemption_attempts WHERE intent_id=redemption_intents.id) AS attempted FROM redemption_intents WHERE id=? AND account_id=?').get(id,account) as {id:string;account_id:string;amount:string;units:number;memo:string;created:number;expires:number;receipt_id:string|null;tx_hash:string|null;attempted:number}|null
+    return this.db.query('SELECT id, account_id, amount, units, memo, created, expires, receipt_id, tx_hash, EXISTS(SELECT 1 FROM redemption_attempts WHERE intent_id=redemption_intents.id) AS attempted, EXISTS(SELECT 1 FROM redemption_failures WHERE intent_id=redemption_intents.id) AS failed FROM redemption_intents WHERE id=? AND account_id=?').get(id,account) as {id:string;account_id:string;amount:string;units:number;memo:string;created:number;expires:number;receipt_id:string|null;tx_hash:string|null;attempted:number;failed:number}|null
   }
   beginTransfer(id:string,account:string) {
     this.db.transaction(()=>{
@@ -50,6 +51,7 @@ export class Redemption {
     if (!/^[1-9A-HJ-NP-Za-km-z]{32,50}$/.test(hash)) throw new RequestError('Invalid transaction hash', 400)
     if (intent.receipt_id) { if (intent.tx_hash !== hash) throw new RequestError('Intent already used', 409); return {credited:false,receiptId:intent.receipt_id} }
     if (!intent.attempted) throw new RequestError('Payment attempt was not recorded', 409)
+    if (this.db.query('SELECT 1 FROM redemption_failures WHERE intent_id=?').get(id)) throw new RequestError('Payment attempt failed', 409)
     if (await this.rpc.getNetworkId() !== 'testnet') throw new Error('Unexpected NEAR network')
     const result=await this.rpc.viewTransactionStatus({txHash:hash,accountId:account,waitUntil:'FINAL'})
     const receiptId=inspectTransfer(result,{transactionHash:hash,sender:account,token:TOKEN,treasury:TREASURY,amount:intent.amount,memo:intent.memo})
@@ -61,9 +63,26 @@ export class Redemption {
     return this.db.transaction(()=>{
       const current=this.get(id,account); if (!current) throw new RequestError('Unknown intent', 404)
       if (current.receipt_id) { if(current.tx_hash!==hash) throw new RequestError('Intent already used', 409); return {credited:false,receiptId:current.receipt_id} }
+      if (this.db.query('SELECT 1 FROM redemption_failures WHERE intent_id=?').get(id)) throw new RequestError('Payment attempt failed',409)
       const credited=this.ledger.creditReceipt(receiptId,id,account,intent.units * 1_000_000)
       this.db.query('UPDATE redemption_intents SET receipt_id=?, tx_hash=? WHERE id=? AND receipt_id IS NULL').run(receiptId,hash,id)
       return {credited,receiptId}
+    }).immediate()
+  }
+  async reconcileFailure(id:string,account:string,hash:string) {
+    const intent=this.get(id,account)
+    if(!intent || !intent.attempted || intent.receipt_id) throw new RequestError('Intent is unavailable',409)
+    if(!/^[1-9A-HJ-NP-Za-km-z]{32,50}$/.test(hash)) throw new RequestError('Invalid transaction hash',400)
+    if(await this.rpc.getNetworkId()!=='testnet') throw new Error('Unexpected NEAR network')
+    const result=await this.rpc.viewTransactionStatus({txHash:hash,accountId:account,waitUntil:'FINAL'})
+    inspectFailedTransfer(result,{transactionHash:hash,sender:account,token:TOKEN,treasury:TREASURY,amount:intent.amount,memo:intent.memo})
+    return this.db.transaction(()=>{
+      const current=this.get(id,account)
+      if(!current || current.receipt_id) throw new RequestError('Intent is unavailable',409)
+      const previous=this.db.query('SELECT tx_hash FROM redemption_failures WHERE intent_id=?').get(id) as {tx_hash:string}|null
+      if(previous && previous.tx_hash!==hash) throw new RequestError('Intent already reconciled',409)
+      if(!previous)this.db.query('INSERT INTO redemption_failures VALUES (?,?)').run(id,hash)
+      return {failed:true,transactionHash:hash}
     }).immediate()
   }
 }

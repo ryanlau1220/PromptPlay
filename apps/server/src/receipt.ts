@@ -1,5 +1,15 @@
 import { RequestError } from './errors'
 
+export function inspectFailedTransfer(result:unknown, expected:{transactionHash:string;sender:string;token:string;treasury:string;amount:string;memo:string}):void {
+  const r=result as {final_execution_status?:string;status?:Record<string,unknown>;transaction?:{hash?:string;signer_id?:string;receiver_id?:string;actions?:Array<{FunctionCall?:{method_name?:string;deposit?:string;args?:string}}>} }|null
+  if(!r || r.final_execution_status!=='FINAL' || !r.status || !('Failure' in r.status)) throw new RequestError('Transaction is not a finalized failure',400)
+  const tx=r.transaction,call=tx?.actions?.[0]?.FunctionCall
+  if(tx?.hash!==expected.transactionHash || tx.signer_id!==expected.sender || tx.receiver_id!==expected.token || tx.actions?.length!==1 || call?.method_name!=='ft_transfer' || call.deposit!=='1' || typeof call.args!=='string') throw new RequestError('Unexpected transaction',400)
+  let args:{receiver_id?:unknown;amount?:unknown;memo?:unknown}
+  try{args=JSON.parse(Buffer.from(call.args,'base64').toString('utf8'))}catch{throw new RequestError('Invalid transfer arguments',400)}
+  if(args.receiver_id!==expected.treasury || args.amount!==expected.amount || args.memo!==expected.memo) throw new RequestError('Transfer does not match intent',400)
+}
+
 /** Strictly inspect a direct ft_transfer result fetched from a trusted RPC using wait_until FINAL.
  * This does not authenticate the wallet, check the network, establish an intent's validity,
  * or fetch RPC itself. Those checks are required before granting an allowance. */

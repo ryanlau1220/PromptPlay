@@ -30,6 +30,7 @@ type Intent = {
   receipt_id: string | null
   tx_hash: string | null
   attempted: number
+  failed: number
 }
 
 type KeyItem = {
@@ -83,12 +84,19 @@ export function Redemption() {
     if (saved) {
       const data = JSON.parse(saved) as { id: string; hash?: string; submitted?: boolean }
       const i = await request<Intent>(`/api/redemptions/${encodeURIComponent(data.id)}`, 'GET', undefined, token)
+      if (i.failed || (!i.attempted && !i.receipt_id && i.expires <= Date.now())) {
+        localStorage.removeItem(slot)
+        setIntent(null)
+        setSubmitted(false)
+        setHash('')
+        return
+      }
       setIntent(i)
       setSubmitted(data.submitted === true || !!data.hash || !!i.attempted)
       setHash(data.hash ?? i.tx_hash ?? '')
     } else {
       const result = (await request('/api/redemptions', 'GET', undefined, token)) as { intents: Intent[] }
-      const pending = result.intents.find((i) => !i.receipt_id)
+      const pending = result.intents.find((i) => !i.receipt_id && !i.failed && (!!i.attempted || i.expires > Date.now()))
       if (pending) {
         setIntent(pending)
         setSubmitted(!!pending.attempted)
@@ -165,6 +173,17 @@ export function Redemption() {
     await refresh()
     window.dispatchEvent(new Event('promptplay:balance'))
     setMessage('Transfer verified on NEAR! Gateway units credited.')
+  }
+
+  async function reconcileFailure() {
+    if (!intent) return
+    await request(`/api/redemptions/${encodeURIComponent(intent.id)}/failure`, 'POST', { transactionHash: hash })
+    localStorage.removeItem(slot)
+    setIntent(null)
+    setSubmitted(false)
+    setHash('')
+    await refresh()
+    setMessage('Failed transfer confirmed. You can create a new intent.')
   }
 
   async function createKey() {
@@ -354,6 +373,9 @@ export function Redemption() {
                     >
                       <ShieldCheck size={14} />
                       <span>Verify Finalized Transfer</span>
+                    </button>
+                    <button type="button" className="btn-ghost" disabled={busy || !hash || !submitted} onClick={() => void action(reconcileFailure)}>
+                      Confirm failed transfer
                     </button>
                   </div>
                 </div>

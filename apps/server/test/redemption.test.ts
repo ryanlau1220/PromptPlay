@@ -65,3 +65,23 @@ test('expired unattempted intents release capacity while attempted payments rema
  expect(redemption.remainingUnits()).toBe(0)
  db.close()
 })
+
+test('only a matching finalized failed payment releases an attempted intent',async()=>{
+ const db=new Database(':memory:'),ledger=new Accounting(db,1000000),hash='1'.repeat(40)
+ let finality='EXECUTED',failed=true,memo=''
+ const rpc={getNetworkId:async()=> 'testnet',viewTransactionStatus:async()=>({final_execution_status:finality,status:failed?{Failure:{}}:{SuccessValue:''},transaction:{hash,signer_id:'alice.testnet',receiver_id:'token.ryanlau1220.testnet',actions:[{FunctionCall:{method_name:'ft_transfer',deposit:'1',args:Buffer.from(JSON.stringify({receiver_id:'treasury.ryanlau1220.testnet',amount:'5000000',memo})).toString('base64')}}]}})} as unknown as JsonRpcProvider
+ const redemption=new Redemption(db,ledger,rpc),intent=redemption.create('alice.testnet',1);memo=intent.memo
+ redemption.beginTransfer(intent.id,'alice.testnet')
+ await expect(redemption.reconcileFailure(intent.id,'alice.testnet',hash)).rejects.toThrow('finalized failure')
+ finality='FINAL';failed=false
+ await expect(redemption.reconcileFailure(intent.id,'alice.testnet',hash)).rejects.toThrow('finalized failure')
+ failed=true;memo='wrong'
+ await expect(redemption.reconcileFailure(intent.id,'alice.testnet',hash)).rejects.toThrow('does not match')
+ expect(redemption.remainingUnits()).toBe(0)
+ memo=intent.memo
+ expect(await redemption.reconcileFailure(intent.id,'alice.testnet',hash)).toEqual({failed:true,transactionHash:hash})
+ expect(await redemption.reconcileFailure(intent.id,'alice.testnet',hash)).toEqual({failed:true,transactionHash:hash})
+ expect(redemption.remainingUnits()).toBe(1)
+ await expect(redemption.verify(intent.id,'alice.testnet',hash)).rejects.toThrow('attempt failed')
+ db.close()
+})
