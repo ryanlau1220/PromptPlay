@@ -1579,3 +1579,12 @@ button:disabled:is(button, .btn-primary, .btn-accent, .move-card-btn) {
   transform: none;
   box-shadow: none;
 }
+
+/* Shared settlement keeps the match details compact and readable. */
+.settlement-panel { display: grid; gap: 14px; padding: 22px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.settlement-panel > * { margin: 0; }
+.settlement-panel form { display: flex; align-items: end; flex-wrap: wrap; gap: 12px; }
+.settlement-panel form .field-label { min-width: min(100%, 220px); flex: 1; }
+.settlement-panel > button { justify-self: start; }
+.settlement-panel > div { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.settlement-panel > div > p { flex-basis: 100%; margin: 0; }

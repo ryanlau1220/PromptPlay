@@ -10,6 +10,7 @@ import { Gamepad2, Cpu, ExternalLink } from 'lucide-react'
 const ArcadeLobby = lazy(() => import('../components/ArcadeLobby').then((m) => ({ default: m.ArcadeLobby })))
 const GameRoom = lazy(() => import('../components/GameRoom').then((m) => ({ default: m.GameRoom })))
 const PracticeArcade = lazy(() => import('../components/practice/PracticeArcade').then((m) => ({ default: m.PracticeArcade })))
+const ArcadeSettlement = lazy(() => import('../components/ArcadeSettlement').then((m) => ({ default: m.ArcadeSettlement })))
 const Redemption = lazy(() => import('../components/Redemption').then((m) => ({ default: m.Redemption })))
 
 const nearConfig = {
@@ -68,7 +69,7 @@ function Content() {
   }, [theme])
 
   const [hash, setHash] = useState(() => window.location.hash)
-  const view = hash === '#play' ? 'play' : hash === '#redeem' ? 'redeem' : hash.startsWith('#practice/') ? 'practice' : 'arcade'
+  const view = hash === '#play' ? 'play' : hash === '#redeem' ? 'redeem' : hash.startsWith('#practice/') ? 'practice' : hash.startsWith('#arcade-duel') ? 'settlement' : 'arcade'
 
   useEffect(() => {
     const sync = () => setHash(window.location.hash)
@@ -81,7 +82,7 @@ function Content() {
       <div className="cyber-grid-bg" />
 
       <Navbar
-        view={view === 'practice' ? 'arcade' : view}
+        view={view === 'practice' || view === 'settlement' ? 'arcade' : view}
         theme={theme}
         onToggleTheme={() => setTheme(theme === 'light' ? 'dark' : 'light')}
       />
@@ -89,6 +90,7 @@ function Content() {
       <Suspense fallback={null}>
       {view === 'arcade' && <ArcadeLobby />}
       {view === 'practice' && <PracticeArcade id={hash.slice('#practice/'.length)} />}
+      {view === 'settlement' && (signedAccountId ? <ArcadeSettlement hash={hash} /> : <div className="arena-container"><button type="button" className="btn-primary" onClick={() => void connectWallet()} disabled={loading}>Connect NEAR Wallet</button></div>)}
 
       {view === 'play' &&
         (signedAccountId ? (
