@@ -14,7 +14,7 @@ test('structured response formats are validated and forwarded for chat and Respo
  const provider={async complete(_messages:unknown,_max:number,options:unknown){received=options;return {text:'{"ok":true}',inputTokens:2,outputTokens:2,finishReason:'stop'}}}
  const gateway=new Gateway(ledger,keys,provider,'model',{inputMicrosPerMillion:1000000,outputMicrosPerMillion:2000000,microsPerUnit:1000000,contextTokens:100,maxOutputTokens:10})
  const app=createApp({auth,redemption,ledger,keys,gateway,faucet:null,allowRedemption:false,redemptionAllowlist:new Set(),origin:'http://localhost:3000'})
- const send=(path:string,body:unknown)=>app.handle(new Request('http://localhost'+path,{method:'POST',headers:{'content-type':'application/json',authorization:`Bearer ${key.key}`},body:JSON.stringify(body)}))
+ const send=(path:string,body:unknown)=>app.handle(new Request(`http://localhost${path}`,{method:'POST',headers:{'content-type':'application/json',authorization:`Bearer ${key.key}`},body:JSON.stringify(body)}))
  const schema={name:'result',schema:{type:'object',properties:{ok:{type:'boolean'}},required:['ok'],additionalProperties:false},strict:true}
  expect((await send('/v1/responses',{model:'model',input:'hello',max_output_tokens:10,text:{format:{type:'json_schema',...schema}}})).status).toBe(200)
  expect(received).toMatchObject({response_format:{type:'json_schema',json_schema:schema}})
@@ -31,7 +31,7 @@ test('image inputs require an enabled provider and forward bounded inline images
  const provider={async complete(messages:unknown){received=messages;return {text:'a pixel',inputTokens:2,outputTokens:2,finishReason:'stop'}}}
  const pricing={inputMicrosPerMillion:1000000,outputMicrosPerMillion:2000000,microsPerUnit:1000000,contextTokens:100,maxOutputTokens:10}
  const app=(images:boolean)=>createApp({auth,redemption,ledger,keys,gateway:new Gateway(ledger,keys,provider,'model',pricing,'Mock',{streaming:false,toolCalls:false,images}),faucet:null,allowRedemption:false,redemptionAllowlist:new Set(),origin:'http://localhost:3000'})
- const send=(enabled:boolean,path:string,body:unknown)=>app(enabled).handle(new Request('http://localhost'+path,{method:'POST',headers:{'content-type':'application/json',authorization:`Bearer ${key.key}`},body:JSON.stringify(body)}))
+ const send=(enabled:boolean,path:string,body:unknown)=>app(enabled).handle(new Request(`http://localhost${path}`,{method:'POST',headers:{'content-type':'application/json',authorization:`Bearer ${key.key}`},body:JSON.stringify(body)}))
  const image='data:image/png;base64,aGVsbG8='
  const chat=(url:string)=>({model:'model',messages:[{role:'user',content:[{type:'text',text:'Describe'},{type:'image_url',image_url:{url}}]}],max_tokens:10})
  expect((await send(false,'/v1/chat/completions',chat(image))).status).toBe(400);expect(ledger.usage('alice.testnet')).toHaveLength(0)
