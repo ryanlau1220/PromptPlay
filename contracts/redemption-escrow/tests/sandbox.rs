@@ -170,3 +170,95 @@ async fn capacity_rejection_refunds_and_consumed_pcc_reaches_treasury() -> testr
     assert_eq!(balance, "5000000");
     Ok(())
 }
+
+#[tokio::test]
+async fn gateway_redeems_against_real_sandbox_contracts() -> testresult::TestResult<()> {
+    let sandbox = near_sandbox::Sandbox::start_sandbox().await?;
+    let network = near_api::NetworkConfig::from_rpc_url("sandbox", sandbox.rpc_addr.parse()?);
+    let genesis = near_sandbox::config::DEFAULT_GENESIS_ACCOUNT_PRIVATE_KEY;
+    let signer = near_api::Signer::from_secret_key(genesis.parse()?)?;
+    for name in [
+        "token.testnet",
+        "escrow.testnet",
+        "owner.testnet",
+        "player.testnet",
+        "treasury.testnet",
+    ] {
+        sandbox
+            .create_account(name.parse()?)
+            .initial_balance(NearToken::from_near(10))
+            .send()
+            .await?;
+    }
+    let owner: AccountId = "owner.testnet".parse()?;
+    let restricted_key = near_api::signer::generate_secret_key()?;
+    let restricted_signer = near_api::Signer::from_secret_key(restricted_key.clone())?;
+    near_api::Account(owner.clone())
+        .add_key(
+            AccessKeyPermission::FunctionCall(FunctionCallPermission {
+                allowance: Some(NearToken::from_near(1)),
+                receiver_id: "escrow.testnet".to_string(),
+                method_names: vec!["approve".to_string()],
+            }),
+            restricted_signer.get_public_key().await?,
+        )
+        .with_signer(signer.clone())
+        .send_to(&network)
+        .await?
+        .assert_success();
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    for (name, path, args) in [
+        (
+            "token.testnet",
+            root.join("../compute-credit/target/near/compute_credit.wasm"),
+            json!({"issuer":"owner.testnet"}),
+        ),
+        (
+            "escrow.testnet",
+            root.join("target/near/redemption_escrow.wasm"),
+            json!({"token":"token.testnet","owner":"owner.testnet","treasury":"treasury.testnet","cap":"1"}),
+        ),
+    ] {
+        near_api::Contract::deploy(name.parse()?)
+            .use_code(std::fs::read(path)?)
+            .with_init_call("new", args)?
+            .with_signer(signer.clone())
+            .send_to(&network)
+            .await?
+            .assert_success();
+    }
+    let token = near_api::Account("token.testnet".parse()?).as_contract();
+    for account in ["player.testnet", "escrow.testnet", "treasury.testnet"] {
+        token
+            .call_function(
+                "storage_deposit",
+                json!({"account_id":account,"registration_only":true}),
+            )
+            .transaction()
+            .deposit(NearToken::from_millinear(2))
+            .with_signer(owner.clone(), signer.clone())
+            .send_to(&network)
+            .await?
+            .assert_success();
+    }
+    token
+        .call_function(
+            "mint",
+            json!({"account_id":"player.testnet","amount":"10000000"}),
+        )
+        .transaction()
+        .deposit(NearToken::from_yoctonear(1))
+        .with_signer(owner, signer)
+        .send_to(&network)
+        .await?
+        .assert_success();
+    let status = std::process::Command::new("bun")
+        .arg("apps/server/test/escrow-sandbox-journey.ts")
+        .current_dir(root.join("../.."))
+        .env("SANDBOX_RPC", &sandbox.rpc_addr)
+        .env("SANDBOX_OWNER_KEY", restricted_key.to_string())
+        .env("SANDBOX_PLAYER_KEY", genesis)
+        .status()?;
+    assert!(status.success(), "Sandbox gateway journey failed");
+    Ok(())
+}

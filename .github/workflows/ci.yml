@@ -38,6 +38,7 @@ jobs:
         with:
           toolchain: 1.97.1
           targets: wasm32-unknown-unknown
+      - run: bun install --frozen-lockfile
       - name: Install cargo-near
         run: |
           curl --proto '=https' --tlsv1.2 -LsSf https://github.com/near/cargo-near/releases/download/cargo-near-v0.22.0/cargo-near-installer.sh -o "$RUNNER_TEMP/cargo-near-installer.sh"
