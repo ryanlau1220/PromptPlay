@@ -14,7 +14,16 @@ type Verify = typeof verifyMessage
 export class WalletAuth {
   constructor(private db:Database, private provider:JsonRpcProvider, private verify:Verify = verifyMessage) {
     db.exec(`CREATE TABLE IF NOT EXISTS auth_challenges (id TEXT PRIMARY KEY, nonce TEXT NOT NULL, expires INTEGER NOT NULL, consumed INTEGER NOT NULL DEFAULT 0);
-      CREATE TABLE IF NOT EXISTS auth_sessions (token_hash TEXT PRIMARY KEY, account_id TEXT NOT NULL, expires INTEGER NOT NULL);`)
+      CREATE TABLE IF NOT EXISTS auth_sessions (token_hash TEXT PRIMARY KEY, account_id TEXT NOT NULL, expires INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS api_rate (id INTEGER PRIMARY KEY CHECK(id=1), start INTEGER NOT NULL, attempts INTEGER NOT NULL);`)
+  }
+  limited(now=Date.now()) {
+    return this.db.transaction(()=>{
+      const row=this.db.query('SELECT start,attempts FROM api_rate WHERE id=1').get() as {start:number;attempts:number}|null
+      if(!row || now-row.start>=60000){this.db.query('INSERT INTO api_rate VALUES (1,?,1) ON CONFLICT(id) DO UPDATE SET start=excluded.start,attempts=1').run(now);return false}
+      this.db.query('UPDATE api_rate SET attempts=attempts+1 WHERE id=1').run()
+      return row.attempts>=120
+    }).immediate()
   }
   challenge() {
     const id = randomBytes(32).toString('base64url'); const nonce = randomBytes(32).toString('base64'); const expires = Date.now() + CHALLENGE_MS

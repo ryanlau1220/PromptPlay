@@ -2,6 +2,17 @@ import { expect, test } from 'bun:test'
 import { Database } from 'bun:sqlite'
 import { JsonRpcProvider } from 'near-api-js'
 import { WalletAuth } from '../src/auth'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+test('API throttling is shared across connections and resets after a minute',()=>{
+  const folder=mkdtempSync(join(tmpdir(),'promptplay-api-rate-')),path=join(folder,'state.sqlite'),a=new Database(path),b=new Database(path),rpc=new JsonRpcProvider({url:'https://test.rpc.fastnear.com'})
+  try{
+    const first=new WalletAuth(a,rpc),second=new WalletAuth(b,rpc)
+    for(let i=0;i<120;i++)expect((i%2?first:second).limited(1000)).toBe(false)
+    expect(first.limited(1001)).toBe(true);expect(second.limited(61000)).toBe(false)
+  }finally{a.close();b.close();rmSync(folder,{recursive:true,force:true})}
+})
 test('challenge is consumed once and session is revocable', async () => {
   const db = new Database(':memory:'); let calls=0
   const auth = new WalletAuth(db,new JsonRpcProvider({url:'https://test.rpc.fastnear.com'}),async ()=>{calls++})

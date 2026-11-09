@@ -12,9 +12,8 @@ import { chatFormat, responsesFormat, responsesInput, responsesStream, responses
 
 type Services = {auth:WalletAuth; redemption:Redemption; ledger:Accounting; allowRedemption:boolean; origin:string; keys:GatewayKeys; gateway:Gateway|null; faucet:Faucet|null; redemptionAllowlist:Set<string>}
 export function createApp({auth, redemption, ledger, allowRedemption, origin, keys, gateway, faucet, redemptionAllowlist}:Services) {
-  let windowStart=Date.now(), attempts=0
   const socketRates=new Map<string,number>()
-  const limited=()=>{if(Date.now()-windowStart>=60_000){windowStart=Date.now();attempts=0}return ++attempts>120}
+  const limited=()=>auth.limited()
   const token=(header:string|undefined)=>header?.startsWith('Bearer ') ? header.slice(7) : ''
   const account=(header:string|undefined)=>auth.account(token(header))
   const enrolled=(who:string)=>who.endsWith('.testnet') && (redemptionAllowlist.has('*') || redemptionAllowlist.has(who))
