@@ -32,8 +32,8 @@ test('uncertain provider failure keeps the reservation',async()=>{
  const g=new Gateway(ledger,keys,{complete:async()=>{throw new Error('timeout')}},'model',pricing)
  await expect(g.complete(key.key,'model',[{role:'user',content:'hello'}],10)).rejects.toThrow()
  expect(ledger.balance('alice')).toBe(880);expect(ledger.usage('alice')[0]).toMatchObject({reserved:120,state:'reserved'})
- await expect(g.complete(key.key,'model',[{role:'user',content:'again'}],10)).rejects.toThrow('timeout')
- await expect(g.complete(key.key,'model',[{role:'user',content:'again'}],10)).rejects.toThrow('timeout')
+ await expect(g.complete(key.key,'model',[{role:'user',content:'again'}],10)).rejects.toThrow('Provider request failed')
+ await expect(g.complete(key.key,'model',[{role:'user',content:'again'}],10)).rejects.toThrow('Provider request failed')
  expect(ledger.usage('alice').filter((request)=>request.state==='reserved')).toHaveLength(3)
 })
 test('simultaneous requests cannot spend the same key quota',async()=>{

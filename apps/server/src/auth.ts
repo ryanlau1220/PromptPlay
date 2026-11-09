@@ -2,6 +2,7 @@ import type { Database } from 'bun:sqlite'
 import { createHash, randomBytes } from 'node:crypto'
 import type { JsonRpcProvider } from 'near-api-js'
 import { verifyMessage } from 'near-api-js/nep413'
+import { RequestError } from './errors'
 
 const MESSAGE = 'Sign in to PromptPlay on NEAR Testnet.'
 const RECIPIENT = 'game.ryanlau1220.testnet'
@@ -22,14 +23,19 @@ export class WalletAuth {
     return {id,nonce,message:MESSAGE,recipient:RECIPIENT,expires}
   }
   async signIn(input:{challengeId:string; accountId:string; publicKey:string; signature:string}) {
-    if (!/^[a-z0-9._-]{2,64}$/.test(input.accountId) || !input.accountId.endsWith('.testnet') || !/^ed25519:[1-9A-HJ-NP-Za-km-z]{32,50}$/.test(input.publicKey) || !/^[A-Za-z0-9+/]{86}==$/.test(input.signature)) throw new Error('Invalid wallet signature')
+    if (!/^[a-z0-9._-]{2,64}$/.test(input.accountId) || !input.accountId.endsWith('.testnet') || !/^ed25519:[1-9A-HJ-NP-Za-km-z]{32,50}$/.test(input.publicKey) || !/^[A-Za-z0-9+/]{86}==$/.test(input.signature)) throw new RequestError('Invalid wallet signature', 400)
     const row = this.db.query('SELECT nonce, expires, consumed FROM auth_challenges WHERE id = ?').get(input.challengeId) as {nonce:string; expires:number; consumed:number}|null
-    if (!row || row.consumed || row.expires <= Date.now()) throw new Error('Challenge expired or used')
-    await this.verify({signerAccountId:input.accountId, signerPublicKey:input.publicKey, signature:Uint8Array.from(Buffer.from(input.signature,'base64')), payload:{message:MESSAGE,recipient:RECIPIENT,nonce:Uint8Array.from(Buffer.from(row.nonce,'base64'))}, provider:this.provider})
+    if (!row || row.consumed || row.expires <= Date.now()) throw new RequestError('Challenge expired or used', 400)
+    try {
+      await this.verify({signerAccountId:input.accountId, signerPublicKey:input.publicKey, signature:Uint8Array.from(Buffer.from(input.signature,'base64')), payload:{message:MESSAGE,recipient:RECIPIENT,nonce:Uint8Array.from(Buffer.from(row.nonce,'base64'))}, provider:this.provider})
+    } catch (error) {
+      if (error instanceof Error && (error.message === 'Signature verification failed' || error.message.startsWith('Public key ') && error.message.includes(' does not have FullAccess permission on account '))) throw new RequestError('Invalid wallet signature', 400)
+      throw error
+    }
     const token = randomBytes(32).toString('base64url'); const expires = Date.now()+SESSION_MS
     this.db.transaction(() => {
       const updated = this.db.query('UPDATE auth_challenges SET consumed=1 WHERE id=? AND consumed=0 AND expires > ?').run(input.challengeId,Date.now())
-      if (updated.changes !== 1) throw new Error('Challenge expired or used')
+      if (updated.changes !== 1) throw new RequestError('Challenge expired or used', 400)
       this.db.query('INSERT INTO auth_sessions VALUES (?,?,?)').run(digest(token),input.accountId,expires)
     }).immediate()
     return {token,accountId:input.accountId,expires}

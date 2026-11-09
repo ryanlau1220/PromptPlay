@@ -1,3 +1,4 @@
+import { RequestError } from './errors'
 import type { Database } from 'bun:sqlite'
 import type { JsonRpcProvider } from 'near-api-js'
 const TOKEN='token.ryanlau1220.testnet'
@@ -13,11 +14,11 @@ export class Faucet {
   async claim(account:string){
     const existing=this.status(account);if(existing)return existing
     const storage=await this.rpc.callFunction({contractId:TOKEN,method:'storage_balance_of',args:{account_id:account}})
-    if(!storage)throw new Error('Register PCC storage before claiming')
+    if(!storage)throw new RequestError('Register PCC storage before claiming', 400)
     const reserved=this.db.transaction(()=>{
       if(this.status(account))return false
       const count=this.db.query('SELECT COUNT(*) AS n FROM faucet_claims').get() as {n:number}
-      if(count.n>=this.maxClaims)throw new Error('Faucet allocation exhausted')
+      if(count.n>=this.maxClaims)throw new RequestError('Faucet allocation exhausted', 409)
       this.db.query("INSERT INTO faucet_claims VALUES (?, 'pending', NULL, ?)").run(account,Date.now());return true
     }).immediate()
     if(!reserved)return this.status(account)

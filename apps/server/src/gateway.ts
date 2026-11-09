@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import type { Accounting } from './accounting'
 import type { GatewayKeys } from './keys'
 import type { ChatMessage, ChatOptions, InferenceProvider, ProviderCapabilities, StreamEvent } from './provider'
+import { UpstreamError } from './errors'
 
 export type Pricing = { inputMicrosPerMillion:number; outputMicrosPerMillion:number; microsPerUnit:number; contextTokens:number; maxOutputTokens:number }
 function ceil(n:bigint,d:bigint) { return (n+d-1n)/d }
@@ -53,7 +54,8 @@ export class Gateway {
   async complete(rawKey:string, model:string, messages:ChatMessage[], maxTokens:number, options?:ChatOptions) {
     const {requestId,now,release}=this.reserve(rawKey,model,messages,maxTokens,options)
     try {
-      const response=await this.provider.complete(messages,maxTokens,options)
+      let response: Awaited<ReturnType<InferenceProvider['complete']>>
+      try { response=await this.provider.complete(messages,maxTokens,options) } catch { throw new UpstreamError('Provider request failed') }
       this.settle(requestId,response.inputTokens,response.outputTokens,maxTokens)
       return {id:`chatcmpl-${requestId}`,object:'chat.completion',created:Math.floor(now/1000),model:this.model,choices:[{index:0,message:{role:'assistant',content:response.text,...(response.toolCalls?{tool_calls:response.toolCalls}:{})},finish_reason:response.finishReason}],usage:{prompt_tokens:response.inputTokens,completion_tokens:response.outputTokens,total_tokens:response.inputTokens+response.outputTokens}}
     } finally { release() }

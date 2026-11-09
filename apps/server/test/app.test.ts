@@ -70,7 +70,7 @@ test('only enrolled wallets can reserve funded redemption capacity',async()=>{
  const attempt=(bearer:string)=>app.handle(new Request(`http://localhost/api/redemptions/${id}/attempt`,{method:'POST',headers:{authorization:`Bearer ${bearer}`}}))
  expect((await attempt(await login('bob.testnet'))).status).toBe(403)
  expect((await attempt(alice)).status).toBe(200)
- expect((await attempt(alice)).status).toBe(400)
+ expect((await attempt(alice)).status).toBe(409)
 })
 
 test('gateway status distinguishes enabled inference from exhausted redemption allocation',async()=>{
@@ -135,4 +135,60 @@ test('accepts structured text parts and rejects image inputs',async()=>{
  const send=(content:unknown)=>app.handle(new Request('http://localhost/v1/chat/completions',{method:'POST',headers:{'content-type':'application/json',authorization:`Bearer ${key.key}`},body:JSON.stringify({model:'model',messages:[{role:'user',content}],max_tokens:10})}))
  expect((await send([{type:'text',text:'hello'}])).status).toBe(200)
  expect((await send([{type:'image_url',image_url:{url:'https://example.com/image.png'}}])).status).toBe(400)
+})
+
+test('error responses distinguish invalid input, missing routes and internal failures', async () => {
+  const db = new Database(':memory:')
+  const rpc = new JsonRpcProvider({url:'https://test.rpc.fastnear.com'})
+  const ledger = new Accounting(db, 100)
+  const auth = new WalletAuth(db, rpc, async () => {})
+  const redemption = new Redemption(db, ledger, rpc)
+  const app = createApp({auth, redemption, ledger, keys:new GatewayKeys(db), gateway:null, faucet:null, allowRedemption:false, redemptionAllowlist:new Set(), origin:'http://localhost:3000'})
+  const malformed = await app.handle(new Request('http://localhost/api/auth/verify', {method:'POST',headers:{'content-type':'application/json'},body:'{'}))
+  expect(malformed.status).toBe(400)
+  expect(await malformed.json()).toEqual({error:'Invalid request'})
+  const invalid = await app.handle(new Request('http://localhost/api/auth/verify', {method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({challengeId:'x',accountId:'not-testnet',publicKey:'x',signature:'x'})}))
+  expect(invalid.status).toBe(400)
+  const missing = await app.handle(new Request('http://localhost/v1/missing'))
+  expect(missing.status).toBe(404)
+  expect(await missing.json()).toMatchObject({error:{code:'not_found'}})
+  db.close()
+  const failed = await app.handle(new Request('http://localhost/api/auth/challenge',{method:'POST'}))
+  expect(failed.status).toBe(500)
+  expect(await failed.json()).toEqual({error:'Internal server error'})
+})
+
+test('wallet signature rejection is a client error but RPC failures stay server errors', async () => {
+  for (const [message, status] of [['Signature verification failed', 400], ['RPC unavailable', 500]] as const) {
+    const db = new Database(':memory:')
+    const rpc = new JsonRpcProvider({url:'https://test.rpc.fastnear.com'})
+    const ledger = new Accounting(db, 100)
+    const auth = new WalletAuth(db, rpc, async () => { throw new Error(message) })
+    const app = createApp({auth, redemption:new Redemption(db,ledger,rpc), ledger, keys:new GatewayKeys(db), gateway:null, faucet:null, allowRedemption:false, redemptionAllowlist:new Set(), origin:'http://localhost:3000'})
+    const challenge = auth.challenge()
+    const response = await app.handle(new Request('http://localhost/api/auth/verify',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({challengeId:challenge.id,accountId:'alice.testnet',publicKey:`ed25519:${'1'.repeat(32)}`,signature:Buffer.alloc(64).toString('base64')})}))
+    expect(response.status).toBe(status)
+    expect(await response.json()).toEqual({error:status === 400 ? 'Invalid wallet signature' : 'Internal server error'})
+    db.close()
+  }
+})
+
+test('gateway reports provider failures separately from internal accounting failures', async () => {
+  const {Gateway} = await import('../src/gateway')
+  const db = new Database(':memory:'), rpc = new JsonRpcProvider({url:'https://test.rpc.fastnear.com'}), ledger = new Accounting(db, 1000)
+  const auth = new WalletAuth(db, rpc, async()=>{}), keys = new GatewayKeys(db), redemption = new Redemption(db, ledger, rpc)
+  ledger.creditReceipt('r','i','alice.testnet',1000)
+  const key = keys.create('alice.testnet',1000)
+  const provider = {async complete():Promise<never> { throw new Error('provider detail') }}
+  const gateway = new Gateway(ledger,keys,provider,'model',{inputMicrosPerMillion:1000000,outputMicrosPerMillion:2000000,microsPerUnit:1000000,contextTokens:100,maxOutputTokens:10})
+  const app = createApp({auth,redemption,ledger,keys,gateway,faucet:null,allowRedemption:false,redemptionAllowlist:new Set(),origin:'http://localhost:3000'})
+  const send = ()=>app.handle(new Request('http://localhost/v1/chat/completions',{method:'POST',headers:{'content-type':'application/json',authorization:`Bearer ${key.key}`},body:JSON.stringify({model:'model',messages:[{role:'user',content:'hi'}],max_tokens:10})}))
+  const upstream = await send()
+  expect(upstream.status).toBe(502)
+  expect(await upstream.json()).toMatchObject({error:{code:'upstream_error'}})
+  ledger.reserve = () => {throw new Error('database detail')}
+  const internal = await send()
+  expect(internal.status).toBe(500)
+  expect(await internal.json()).toMatchObject({error:{code:'internal_error'}})
+  db.close()
 })

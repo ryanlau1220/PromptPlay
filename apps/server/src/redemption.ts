@@ -1,3 +1,4 @@
+import { RequestError } from './errors'
 import type { Database } from 'bun:sqlite'
 import { randomBytes } from 'node:crypto'
 import type { JsonRpcProvider } from 'near-api-js'
@@ -21,13 +22,13 @@ export class Redemption {
     return Math.max(0,Math.floor((this.ledger.issuanceLimit()-issued)/1_000_000)-pending)
   }
   create(account:string, units:number) {
-    if (!account.endsWith('.testnet') || !Number.isSafeInteger(units) || units < 1 || units > 100) throw new Error('Invalid redemption')
+    if (!account.endsWith('.testnet') || !Number.isSafeInteger(units) || units < 1 || units > 100) throw new RequestError('Invalid redemption', 400)
     const id=randomBytes(24).toString('base64url'); const memo=`promptplay:${randomBytes(24).toString('base64url')}`
     const created=Date.now(), expires=created+TTL_MS, amount=(BigInt(units)*PCC_PER_UNIT).toString()
     this.db.transaction(()=>{
       const {issued}=this.db.query('SELECT COALESCE(SUM(amount),0) AS issued FROM receipts').get() as {issued:number}
       const {pending}=this.db.query('SELECT COALESCE(SUM(units),0) AS pending FROM redemption_intents WHERE receipt_id IS NULL').get() as {pending:number}
-      if (!Number.isSafeInteger(issued + (pending + units)*1_000_000) || issued + (pending + units)*1_000_000 > this.ledger.issuanceLimit()) throw new Error('Demo funding is fully allocated')
+      if (!Number.isSafeInteger(issued + (pending + units)*1_000_000) || issued + (pending + units)*1_000_000 > this.ledger.issuanceLimit()) throw new RequestError('Demo funding is fully allocated', 409)
       this.db.query('INSERT INTO redemption_intents (id,account_id,amount,units,memo,created,expires) VALUES (?,?,?,?,?,?,?)').run(id,account,amount,units,memo,created,expires)
     }).immediate()
     return {id,account,amount,units,memo,created,expires,token:TOKEN,treasury:TREASURY}
@@ -39,15 +40,15 @@ export class Redemption {
   beginTransfer(id:string,account:string) {
     this.db.transaction(()=>{
       const intent=this.get(id,account)
-      if(!intent || intent.receipt_id || intent.expires-Date.now()<60_000) throw new Error('Intent is unavailable or too close to expiry')
-      if(intent.attempted) throw new Error('Payment attempt already recorded; check wallet history')
+      if(!intent || intent.receipt_id || intent.expires-Date.now()<60_000) throw new RequestError('Intent is unavailable or too close to expiry', 409)
+      if(intent.attempted) throw new RequestError('Payment attempt already recorded; check wallet history', 409)
       this.db.query('INSERT INTO redemption_attempts (intent_id,created) VALUES (?,?)').run(id,Date.now())
     }).immediate()
   }
   async verify(id:string,account:string,hash:string) {
-    const intent=this.get(id,account); if (!intent) throw new Error('Unknown intent')
-    if (!/^[1-9A-HJ-NP-Za-km-z]{32,50}$/.test(hash)) throw new Error('Invalid transaction hash')
-    if (intent.receipt_id) { if (intent.tx_hash !== hash) throw new Error('Intent already used'); return {credited:false,receiptId:intent.receipt_id} }
+    const intent=this.get(id,account); if (!intent) throw new RequestError('Unknown intent', 404)
+    if (!/^[1-9A-HJ-NP-Za-km-z]{32,50}$/.test(hash)) throw new RequestError('Invalid transaction hash', 400)
+    if (intent.receipt_id) { if (intent.tx_hash !== hash) throw new RequestError('Intent already used', 409); return {credited:false,receiptId:intent.receipt_id} }
     if (await this.rpc.getNetworkId() !== 'testnet') throw new Error('Unexpected NEAR network')
     const result=await this.rpc.viewTransactionStatus({txHash:hash,accountId:account,waitUntil:'FINAL'})
     const receiptId=inspectTransfer(result,{transactionHash:hash,sender:account,token:TOKEN,treasury:TREASURY,amount:intent.amount,memo:intent.memo})
@@ -55,10 +56,10 @@ export class Redemption {
     if (!receipt?.block_hash) throw new Error('Missing transfer block')
     const block=await this.rpc.viewBlock({blockId:receipt.block_hash})
     const executed=BigInt(block.header.timestamp_nanosec)
-    if (executed < BigInt(intent.created)*1_000_000n || executed > BigInt(intent.expires)*1_000_000n) throw new Error('Transfer outside intent window; contact support')
+    if (executed < BigInt(intent.created)*1_000_000n || executed > BigInt(intent.expires)*1_000_000n) throw new RequestError('Transfer outside intent window; contact support', 400)
     return this.db.transaction(()=>{
-      const current=this.get(id,account); if (!current) throw new Error('Unknown intent')
-      if (current.receipt_id) { if(current.tx_hash!==hash) throw new Error('Intent already used'); return {credited:false,receiptId:current.receipt_id} }
+      const current=this.get(id,account); if (!current) throw new RequestError('Unknown intent', 404)
+      if (current.receipt_id) { if(current.tx_hash!==hash) throw new RequestError('Intent already used', 409); return {credited:false,receiptId:current.receipt_id} }
       const credited=this.ledger.creditReceipt(receiptId,id,account,intent.units * 1_000_000)
       this.db.query('UPDATE redemption_intents SET receipt_id=?, tx_hash=? WHERE id=? AND receipt_id IS NULL').run(receiptId,hash,id)
       return {credited,receiptId}

@@ -7,6 +7,7 @@ import type { GatewayKeys } from './keys'
 import type { Gateway } from './gateway'
 import type { ChatMessage, ChatOptions } from './provider'
 import type { Faucet } from './faucet'
+import { RequestError, UpstreamError } from './errors'
 
 type Services = {auth:WalletAuth; redemption:Redemption; ledger:Accounting; allowRedemption:boolean; origin:string; keys:GatewayKeys; gateway:Gateway|null; faucet:Faucet|null; redemptionAllowlist:Set<string>}
 export function createApp({auth, redemption, ledger, allowRedemption, origin, keys, gateway, faucet, redemptionAllowlist}:Services) {
@@ -16,7 +17,12 @@ export function createApp({auth, redemption, ledger, allowRedemption, origin, ke
   const token=(header:string|undefined)=>header?.startsWith('Bearer ') ? header.slice(7) : ''
   const account=(header:string|undefined)=>auth.account(token(header))
   return new Elysia({normalize:false,websocket:{maxPayloadLength:512,idleTimeout:120}}).use(cors({origin,methods:['GET','POST','DELETE'],allowedHeaders:['Content-Type','Authorization']}))
-    .onError(({code,set,request})=>{set.status=400;const message=code==='VALIDATION' ? 'Invalid request' : 'Request could not be completed';return new URL(request.url).pathname.startsWith('/v1/') ? {error:{message,type:'invalid_request_error',code:'invalid_request'}} : {error:message}})
+    .onError(({code,error,set,request})=>{
+      const status=error instanceof RequestError ? error.status : code==='VALIDATION'||code==='PARSE' ? 400 : code==='NOT_FOUND' ? 404 : 500
+      set.status=status
+      const message=error instanceof RequestError ? error.message : status===400 ? 'Invalid request' : status===404 ? 'Not found' : 'Internal server error'
+      return new URL(request.url).pathname.startsWith('/v1/') ? {error:{message,type:status>=500?'server_error':'invalid_request_error',code:status>=500?'internal_error':status===404?'not_found':'invalid_request'}} : {error:message}
+    })
     .ws('/rooms/:id/ws',{
       params:t.Object({id:t.String({pattern:'^[0-9]{1,20}$'})}),
       body:t.Object({type:t.Literal('resync')},{additionalProperties:false}),
@@ -50,8 +56,9 @@ export function createApp({auth, redemption, ledger, allowRedemption, origin, ke
         return await gateway.complete(raw,body.model,messages,max,options)
       }catch(e){
         const msg=e instanceof Error ? e.message : '';const payment=msg==='Insufficient allowance'||msg==='Key quota exceeded or revoked';const limited=msg==='Project spending cap exceeded'||msg==='Rate limit exceeded'||msg==='Concurrency limit exceeded';const invalid=msg==='Model is not supported'||msg==='Invalid output limit'||msg==='Invalid messages'||msg==='Streaming is not supported'||msg==='Tool calling is not supported'
-        set.status=payment?402:limited?429:invalid?400:502
-        return {error:{message:payment?'Insufficient allowance or key quota':limited?'Spending or rate limit reached':invalid?msg:'Inference request could not be completed',type:payment?'insufficient_quota':limited?'rate_limit_error':invalid?'invalid_request_error':'server_error',code:payment?'insufficient_quota':limited?'rate_limit':invalid?'invalid_request':'upstream_error'}}
+        const upstream=e instanceof UpstreamError
+        set.status=payment?402:limited?429:invalid?400:upstream?502:500
+        return {error:{message:payment?'Insufficient allowance or key quota':limited?'Spending or rate limit reached':invalid?msg:'Inference request could not be completed',type:payment?'insufficient_quota':limited?'rate_limit_error':invalid?'invalid_request_error':'server_error',code:payment?'insufficient_quota':limited?'rate_limit':invalid?'invalid_request':upstream?'upstream_error':'internal_error'}}
       }
     },{body:t.Object({model:t.String({minLength:1,maxLength:200}),messages:t.Array(t.Object({role:t.String({maxLength:20}),content:t.Union([t.String({maxLength:100000}),t.Null(),t.Array(t.Object({type:t.Literal('text'),text:t.String({maxLength:100000})},{additionalProperties:false}),{minItems:1,maxItems:64})]),tool_calls:t.Optional(t.Array(t.Unknown(),{maxItems:32})),tool_call_id:t.Optional(t.String({maxLength:256})),name:t.Optional(t.String({maxLength:256}))},{additionalProperties:false}),{minItems:1,maxItems:32}),max_tokens:t.Optional(t.Integer({minimum:1,maximum:4096})),max_completion_tokens:t.Optional(t.Integer({minimum:1,maximum:4096})),stream:t.Optional(t.Boolean()),store:t.Optional(t.Literal(false)),stream_options:t.Optional(t.Object({include_usage:t.Optional(t.Boolean())},{additionalProperties:false})),tools:t.Optional(t.Array(t.Unknown(),{maxItems:128})),tool_choice:t.Optional(t.Unknown()),parallel_tool_calls:t.Optional(t.Boolean()),temperature:t.Optional(t.Number({minimum:0,maximum:2}))},{additionalProperties:false})})
     .get('/api/inference/balance',({headers,set})=>{const who=account(headers.authorization);if(!who){set.status=401;return {error:'Unauthorized'}};return {units:ledger.balance(who)}})
