@@ -55,7 +55,9 @@ try{
  const replay=await (await request(`/api/redemptions/${intent.id}/verify`,'POST',{transactionHash:tx.transaction.hash},session)).json() as {credited:boolean; receiptId:string}
  if(!first.credited || replay.credited)throw new Error('Unexpected redemption replay result')
  trace.receiptId=first.receiptId;trace.status='credited';trace.allowanceBefore=(await (await request('/api/inference/balance','GET',undefined,session)).json() as {units:number}).units;await save()
- const key=await (await request('/api/keys','POST',{quota:1000000},session)).json() as {id:string; key:string};keyId=key.id
+ const available=(await (await request('/api/inference/balance','GET',undefined,session)).json() as {units:number}).units
+ if(!Number.isSafeInteger(available)||available<1)throw new Error('No gateway allowance remains')
+ const key=await (await request('/api/keys','POST',{quota:Math.min(available,1000000000)},session)).json() as {id:string; key:string};keyId=key.id
  const response=await request('/v1/chat/completions','POST',{model:config.model,messages:[{role:'user',content:'Use the read_file tool to read notes.txt.'}],max_tokens:100,stream:true,tools:[{type:'function',function:{name:'read_file',description:'Read a file',parameters:{type:'object',properties:{path:{type:'string'}},required:['path']}}}],tool_choice:'required',temperature:0},key.key)
  const text=await response.text();if(!text.includes('tool_calls')||!text.includes('[DONE]'))throw new Error('Expected a completed streaming tool call')
  trace.allowanceAfter=(await (await request('/api/inference/balance','GET',undefined,session)).json() as {units:number}).units
