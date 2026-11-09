@@ -23,6 +23,7 @@ pub struct Deposit {
     pub amount: U128,
     pub units: U64,
     pub expires: U64,
+    pub approved: bool,
     pub status: Status,
 }
 #[ext_contract(ext_ft)]
@@ -70,12 +71,25 @@ impl Contract {
     pub fn capacity(&self) -> U64 {
         U64(self.cap - self.allocated)
     }
+    #[payable]
+    pub fn approve(&mut self, account: AccountId, id: String) {
+        near_sdk::assert_one_yocto();
+        require!(env::predecessor_account_id() == self.owner, "Only owner");
+        let key = (account, id);
+        let mut d = self.deposits.get(&key).expect("Unknown deposit");
+        require!(
+            d.status == Status::Pending && env::block_timestamp() < d.expires.0,
+            "Deposit unavailable"
+        );
+        d.approved = true;
+        self.deposits.insert(&key, &d);
+    }
     pub fn consume(&mut self, id: String) {
         let key = (env::predecessor_account_id(), id);
         let mut d = self.deposits.get(&key).expect("Unknown deposit");
         require!(d.account == env::predecessor_account_id(), "Not depositor");
         require!(
-            d.status == Status::Pending && env::block_timestamp() < d.expires.0,
+            d.status == Status::Pending && d.approved && env::block_timestamp() < d.expires.0,
             "Deposit unavailable"
         );
         self.withdrawable = self
@@ -207,6 +221,7 @@ impl FungibleTokenReceiver for Contract {
                 amount,
                 units: U64(units),
                 expires: U64(expires),
+                approved: false,
                 status: Status::Pending,
             },
         );
@@ -268,6 +283,8 @@ mod tests {
         let mut c = setup();
         let a = "a".repeat(32);
         send(&mut c, accounts(1), PCC_PER_UNIT, &a);
+        ctx(accounts(0), 2, 1);
+        c.approve(accounts(1), a.clone());
         ctx(accounts(1), 2, 0);
         c.consume(a.clone());
         assert_eq!(
@@ -284,6 +301,8 @@ mod tests {
         let mut c = setup();
         let a = "a".repeat(32);
         send(&mut c, accounts(1), PCC_PER_UNIT, &a);
+        ctx(accounts(0), 2, 1);
+        c.approve(accounts(1), a.clone());
         ctx(accounts(1), EXPIRY_NS + 1, 1);
         let _ = c.refund(a.clone());
         let mut cb = VMContextBuilder::new();
@@ -340,6 +359,8 @@ mod tests {
         let mut c = setup();
         let id = "w".repeat(32);
         send(&mut c, accounts(1), PCC_PER_UNIT, &id);
+        ctx(accounts(0), 2, 1);
+        c.approve(accounts(1), id.clone());
         ctx(accounts(1), 2, 0);
         c.consume(id);
         ctx(accounts(0), 3, 1);
@@ -359,5 +380,23 @@ mod tests {
         assert!(!c.withdrawal_pending);
         ctx(accounts(0), 4, 1);
         let _ = c.withdraw(U128(PCC_PER_UNIT));
+    }
+    #[test]
+    #[should_panic(expected = "Deposit unavailable")]
+    fn deposit_cannot_be_consumed_without_operator_approval() {
+        let mut c = setup();
+        let id = "u".repeat(32);
+        send(&mut c, accounts(1), PCC_PER_UNIT, &id);
+        ctx(accounts(1), 2, 0);
+        c.consume(id);
+    }
+    #[test]
+    #[should_panic(expected = "Only owner")]
+    fn outsider_cannot_approve() {
+        let mut c = setup();
+        let id = "u".repeat(32);
+        send(&mut c, accounts(1), PCC_PER_UNIT, &id);
+        ctx(accounts(2), 2, 1);
+        c.approve(accounts(1), id);
     }
 }

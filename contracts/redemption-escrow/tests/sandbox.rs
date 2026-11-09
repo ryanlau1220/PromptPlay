@@ -113,6 +113,21 @@ async fn capacity_rejection_refunds_and_consumed_pcc_reaches_treasury() -> testr
         .with_signer(alice.clone(), signer.clone())
         .send_to(&network)
         .await?
+        .assert_failure();
+    escrow
+        .call_function("approve", json!({"account":"alice.sandbox","id":first}))
+        .transaction()
+        .deposit(NearToken::from_yoctonear(1))
+        .with_signer(alice.clone(), signer.clone())
+        .send_to(&network)
+        .await?
+        .assert_success();
+    escrow
+        .call_function("consume", json!({"id":first}))
+        .transaction()
+        .with_signer(alice.clone(), signer.clone())
+        .send_to(&network)
+        .await?
         .assert_success();
     escrow
         .call_function("on_withdraw", json!({"amount":"5000000"}))
