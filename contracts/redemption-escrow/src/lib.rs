@@ -14,7 +14,6 @@ pub enum Status {
     Pending,
     Consumed,
     Refunding,
-    Refunded,
 }
 #[near(serializers=[json,borsh])]
 #[derive(Clone)]
@@ -133,11 +132,18 @@ impl Contract {
                 .allocated
                 .checked_sub(d.units.0)
                 .expect("Invalid allocation");
-            d.status = Status::Refunded;
+            self.deposits.remove(&key);
+            env::log_str(&format!(
+                "EVENT_JSON:{}",
+                near_sdk::serde_json::json!({
+                    "standard":"promptplay", "version":"1.0.0", "event":"redemption_refunded",
+                    "data":[{"account":key.0,"id":key.1,"amount":d.amount,"units":d.units}]
+                })
+            ));
         } else {
             d.status = Status::Pending;
+            self.deposits.insert(&key, &d);
         }
-        self.deposits.insert(&key, &d);
         success
     }
     #[payable]
@@ -239,7 +245,7 @@ impl FungibleTokenReceiver for Contract {
 mod tests {
     use super::*;
     use near_sdk::{
-        test_utils::{VMContextBuilder, accounts},
+        test_utils::{VMContextBuilder, accounts, get_logs},
         testing_env,
     };
     fn ctx(who: AccountId, time: u64, deposit: u128) {
@@ -328,10 +334,13 @@ mod tests {
         );
         assert!(c.on_refund(accounts(1), a.clone()));
         assert_eq!(c.capacity().0, 2);
-        assert_eq!(
-            c.get_deposit(accounts(1), a).unwrap().status,
-            Status::Refunded
+        assert!(
+            get_logs()
+                .iter()
+                .any(|entry| entry.contains("redemption_refunded"))
         );
+        assert!(c.get_deposit(accounts(1), a.clone()).is_none());
+        assert_eq!(send(&mut c, accounts(1), PCC_PER_UNIT, &a), 0);
     }
     #[test]
     #[should_panic(expected = "Unknown deposit")]
