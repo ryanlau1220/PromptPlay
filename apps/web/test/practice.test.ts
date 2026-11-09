@@ -5,6 +5,8 @@ describe('practice game rules', () => {
   test('catalog has eleven distinct playable identifiers', () => {
     expect(practiceGames).toHaveLength(11)
     expect(new Set(practiceGames.map(game => game.id)).size).toBe(11)
+    expect(new Set(practiceGames.map(game => game.entrypoint)).size).toBe(practiceGames.length)
+    expect(practiceGames.every(game => /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(game.id) && game.rules.length > 0)).toBe(true)
   })
   test('detects lines and diagonals without wrapping across rows', () => {
     expect(winner(['X',null,'O',null,'X','O',null,null,'X'],3,3,3)).toBe('X')

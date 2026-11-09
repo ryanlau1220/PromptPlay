@@ -1,15 +1,16 @@
+// Maintainers publish games by reviewing and merging their source with this catalog.
 export const practiceGames = [
-  { id: 'tic-tac-toe', name: 'Tic-Tac-Toe', kind: 'Strategy' },
-  { id: 'connect-four', name: 'Connect Four', kind: 'Strategy' },
-  { id: 'memory', name: 'Memory Match', kind: 'Memory' },
-  { id: 'lights-out', name: 'Lights Out', kind: 'Puzzle' },
-  { id: 'minesweeper', name: 'Minesweeper', kind: 'Puzzle' },
-  { id: 'slide', name: 'Sliding Puzzle', kind: 'Puzzle' },
-  { id: '2048', name: '2048', kind: 'Puzzle' },
-  { id: 'sequence', name: 'Sequence', kind: 'Memory' },
-  { id: 'codebreaker', name: 'Codebreaker', kind: 'Logic' },
-  { id: 'word-guess', name: 'Word Guess', kind: 'Word' },
-  { id: 'number-rush', name: 'Number Rush', kind: 'Speed' },
+  { id: 'tic-tac-toe', name: 'Tic-Tac-Toe', kind: 'Strategy', rules: 'Complete a line of three against the computer.', entrypoint: 'TicTacToe' },
+  { id: 'connect-four', name: 'Connect Four', kind: 'Strategy', rules: 'Connect four pieces against the computer.', entrypoint: 'ConnectFour' },
+  { id: 'memory', name: 'Memory Match', kind: 'Memory', rules: 'Find matching pairs.', entrypoint: 'MemoryMatch' },
+  { id: 'lights-out', name: 'Lights Out', kind: 'Puzzle', rules: 'Turn off every light.', entrypoint: 'LightsOut' },
+  { id: 'minesweeper', name: 'Minesweeper', kind: 'Puzzle', rules: 'Clear the field without opening a mine.', entrypoint: 'Minesweeper' },
+  { id: 'slide', name: 'Sliding Puzzle', kind: 'Puzzle', rules: 'Arrange the tiles in order.', entrypoint: 'SlidingPuzzle' },
+  { id: '2048', name: '2048', kind: 'Puzzle', rules: 'Combine equal tiles to reach 2048.', entrypoint: 'Game2048' },
+  { id: 'sequence', name: 'Sequence', kind: 'Memory', rules: 'Repeat the growing sequence.', entrypoint: 'Sequence' },
+  { id: 'codebreaker', name: 'Codebreaker', kind: 'Logic', rules: 'Deduce the secret code.', entrypoint: 'Codebreaker' },
+  { id: 'word-guess', name: 'Word Guess', kind: 'Word', rules: 'Guess the hidden word.', entrypoint: 'WordGuess' },
+  { id: 'number-rush', name: 'Number Rush', kind: 'Speed', rules: 'Select the numbers in order.', entrypoint: 'NumberRush' },
 ] as const
 export type GameId = typeof practiceGames[number]['id']
 export const isGameId = (value: string): value is GameId => practiceGames.some(game => game.id === value)
