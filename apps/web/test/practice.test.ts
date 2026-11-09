@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { adjacent, codeFeedback, drop, move2048, practiceGames, slide, winner } from '../src/components/practice/games'
+import { adjacent, codeFeedback, drop, gameAssetLicenses, move2048, practiceGames, slide, winner } from '../src/components/practice/games'
 
 describe('practice game rules', () => {
   test('catalog has eleven distinct playable identifiers', () => {
@@ -7,6 +7,16 @@ describe('practice game rules', () => {
     expect(new Set(practiceGames.map(game => game.id)).size).toBe(11)
     expect(new Set(practiceGames.map(game => game.entrypoint)).size).toBe(practiceGames.length)
     expect(practiceGames.every(game => /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(game.id) && game.rules.length > 0)).toBe(true)
+  })
+  test('published game manifests declare versions and known asset licenses', async () => {
+    const lucide = await Bun.file(new URL('../node_modules/lucide-react/package.json', import.meta.url)).json() as {license:string}
+    expect(gameAssetLicenses['lucide-react']).toBe(lucide.license)
+    for (const game of practiceGames) {
+      expect(game.version).toMatch(/^\d+\.\d+\.\d+$/)
+      expect(['UNLICENSED','MIT','ISC','Apache-2.0']).toContain(game.sourceLicense)
+      expect(game.assets.length).toBeGreaterThan(0)
+      for (const asset of game.assets) expect(gameAssetLicenses[asset]).toBeTruthy()
+    }
   })
   test('detects lines and diagonals without wrapping across rows', () => {
     expect(winner(['X',null,'O',null,'X','O',null,null,'X'],3,3,3)).toBe('X')

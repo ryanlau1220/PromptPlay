@@ -1,16 +1,17 @@
-// Maintainers publish games by reviewing and merging their source with this catalog.
+// Maintainers review source and asset licenses before publishing a catalog entry.
+export const gameAssetLicenses: Readonly<Record<string, string>> = { 'lucide-react': 'ISC' }
 export const practiceGames = [
-  { id: 'tic-tac-toe', name: 'Tic-Tac-Toe', kind: 'Strategy', rules: 'Complete a line of three against the computer.', entrypoint: 'TicTacToe' },
-  { id: 'connect-four', name: 'Connect Four', kind: 'Strategy', rules: 'Connect four pieces against the computer.', entrypoint: 'ConnectFour' },
-  { id: 'memory', name: 'Memory Match', kind: 'Memory', rules: 'Find matching pairs.', entrypoint: 'MemoryMatch' },
-  { id: 'lights-out', name: 'Lights Out', kind: 'Puzzle', rules: 'Turn off every light.', entrypoint: 'LightsOut' },
-  { id: 'minesweeper', name: 'Minesweeper', kind: 'Puzzle', rules: 'Clear the field without opening a mine.', entrypoint: 'Minesweeper' },
-  { id: 'slide', name: 'Sliding Puzzle', kind: 'Puzzle', rules: 'Arrange the tiles in order.', entrypoint: 'SlidingPuzzle' },
-  { id: '2048', name: '2048', kind: 'Puzzle', rules: 'Combine equal tiles to reach 2048.', entrypoint: 'Game2048' },
-  { id: 'sequence', name: 'Sequence', kind: 'Memory', rules: 'Repeat the growing sequence.', entrypoint: 'Sequence' },
-  { id: 'codebreaker', name: 'Codebreaker', kind: 'Logic', rules: 'Deduce the secret code.', entrypoint: 'Codebreaker' },
-  { id: 'word-guess', name: 'Word Guess', kind: 'Word', rules: 'Guess the hidden word.', entrypoint: 'WordGuess' },
-  { id: 'number-rush', name: 'Number Rush', kind: 'Speed', rules: 'Select the numbers in order.', entrypoint: 'NumberRush' },
+  { id: 'tic-tac-toe', version: '1.0.0', sourceLicense: 'UNLICENSED', assets: ['lucide-react'], name: 'Tic-Tac-Toe', kind: 'Strategy', rules: 'Complete a line of three against the computer.', entrypoint: 'TicTacToe' },
+  { id: 'connect-four', version: '1.0.0', sourceLicense: 'UNLICENSED', assets: ['lucide-react'], name: 'Connect Four', kind: 'Strategy', rules: 'Connect four pieces against the computer.', entrypoint: 'ConnectFour' },
+  { id: 'memory', version: '1.0.0', sourceLicense: 'UNLICENSED', assets: ['lucide-react'], name: 'Memory Match', kind: 'Memory', rules: 'Find matching pairs.', entrypoint: 'MemoryMatch' },
+  { id: 'lights-out', version: '1.0.0', sourceLicense: 'UNLICENSED', assets: ['lucide-react'], name: 'Lights Out', kind: 'Puzzle', rules: 'Turn off every light.', entrypoint: 'LightsOut' },
+  { id: 'minesweeper', version: '1.0.0', sourceLicense: 'UNLICENSED', assets: ['lucide-react'], name: 'Minesweeper', kind: 'Puzzle', rules: 'Clear the field without opening a mine.', entrypoint: 'Minesweeper' },
+  { id: 'slide', version: '1.0.0', sourceLicense: 'UNLICENSED', assets: ['lucide-react'], name: 'Sliding Puzzle', kind: 'Puzzle', rules: 'Arrange the tiles in order.', entrypoint: 'SlidingPuzzle' },
+  { id: '2048', version: '1.0.0', sourceLicense: 'UNLICENSED', assets: ['lucide-react'], name: '2048', kind: 'Puzzle', rules: 'Combine equal tiles to reach 2048.', entrypoint: 'Game2048' },
+  { id: 'sequence', version: '1.0.0', sourceLicense: 'UNLICENSED', assets: ['lucide-react'], name: 'Sequence', kind: 'Memory', rules: 'Repeat the growing sequence.', entrypoint: 'Sequence' },
+  { id: 'codebreaker', version: '1.0.0', sourceLicense: 'UNLICENSED', assets: ['lucide-react'], name: 'Codebreaker', kind: 'Logic', rules: 'Deduce the secret code.', entrypoint: 'Codebreaker' },
+  { id: 'word-guess', version: '1.0.0', sourceLicense: 'UNLICENSED', assets: ['lucide-react'], name: 'Word Guess', kind: 'Word', rules: 'Guess the hidden word.', entrypoint: 'WordGuess' },
+  { id: 'number-rush', version: '1.0.0', sourceLicense: 'UNLICENSED', assets: ['lucide-react'], name: 'Number Rush', kind: 'Speed', rules: 'Select the numbers in order.', entrypoint: 'NumberRush' },
 ] as const
 export type GameId = typeof practiceGames[number]['id']
 export const isGameId = (value: string): value is GameId => practiceGames.some(game => game.id === value)
