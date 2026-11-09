@@ -45,18 +45,23 @@ export function responsesInput(input: unknown, instructions?: string): ChatMessa
       if (item.type !== undefined && item.type !== 'message') throw new RequestError('Unsupported Responses input', 400)
       if (!['system', 'developer', 'user', 'assistant'].includes(String(item.role)))
         throw new RequestError('Unsupported Responses input', 400)
-      let content: string
+      let content: ChatMessage['content']
       if (typeof item.content === 'string') content = text(item.content)
-      else if (Array.isArray(item.content) && item.content.length > 0 && item.content.length <= 64)
-        content = item.content
-          .map((part) => {
+      else if (Array.isArray(item.content) && item.content.length > 0 && item.content.length <= 64) {
+        const parts: Exclude<ChatMessage['content'], string | null> = item.content.map((part) => {
             const p = record(part)
+            if(p.type==='input_image') {
+              only(p,['type','image_url','detail'])
+              const url=text(p.image_url,200000)
+              if(p.detail!==undefined && !['auto','low','high'].includes(String(p.detail)))throw new RequestError('Unsupported Responses input',400)
+              return {type:'image_url',image_url:{url,...(p.detail!==undefined?{detail:p.detail as 'auto'|'low'|'high'}:{})}}
+            }
             only(p, ['type', 'text', 'annotations'])
-            if (p.type !== 'input_text' && p.type !== 'output_text')
-              throw new RequestError('Unsupported Responses input', 400)
-            return text(p.text)
+            if (p.type !== 'input_text' && p.type !== 'output_text') throw new RequestError('Unsupported Responses input', 400)
+            return {type:'text',text:text(p.text)}
           })
-          .join('')
+        content=parts.every(part=>part.type==='text') ? parts.map(part=>part.type==='text'?part.text:'').join('') : parts
+      }
       else throw new RequestError('Unsupported Responses input', 400)
       messages.push({ role: item.role === 'developer' ? 'system' : (item.role as ChatMessage['role']), content })
     }

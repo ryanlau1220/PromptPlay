@@ -6,6 +6,25 @@ import { Accounting } from '../src/accounting'
 import { Redemption } from '../src/redemption'
 import { createApp } from '../src/app'
 import { GatewayKeys } from '../src/keys'
+test('image inputs require an enabled provider and forward bounded inline images',async()=>{
+ const {Gateway}=await import('../src/gateway')
+ const db=new Database(':memory:'),rpc=new JsonRpcProvider({url:'https://test.rpc.fastnear.com'}),ledger=new Accounting(db,1000),auth=new WalletAuth(db,rpc,async()=>{}),redemption=new Redemption(db,ledger,rpc),keys=new GatewayKeys(db)
+ ledger.creditReceipt('image-r','image-i','alice.testnet',1000);const key=keys.create('alice.testnet',1000)
+ let received:unknown
+ const provider={async complete(messages:unknown){received=messages;return {text:'a pixel',inputTokens:2,outputTokens:2,finishReason:'stop'}}}
+ const pricing={inputMicrosPerMillion:1000000,outputMicrosPerMillion:2000000,microsPerUnit:1000000,contextTokens:100,maxOutputTokens:10}
+ const app=(images:boolean)=>createApp({auth,redemption,ledger,keys,gateway:new Gateway(ledger,keys,provider,'model',pricing,'Mock',{streaming:false,toolCalls:false,images}),faucet:null,allowRedemption:false,redemptionAllowlist:new Set(),origin:'http://localhost:3000'})
+ const send=(enabled:boolean,path:string,body:unknown)=>app(enabled).handle(new Request('http://localhost'+path,{method:'POST',headers:{'content-type':'application/json',authorization:`Bearer ${key.key}`},body:JSON.stringify(body)}))
+ const image='data:image/png;base64,aGVsbG8='
+ const chat=(url:string)=>({model:'model',messages:[{role:'user',content:[{type:'text',text:'Describe'},{type:'image_url',image_url:{url}}]}],max_tokens:10})
+ expect((await send(false,'/v1/chat/completions',chat(image))).status).toBe(400);expect(ledger.usage('alice.testnet')).toHaveLength(0)
+ expect((await send(true,'/v1/chat/completions',chat('https://example.com/image.png'))).status).toBe(400)
+ expect((await send(true,'/v1/chat/completions',chat(image))).status).toBe(200)
+ expect(received).toMatchObject([{role:'user',content:[{type:'text',text:'Describe'},{type:'image_url',image_url:{url:image}}]}])
+ const response=await send(true,'/v1/responses',{model:'model',input:[{role:'user',content:[{type:'input_text',text:'Describe'},{type:'input_image',image_url:image,detail:'low'}]}],max_output_tokens:10})
+ expect(response.status).toBe(200);expect(received).toMatchObject([{role:'user',content:[{type:'text',text:'Describe'},{type:'image_url',image_url:{url:image,detail:'low'}}]}])
+ expect(ledger.usage('alice.testnet').filter(row=>row.state==='settled')).toHaveLength(2);db.close()
+})
 test('wallet sessions protect accounting and redemption stays disabled', async () => {
   const db=new Database(':memory:'); const rpc=new JsonRpcProvider({url:'https://test.rpc.fastnear.com'}); const ledger=new Accounting(db,100)
   const auth=new WalletAuth(db,rpc,async()=>{}); const redemption=new Redemption(db,ledger,rpc)

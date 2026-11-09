@@ -1,12 +1,12 @@
-export type ChatMessage = { role: 'system' | 'developer' | 'user' | 'assistant' | 'tool'; content: string | null | Array<{type:'text';text:string}>; tool_calls?: unknown; tool_call_id?: string; name?: string; reasoning_content?: string }
+export type ChatMessage = { role: 'system' | 'developer' | 'user' | 'assistant' | 'tool'; content: string | null | Array<{type:'text';text:string}|{type:'image_url';image_url:{url:string;detail?:'auto'|'low'|'high'}}> ; tool_calls?: unknown; tool_call_id?: string; name?: string; reasoning_content?: string }
 export type ChatOptions = { tools?: unknown[]; tool_choice?: unknown; parallel_tool_calls?: boolean; temperature?: number }
 export type Completion = { text: string | null; toolCalls?: unknown[]; reasoningContent?: string; inputTokens: number; outputTokens: number; finishReason: string }
 export type StreamEvent = { data?: string; usage?: { inputTokens:number; outputTokens:number } }
-export type ProviderCapabilities = { streaming:boolean; toolCalls:boolean }
+export type ProviderCapabilities = { streaming:boolean; toolCalls:boolean; images?:boolean }
 export interface InferenceProvider { complete(messages: ChatMessage[], maxTokens: number, options?:ChatOptions): Promise<Completion>; stream?(messages:ChatMessage[], maxTokens:number, options?:ChatOptions): AsyncGenerator<StreamEvent> }
 
 export function providerConfig(env: Record<string, string | undefined>) {
-  return {liveEnabled:env.PROMPTPLAY_LIVE_INFERENCE === 'true',endpoint:env.INFERENCE_BASE_URL ?? 'https://cloud-api.near.ai/v1',model:env.INFERENCE_MODEL ?? 'zai-org/GLM-5.1-FP8',apiKey:env.INFERENCE_API_KEY ?? '',name:env.INFERENCE_PROVIDER_NAME?.trim() || 'OpenAI-compatible',capabilities:{streaming:env.INFERENCE_SUPPORTS_STREAMING === 'true',toolCalls:env.INFERENCE_SUPPORTS_TOOL_CALLS === 'true'}}
+  return {liveEnabled:env.PROMPTPLAY_LIVE_INFERENCE === 'true',endpoint:env.INFERENCE_BASE_URL ?? 'https://cloud-api.near.ai/v1',model:env.INFERENCE_MODEL ?? 'zai-org/GLM-5.1-FP8',apiKey:env.INFERENCE_API_KEY ?? '',name:env.INFERENCE_PROVIDER_NAME?.trim() || 'OpenAI-compatible',capabilities:{streaming:env.INFERENCE_SUPPORTS_STREAMING === 'true',toolCalls:env.INFERENCE_SUPPORTS_TOOL_CALLS === 'true',images:env.INFERENCE_SUPPORTS_IMAGES === 'true'}}
 }
 function usage(value:unknown) {
   if(!value || typeof value!=='object') return null
