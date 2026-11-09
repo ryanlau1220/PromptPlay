@@ -78,7 +78,8 @@ export class Gateway {
         }
       }catch(error){
         const detail=error instanceof Error && (/^Provider returned HTTP \d{3}$/.test(error.message) || ['Provider stream unavailable','Provider stream frame too large','Provider stream ended unexpectedly','Provider stream lacks usage','Invalid provider usage','Duplicate provider usage','Provider usage exceeds configured limits','Usage exceeds reservation'].includes(error.message)) ? error.message : 'Unexpected provider stream error'
-        console.error(`Inference stream failed: ${detail}`)
+        const category=error instanceof Error && ['AbortError','TimeoutError','SyntaxError','TypeError'].includes(error.name) ? error.name : 'Error'
+        console.error(`Inference stream failed: ${detail} (${category})`)
         await iterator.return(undefined).catch(()=>{});release();controller.error(new Error('Inference stream could not be completed'))}},
       async cancel(){try{await iterator.return(undefined).catch(()=>{})}finally{release()}}
     })
