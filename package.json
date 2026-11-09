@@ -23,8 +23,11 @@
     "economy:increase-cap": "bun apps/server/src/increase-demo-cap.ts",
     "verify:testnet": "bun scripts/verify-testnet.mjs",
     "test:testnet-match": "bun apps/server/src/testnet-match.ts",
+    "test:testnet-arcade": "bun apps/server/src/testnet-arcade-match.ts",
+    "test:testnet-responses": "bun apps/server/src/testnet-responses.ts",
     "test:testnet-journey": "bun apps/server/src/testnet-journey.ts",
     "test:browser": "bun scripts/test-browser-match.ts",
+    "test:browser-arcade": "bun scripts/test-browser-arcade.ts",
     "test:self-hosted": "bun apps/server/src/ollama-check.ts",
     "test:timeouts": "bun run build:contracts && cd contracts/rps-game && cargo test --test timeouts -- --ignored"
   },
