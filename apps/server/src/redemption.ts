@@ -18,7 +18,7 @@ export class Redemption {
   }
   remainingUnits() {
     const {issued}=this.db.query('SELECT COALESCE(SUM(amount),0) AS issued FROM receipts').get() as {issued:number}
-    const {pending}=this.db.query('SELECT COALESCE(SUM(units),0) AS pending FROM redemption_intents WHERE receipt_id IS NULL').get() as {pending:number}
+    const {pending}=this.db.query('SELECT COALESCE(SUM(units),0) AS pending FROM redemption_intents WHERE receipt_id IS NULL AND (expires > ? OR EXISTS(SELECT 1 FROM redemption_attempts WHERE intent_id=redemption_intents.id))').get(Date.now()) as {pending:number}
     return Math.max(0,Math.floor((this.ledger.issuanceLimit()-issued)/1_000_000)-pending)
   }
   create(account:string, units:number) {
@@ -27,7 +27,7 @@ export class Redemption {
     const created=Date.now(), expires=created+TTL_MS, amount=(BigInt(units)*PCC_PER_UNIT).toString()
     this.db.transaction(()=>{
       const {issued}=this.db.query('SELECT COALESCE(SUM(amount),0) AS issued FROM receipts').get() as {issued:number}
-      const {pending}=this.db.query('SELECT COALESCE(SUM(units),0) AS pending FROM redemption_intents WHERE receipt_id IS NULL').get() as {pending:number}
+      const {pending}=this.db.query('SELECT COALESCE(SUM(units),0) AS pending FROM redemption_intents WHERE receipt_id IS NULL AND (expires > ? OR EXISTS(SELECT 1 FROM redemption_attempts WHERE intent_id=redemption_intents.id))').get(created) as {pending:number}
       if (!Number.isSafeInteger(issued + (pending + units)*1_000_000) || issued + (pending + units)*1_000_000 > this.ledger.issuanceLimit()) throw new RequestError('Demo funding is fully allocated', 409)
       this.db.query('INSERT INTO redemption_intents (id,account_id,amount,units,memo,created,expires) VALUES (?,?,?,?,?,?,?)').run(id,account,amount,units,memo,created,expires)
     }).immediate()
@@ -49,6 +49,7 @@ export class Redemption {
     const intent=this.get(id,account); if (!intent) throw new RequestError('Unknown intent', 404)
     if (!/^[1-9A-HJ-NP-Za-km-z]{32,50}$/.test(hash)) throw new RequestError('Invalid transaction hash', 400)
     if (intent.receipt_id) { if (intent.tx_hash !== hash) throw new RequestError('Intent already used', 409); return {credited:false,receiptId:intent.receipt_id} }
+    if (!intent.attempted) throw new RequestError('Payment attempt was not recorded', 409)
     if (await this.rpc.getNetworkId() !== 'testnet') throw new Error('Unexpected NEAR network')
     const result=await this.rpc.viewTransactionStatus({txHash:hash,accountId:account,waitUntil:'FINAL'})
     const receiptId=inspectTransfer(result,{transactionHash:hash,sender:account,token:TOKEN,treasury:TREASURY,amount:intent.amount,memo:intent.memo})
