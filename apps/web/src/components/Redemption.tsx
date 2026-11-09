@@ -14,23 +14,16 @@ import {
   Lock,
   ArrowRight
 } from 'lucide-react'
-import { pcc, TOKEN } from '../lib/game'
+import { TOKEN } from '../lib/game'
 import { API, useSession } from './Session'
 import { agentSnippets } from '../lib/agent-config'
 
-const TREASURY = 'treasury.ryanlau1220.testnet'
-
 type Intent = {
-  id: string
-  account_id: string
-  amount: string
-  units: number
-  memo: string
-  expires: number
-  receipt_id: string | null
-  tx_hash: string | null
-  attempted: number
-  failed: number
+  id:string
+  account_id:string
+  deposit:{account:string;amount:string;units:string;expires:string;approved:boolean;status:'Pending'|'Consumed'|'Refunding'}|null
+  reservation:'held'|'credited'|'refunded'|null
+  rejected:boolean
 }
 
 type KeyItem = {
@@ -45,7 +38,9 @@ export function Redemption() {
 
   const [balance, setBalance] = useState<number | null>(null)
   const [intent, setIntent] = useState<Intent | null>(null)
-  const [hash, setHash] = useState('')
+  const [depositHash, setDepositHash] = useState('')
+  const [recoveryId, setRecoveryId] = useState('')
+  const [intentHistory, setIntentHistory] = useState<Array<{id:string}>>([])
   const [keys, setKeys] = useState<KeyItem[]>([])
   const [newKey, setNewKey] = useState('')
   const [copiedKey, setCopiedKey] = useState(false)
@@ -63,12 +58,14 @@ export function Redemption() {
   >([])
 
   const [submitted, setSubmitted] = useState(false)
+  const [now, setNow] = useState(Date.now())
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const [prompt, setPrompt] = useState('Explain how NEAR smart contracts handle async callbacks safely in 2 bullet points.')
   const [answer, setAnswer] = useState('')
 
   const slot = `promptplay:redemption:${account}`
+  useEffect(()=>{const timer=window.setInterval(()=>setNow(Date.now()),1000);return ()=>window.clearInterval(timer)},[])
 
   const refresh = useCallback(async (token = session) => {
     const [b, k, u] = await Promise.all([
@@ -81,36 +78,25 @@ export function Redemption() {
     setUsage(u.requests)
 
     const saved = localStorage.getItem(slot)
-    if (saved) {
-      const data = JSON.parse(saved) as { id: string; hash?: string; submitted?: boolean }
-      const i = await request<Intent>(`/api/redemptions/${encodeURIComponent(data.id)}`, 'GET', undefined, token)
-      if (i.failed || (!i.attempted && !i.receipt_id && i.expires <= Date.now())) {
-        localStorage.removeItem(slot)
-        setIntent(null)
-        setSubmitted(false)
-        setHash('')
-        await refreshConfig()
-        return
-      }
-      setIntent(i)
-      setSubmitted(data.submitted === true || !!data.hash || !!i.attempted)
-      setHash(data.hash ?? i.tx_hash ?? '')
-    } else {
-      const result = (await request('/api/redemptions', 'GET', undefined, token)) as { intents: Intent[] }
-      const pending = result.intents.find((i) => !i.receipt_id && !i.failed && (!!i.attempted || i.expires > Date.now()))
-      if (pending) {
-        setIntent(pending)
-        setSubmitted(!!pending.attempted)
-        setHash(pending.tx_hash ?? '')
-        localStorage.setItem(slot, JSON.stringify({ id: pending.id }))
-      }
+    const list=await request<{intents:Array<{id:string;rejected:number}>}>('/api/redemptions','GET',undefined,token)
+    setIntentHistory(list.intents)
+    const data=saved ? JSON.parse(saved) as {id:string;submitted?:boolean;hash?:string} : null
+    const id=data?.id ?? list.intents.find(item=>!item.rejected)?.id
+    if(id){
+      const state=await request<{deposit:Intent['deposit'];reservation:Intent['reservation'];rejected:boolean}>(`/api/redemptions/${encodeURIComponent(id)}`,'GET',undefined,token)
+      if((state.reservation==='refunded' || state.rejected) && !state.deposit){localStorage.removeItem(slot);setIntent(null);setSubmitted(false);setDepositHash('');await refreshConfig();return}
+      setIntent({id,account_id:account,...state})
+      setDepositHash(data?.hash??'')
+      setSubmitted(data?.submitted === true || state.deposit!==null)
+      if(!saved)localStorage.setItem(slot,JSON.stringify({id,submitted:state.deposit!==null}))
     }
-  }, [session, request, slot, refreshConfig])
+
+  }, [session, request, slot, refreshConfig, account])
 
   useEffect(() => {
     setIntent(previous => previous?.account_id === account ? previous : null)
-    setHash('')
     setSubmitted(false)
+    setDepositHash('')
     setNewKey('')
     setBalance(null)
   }, [account])
@@ -132,64 +118,57 @@ export function Redemption() {
   }
 
   async function createIntent() {
-    const created = await request<{id:string}>('/api/redemptions', 'POST', { units: 1 })
+    const created = await request<{id:string}>('/api/redemptions', 'POST', {})
     localStorage.setItem(slot, JSON.stringify({ id: created.id }))
     await refresh()
   }
 
   async function transfer() {
-    if (!intent || intent.receipt_id || submitted) return
-    const current = (await request(`/api/redemptions/${encodeURIComponent(intent.id)}`)) as Intent
-    if (current.account_id !== account || current.receipt_id) throw new Error('This intent is no longer available.')
-    if (current.expires - Date.now() < 60_000) throw new Error('Payment window is too close to expiry.')
-
-    await request(`/api/redemptions/${encodeURIComponent(current.id)}/attempt`, 'POST')
-    localStorage.setItem(slot, JSON.stringify({ id: current.id, submitted: true }))
+    if (!intent || intent.deposit || submitted || !config?.escrowAccount) return
+    localStorage.setItem(slot, JSON.stringify({ id:intent.id, submitted:true }))
     setSubmitted(true)
-
-    const result = await callFunctionRaw({
-      contractId: TOKEN,
-      method: 'ft_transfer',
-      args: { receiver_id: TREASURY, amount: current.amount, memo: current.memo },
-      gas: '30000000000000',
-      deposit: '1'
-    })
-    const transactionHash = result.transaction?.hash
-    if (!transactionHash) {
-      throw new Error('Payment was submitted. Check wallet history for transaction hash and paste below.')
-    }
-    localStorage.setItem(slot, JSON.stringify({ id: current.id, hash: transactionHash, submitted: true }))
-    setHash(transactionHash)
-
-    await request(`/api/redemptions/${encodeURIComponent(current.id)}/verify`, 'POST', { transactionHash })
+    const result=await callFunctionRaw({contractId:TOKEN,method:'ft_transfer_call',args:{receiver_id:config.escrowAccount,amount:'5000000',memo:null,msg:intent.id},gas:'100000000000000',deposit:'1'})
+    if(result.transaction?.hash){setDepositHash(result.transaction.hash);localStorage.setItem(slot,JSON.stringify({id:intent.id,submitted:true,hash:result.transaction.hash}))}
     await refresh()
-    window.dispatchEvent(new Event('promptplay:balance'))
-    setMessage('Transfer verified on NEAR! Gateway units credited.')
+    setMessage('Deposit submitted. Refresh until it appears on-chain.')
   }
 
-  async function verify() {
-    if (!intent) return
-    localStorage.setItem(slot, JSON.stringify({ id: intent.id, hash, submitted: true }))
-    await request(`/api/redemptions/${encodeURIComponent(intent.id)}/verify`, 'POST', { transactionHash: hash })
-    await refresh()
-    window.dispatchEvent(new Event('promptplay:balance'))
-    setMessage('Transfer verified on NEAR! Gateway units credited.')
+  async function approveAndConsume() {
+    if (!intent || !config?.escrowAccount) return
+    await request(`/api/redemptions/${encodeURIComponent(intent.id)}/approve`, 'POST')
+    await callFunctionRaw({contractId:config.escrowAccount,method:'consume',args:{id:intent.id},gas:'30000000000000',deposit:'0'})
+    await claim()
   }
 
-  async function reconcileFailure() {
+  async function claim() {
     if (!intent) return
-    await request(`/api/redemptions/${encodeURIComponent(intent.id)}/failure`, 'POST', { transactionHash: hash })
-    localStorage.removeItem(slot)
-    setIntent(null)
-    setSubmitted(false)
-    setHash('')
-    await refresh()
+    await request(`/api/redemptions/${encodeURIComponent(intent.id)}/claim`, 'POST')
+    await refresh(); await refreshConfig()
+    window.dispatchEvent(new Event('promptplay:balance'))
+    setMessage('Gateway units credited.')
+  }
+
+  async function refund() {
+    if (!intent || !config?.escrowAccount) return
+    await callFunctionRaw({contractId:config.escrowAccount,method:'refund',args:{id:intent.id},gas:'70000000000000',deposit:'1'})
+    const state=await request<{deposit:Intent['deposit']}>(`/api/redemptions/${encodeURIComponent(intent.id)}`,'GET')
+    if(state.deposit){await refresh();setMessage('Refund is not finalized. Refresh and try again if needed.');return}
+    if(intent.reservation==='held')await request(`/api/redemptions/${encodeURIComponent(intent.id)}/refund`, 'POST')
+    localStorage.removeItem(slot);setIntent(null);setSubmitted(false)
     await refreshConfig()
-    setMessage('Failed transfer confirmed. You can create a new intent.')
+    setMessage('Refund submitted. Check your PCC balance.')
+  }
+
+  async function reconcileRejection() {
+    if(!intent || !depositHash)return
+    await request(`/api/redemptions/${encodeURIComponent(intent.id)}/rejected`, 'POST', {transactionHash:depositHash})
+    localStorage.removeItem(slot);setIntent(null);setSubmitted(false);setDepositHash('')
+    await refreshConfig();setMessage('Unaccepted deposit confirmed. You can start again.')
   }
 
   async function createKey() {
-    const result = await request<{key:string}>('/api/keys', 'POST', { quota: 1_000_000 })
+    if(!balance)throw new Error('No gateway allowance remains.')
+    const result = await request<{key:string}>('/api/keys', 'POST', { quota: Math.min(balance,1_000_000_000) })
     setNewKey(result.key)
     await refresh()
   }
@@ -326,80 +305,25 @@ export function Redemption() {
                   </button>
                 </div>
               )}
+              {!intent && config.escrowAccount && <details><summary>Recover a deposit</summary>{intentHistory.slice(0,5).map(item=><button key={item.id} type="button" className="btn-ghost" disabled={busy} onClick={()=>void action(async()=>{localStorage.setItem(slot,JSON.stringify({id:item.id,submitted:true}));await refresh()})}>{item.id.slice(0,12)}…</button>)}<input className="input-field" value={recoveryId} onChange={e=>setRecoveryId(e.target.value.trim())} placeholder="Deposit ID" /><button type="button" className="btn-ghost" disabled={busy || !/^[A-Za-z0-9_-]{32,64}$/.test(recoveryId)} onClick={()=>void action(async()=>{localStorage.setItem(slot,JSON.stringify({id:recoveryId,submitted:true}));await refresh()})}>Open deposit</button></details>}
 
-              {intent && !intent.receipt_id && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                  <div style={{ background: 'var(--surface-card)', padding: '16px', borderRadius: '12px', border: '1px solid var(--border)' }}>
-                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px' }}>TRANSFER DETAILS</div>
-                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: '14px', color: 'var(--text)' }}>
-                      Amount: <strong>{pcc(intent.amount)} PCC</strong>
-                    </div>
-                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', color: 'var(--cyan)', marginTop: '4px' }}>
-                      Memo: {intent.memo}
-                    </div>
-                    <div style={{ fontSize: '12px', color: 'var(--amber)', marginTop: '8px' }}>
-                      Expires: {new Date(intent.expires).toLocaleTimeString()}
-                    </div>
-                  </div>
-
-                  <button type="button"
-                    className="btn-primary"
-                    disabled={busy || submitted || !!hash || !config.redemptionAvailable}
-                    onClick={() => void action(transfer)}
-                  >
-                    <Coins size={16} />
-                    <span>Submit 5 PCC Transfer in Wallet</span>
-                  </button>
-
-                  {submitted && !hash && <p>Payment attempt recorded. Check wallet history for a transaction hash; if the wallet rejected it, contact the operator before retrying.</p>}
-
-                  <div style={{ borderTop: '1px solid var(--border)', paddingTop: '16px' }}>
-                    <label className="field-label">
-                      <span>Transaction Recovery Hash</span>
-                      <input
-                        className="input-field"
-                        value={hash}
-                        onChange={(e) => setHash(e.target.value.trim())}
-                        placeholder="Paste transaction hash if wallet disconnected"
-                      />
-                    </label>
-                    <button type="button"
-                      className="btn-ghost"
-                      style={{ marginTop: '10px', width: '100%' }}
-                      disabled={busy || !hash}
-                      onClick={() => void action(verify)}
-                    >
-                      <ShieldCheck size={14} />
-                      <span>Verify Finalized Transfer</span>
-                    </button>
-                    <button type="button" className="btn-ghost" disabled={busy || !hash || !submitted} onClick={() => void action(reconcileFailure)}>
-                      Confirm failed transfer
-                    </button>
-                  </div>
+              {intent && intent.reservation !== 'credited' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div>5 PCC · {intent.id.slice(0, 12)}…</div>
+                  {!intent.deposit && !submitted && <button type="button" className="btn-primary" disabled={busy || !config.redemptionAvailable} onClick={() => void action(transfer)}>Deposit PCC</button>}
+                  {!intent.deposit && submitted && <p>Check wallet history and refresh before attempting another deposit.</p>}
+                  {!intent.deposit && submitted && <><input className="input-field" value={depositHash} onChange={e=>setDepositHash(e.target.value.trim())} placeholder="Deposit transaction hash" /><button type="button" className="btn-ghost" disabled={busy || !depositHash} onClick={()=>void action(reconcileRejection)}>Confirm returned deposit</button></>}
+                  {!intent.deposit && submitted && <button type="button" className="btn-ghost" disabled={busy} onClick={()=>{localStorage.removeItem(slot);setIntent(null);setSubmitted(false);setDepositHash('');setMessage('Any submitted transaction can still be recovered by its deposit ID.')}}>Start another</button>}
+                  {(intent.rejected || intent.reservation === 'refunded') && intent.deposit && <p>This deposit ID is closed. Refund after expiry.</p>}
+                  {intent.deposit?.status === 'Pending' && !intent.rejected && intent.reservation !== 'refunded' && !intent.deposit.approved && <button type="button" className="btn-primary" disabled={busy || !config.redemptionAvailable} onClick={() => void action(approveAndConsume)}>Authorize and consume</button>}
+                  {intent.deposit?.status === 'Pending' && !(intent.rejected || intent.reservation === 'refunded') && intent.deposit.approved && <button type="button" className="btn-primary" disabled={busy || !config.redemptionAvailable} onClick={() => void action(approveAndConsume)}>Consume deposit</button>}
+                  {intent.deposit?.status === 'Consumed' && <button type="button" className="btn-primary" disabled={busy} onClick={() => void action(claim)}>Claim gateway units</button>}
+                  {intent.deposit?.status === 'Pending' && <button type="button" className="btn-ghost" disabled={busy || BigInt(intent.deposit.expires) > BigInt(now) * 1000000n} onClick={() => void action(refund)}>Refund after expiry</button>}
+                  {!intent.deposit && intent.reservation === 'held' && <button type="button" className="btn-ghost" disabled={busy} onClick={() => void action(async()=>{await request(`/api/redemptions/${encodeURIComponent(intent.id)}/refund`, 'POST');localStorage.removeItem(slot);setIntent(null);setSubmitted(false);await refreshConfig()})}>Reconcile refund</button>}
+                  <button type="button" className="btn-ghost" disabled={busy} onClick={() => void action(async()=>{await refresh();await refreshConfig()})}>Refresh status</button>
                 </div>
               )}
-
-              {intent?.receipt_id && (
-                <div style={{ textAlign: 'center', padding: '16px', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid var(--emerald)', borderRadius: '12px' }}>
-                  <ShieldCheck size={28} color="var(--emerald)" style={{ margin: '0 auto 8px' }} />
-                  <div style={{ color: 'var(--emerald)', fontWeight: 800 }}>Payment Verified & Credited</div>
-                  <div style={{ fontSize: '12px', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', marginTop: '4px' }}>
-                    Receipt: {intent.receipt_id.slice(0, 16)}...
-                  </div>
-                  <button type="button"
-                    className="btn-ghost"
-                    style={{ marginTop: '14px' }}
-                    onClick={() => {
-                      localStorage.removeItem(slot)
-                      setIntent(null)
-                      setHash('')
-                      setSubmitted(false)
-                    }}
-                  >
-                    <span>Create Another Redemption</span>
-                  </button>
-                </div>
-              )}
+              {intent?.reservation === 'credited' && <button type="button" className="btn-ghost" onClick={()=>{localStorage.removeItem(slot);setIntent(null);setSubmitted(false)}}>Create another redemption</button>}
             </div>
 
             {/* GATEWAY KEYS & PLAYGROUND */}

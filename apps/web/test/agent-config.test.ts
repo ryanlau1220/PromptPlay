@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { agentSnippets } from '../src/lib/agent-config'
 
-const config = { redemptionAvailable: true, redemptionUnitsAvailable:1, faucetAvailable: false, provider: 'Example', model: 'example/model', capabilities:{streaming:true,toolCalls:true}, contextTokens: 8192, maxOutputTokens: 256, microsPerUnit: 1000000, pccPerUnit: '5' }
+const config = { redemptionAvailable: true, redemptionUnitsAvailable:1, escrowAccount: 'escrow.testnet', faucetAvailable: false, provider: 'Example', model: 'example/model', capabilities:{streaming:true,toolCalls:true}, contextTokens: 8192, maxOutputTokens: 256, microsPerUnit: 1000000, pccPerUnit: '5' }
 
 describe('agent configuration', () => {
   test('uses the gateway model and limits with an environment-based key', () => {
