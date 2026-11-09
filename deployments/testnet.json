@@ -292,6 +292,16 @@
       "outputTokens": 30,
       "uncertainRequest": {"reservedMicrounits": 500256, "resolution": "charged reserved maximum; provider usage unverified"}
     },
+    "liteLLMOpenCodePayment": {
+      "transferTransaction": "6cwemGs4GpTqj2RyHiFmBFLr3rg8m1WgTBjBaT8uzopf",
+      "receiptId": "J8aCto8u9PuDhXhrFh8LhmKz74HJbAPoUiDLPSTBLtbH",
+      "account": "arcade-a.ryanlau1220.testnet",
+      "amountBaseUnits": "5000000",
+      "model": "deepseek-v4.1-flash",
+      "scope": "operator-only SDK match 27 winner; separate PCC redemption, replay check, streamed tool call and OpenCode file read against isolated persistent ledger using virtual token allowance",
+      "allowanceBeforeMicrounits": 1498930,
+      "allowanceAfterClientMicrounits": 1477679
+    },
     "upgradedBrowserPayment": {
       "transferTransaction": "4w6fta2zxfU3PZquHrh77S5utSkMDd7vnncv2QBUN6CQ",
       "account": "arcade-a.ryanlau1220.testnet",
