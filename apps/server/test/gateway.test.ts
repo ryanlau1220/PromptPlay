@@ -111,3 +111,11 @@ test('retains reservation when stream has no usage or is cancelled',async()=>{
  const reader=gateway.stream(key.key,'model',[{role:'user',content:'hello'}],10).getReader();await reader.read();await reader.cancel()
  expect(ledger.usage('alice').filter((r)=>r.state==='reserved')).toHaveLength(2)
 })
+
+test('a usage-only provider event settles the stream without emitting a bogus frame',async()=>{
+ const db=new Database(':memory:'),ledger=new Accounting(db,1000),keys=new GatewayKeys(db);ledger.creditReceipt('usage-r','usage-i','alice',1000);const key=keys.create('alice',1000)
+ const provider={async complete(){return {text:'ok',inputTokens:2,outputTokens:2,finishReason:'stop'}},async *stream(){yield {data:'{"choices":[{"delta":{"content":"ok"},"finish_reason":"stop"}]}'};yield {usage:{inputTokens:2,outputTokens:2}}}}
+ const gateway=new Gateway(ledger,keys,provider,'model',{inputMicrosPerMillion:1000000,outputMicrosPerMillion:2000000,microsPerUnit:1000000,contextTokens:100,maxOutputTokens:10},'Mock',{streaming:true,toolCalls:false})
+ const text=await new Response(gateway.stream(key.key,'model',[{role:'user',content:'hi'}],10)).text()
+ expect(text).toContain('data: [DONE]');expect(text).not.toContain('undefined');expect(ledger.balance('alice')).toBe(994);expect(ledger.usage('alice')[0]).toMatchObject({state:'settled',charged:6});db.close()
+})

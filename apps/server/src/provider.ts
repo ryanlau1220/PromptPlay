@@ -1,7 +1,7 @@
 export type ChatMessage = { role: 'system' | 'developer' | 'user' | 'assistant' | 'tool'; content: string | null | Array<{type:'text';text:string}>; tool_calls?: unknown; tool_call_id?: string; name?: string; reasoning_content?: string }
 export type ChatOptions = { tools?: unknown[]; tool_choice?: unknown; parallel_tool_calls?: boolean; temperature?: number }
 export type Completion = { text: string | null; toolCalls?: unknown[]; inputTokens: number; outputTokens: number; finishReason: string }
-export type StreamEvent = { data: string; usage?: { inputTokens:number; outputTokens:number } }
+export type StreamEvent = { data?: string; usage?: { inputTokens:number; outputTokens:number } }
 export type ProviderCapabilities = { streaming:boolean; toolCalls:boolean }
 export interface InferenceProvider { complete(messages: ChatMessage[], maxTokens: number, options?:ChatOptions): Promise<Completion>; stream?(messages:ChatMessage[], maxTokens:number, options?:ChatOptions): AsyncGenerator<StreamEvent> }
 
@@ -37,7 +37,8 @@ export function createProvider(config:{liveEnabled:boolean;endpoint:string;model
     async *stream(messages,maxTokens,options) {
       const response=await request(messages,maxTokens,options,true)
       if(!response.body) throw new Error('Provider stream unavailable')
-      const reader=response.body.getReader(),decoder=new TextDecoder();let buffer='',done=false
+      const reader=response.body.getReader(),decoder=new TextDecoder();let buffer='',done=false,finished=false
+      let finalUsage:{inputTokens:number;outputTokens:number}|null=null
       try {
         while(true){
           const part=await reader.read();buffer=(buffer+decoder.decode(part.value,{stream:!part.done})).replace(/\r\n/g,'\n')
@@ -51,11 +52,16 @@ export function createProvider(config:{liveEnabled:boolean;endpoint:string;model
             const parsed=JSON.parse(data) as {usage?:unknown;choices?:unknown}
             const counts=parsed.usage == null ? undefined : usage(parsed.usage)
             if(parsed.usage != null && !counts) throw new Error('Invalid provider usage')
-            yield {data,...(counts && Array.isArray(parsed.choices) && parsed.choices.length===0?{usage:counts}:{})}
+            const choices=Array.isArray(parsed.choices) ? parsed.choices as Array<{finish_reason?:unknown;delta?:unknown}> : null
+            if(finalUsage && choices?.some(choice=>choice?.delta && typeof choice.delta==='object' && Object.values(choice.delta).some(value=>value!==null && value!==undefined && value!==''))) finalUsage=null
+            if(choices?.some(choice=>choice && typeof choice.finish_reason==='string')) finished=true
+            if(counts && choices && (choices.length===0 || ((finished || finalUsage!==null) && choices.every(choice=>choice?.delta && typeof choice.delta==='object' && !Array.isArray(choice.delta) && Object.keys(choice.delta).length===0)))) finalUsage=counts
+            yield {data}
           }
           if(done || part.done) break
         }
         if(!done) throw new Error('Provider stream ended unexpectedly')
+        if(finalUsage) yield {usage:finalUsage}
       } finally { await reader.cancel().catch(()=>{});reader.releaseLock() }
     }
   }

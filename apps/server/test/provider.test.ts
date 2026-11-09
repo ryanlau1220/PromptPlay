@@ -22,7 +22,7 @@ test('provider streams split SSE frames and requests usage for tool calls',async
   const provider=createProvider({liveEnabled:true,endpoint:`http://127.0.0.1:${server.port}`,model:'test-model',apiKey:'test-key'}),events=[]
   if (!provider.stream) throw new Error('Provider does not support streaming')
   for await(const event of provider.stream([{role:'user',content:'test'}],10,{tools:[{type:'function'}]}))events.push(event)
-  expect(sent.stream_options).toEqual({include_usage:true});expect(sent.tools).toHaveLength(1);expect(events).toHaveLength(2);expect(events[1]?.usage).toEqual({inputTokens:3,outputTokens:2})
+  expect(sent.stream_options).toEqual({include_usage:true});expect(sent.tools).toHaveLength(1);expect(events).toHaveLength(3);expect(events[2]?.usage).toEqual({inputTokens:3,outputTokens:2})
  }finally{server.stop()}
 })
 
@@ -57,4 +57,64 @@ test('an interrupted upstream stream keeps the gateway reservation',async()=>{
   await expect(new Response(gateway.stream(key.key,'test-model',[{role:'user',content:'hello'}],10)).text()).rejects.toThrow()
   expect(ledger.usage('alice')[0]).toMatchObject({state:'reserved',reserved:120})
  }finally{server.stop();db.close()}
+})
+
+test('accepts final reported usage with an empty choice after finish, without treating interim usage as final',async()=>{
+ const enc=new TextEncoder()
+ const frames=[
+  {choices:[{delta:{},index:0}],usage:{prompt_tokens:3,completion_tokens:0}},
+  {choices:[{delta:{content:'ok'},index:0,finish_reason:'stop'}]},
+  {choices:[{delta:{},index:0}],usage:{prompt_tokens:3,completion_tokens:2}},
+ ]
+ const server=Bun.serve({hostname:'127.0.0.1',port:0,fetch(){return new Response(new ReadableStream({start(c){for(const frame of frames)c.enqueue(enc.encode(`data: ${JSON.stringify(frame)}\n\n`));c.enqueue(enc.encode('data: [DONE]\n\n'));c.close()}}),{headers:{'content-type':'text/event-stream'}})}})
+ try{
+  const provider=createProvider({liveEnabled:true,endpoint:`http://127.0.0.1:${server.port}`,model:'test-model',apiKey:'test-key'}),events=[]
+  if(!provider.stream)throw new Error('Provider does not support streaming')
+  for await(const event of provider.stream([{role:'user',content:'test'}],10))events.push(event)
+  expect(events).toHaveLength(4);expect(events[0]?.usage).toBeUndefined();expect(events[3]?.usage).toEqual({inputTokens:3,outputTokens:2})
+ }finally{server.stop()}
+})
+
+test('does not settle on an early usage frame with a choice before finish',async()=>{
+ const enc=new TextEncoder(),frame={choices:[{delta:{},index:0}],usage:{prompt_tokens:3,completion_tokens:0}}
+ const server=Bun.serve({hostname:'127.0.0.1',port:0,fetch(){return new Response(new ReadableStream({start(c){c.enqueue(enc.encode(`data: ${JSON.stringify(frame)}\n\ndata: [DONE]\n\n`));c.close()}}),{headers:{'content-type':'text/event-stream'}})}})
+ try{
+  const provider=createProvider({liveEnabled:true,endpoint:`http://127.0.0.1:${server.port}`,model:'test-model',apiKey:'test-key'}),events=[]
+  if(!provider.stream)throw new Error('Provider does not support streaming')
+  for await(const event of provider.stream([{role:'user',content:'test'}],10))events.push(event)
+  expect(events).toHaveLength(1);expect(events[0]?.usage).toBeUndefined()
+ }finally{server.stop()}
+})
+
+test('does not treat usage as final when provider emits more content afterward',async()=>{
+ const enc=new TextEncoder(),frames=[{choices:[],usage:{prompt_tokens:3,completion_tokens:1}},{choices:[{delta:{content:'late'},index:0}]}]
+ const server=Bun.serve({hostname:'127.0.0.1',port:0,fetch(){return new Response(new ReadableStream({start(c){for(const frame of frames)c.enqueue(enc.encode(`data: ${JSON.stringify(frame)}\n\n`));c.enqueue(enc.encode('data: [DONE]\n\n'));c.close()}}),{headers:{'content-type':'text/event-stream'}})}})
+ try{
+  const provider=createProvider({liveEnabled:true,endpoint:`http://127.0.0.1:${server.port}`,model:'test-model',apiKey:'test-key'})
+  if(!provider.stream)throw new Error('Provider does not support streaming')
+  const events=[];for await(const event of provider.stream([{role:'user',content:'test'}],10))events.push(event)
+  expect(events).toHaveLength(2);expect(events.every(event=>event.usage===undefined)).toBe(true)
+ }finally{server.stop()}
+})
+
+test('uses the last final usage report without forwarding duplicate accounting events',async()=>{
+ const enc=new TextEncoder(),frames=[{choices:[{index:0,delta:{},finish_reason:'stop'}],usage:{prompt_tokens:3,completion_tokens:1}},{choices:[],usage:{prompt_tokens:3,completion_tokens:2}}]
+ const server=Bun.serve({hostname:'127.0.0.1',port:0,fetch(){return new Response(new ReadableStream({start(c){for(const frame of frames)c.enqueue(enc.encode(`data: ${JSON.stringify(frame)}\n\n`));c.enqueue(enc.encode('data: [DONE]\n\n'));c.close()}}),{headers:{'content-type':'text/event-stream'}})}})
+ try{
+  const provider=createProvider({liveEnabled:true,endpoint:`http://127.0.0.1:${server.port}`,model:'test-model',apiKey:'test-key'}),events=[]
+  if(!provider.stream)throw new Error('Provider does not support streaming')
+  for await(const event of provider.stream([{role:'user',content:'test'}],10))events.push(event)
+  expect(events.filter(event=>event.usage)).toHaveLength(1);expect(events.at(-1)?.usage).toEqual({inputTokens:3,outputTokens:2})
+ }finally{server.stop()}
+})
+
+test('uses the newest provider usage when final usage frames have different choice shapes',async()=>{
+ const enc=new TextEncoder(),frames=[{choices:[],usage:{prompt_tokens:3,completion_tokens:1}},{choices:[{index:0,delta:{}}],usage:{prompt_tokens:3,completion_tokens:2}}]
+ const server=Bun.serve({hostname:'127.0.0.1',port:0,fetch(){return new Response(new ReadableStream({start(c){for(const frame of frames)c.enqueue(enc.encode(`data: ${JSON.stringify(frame)}\n\n`));c.enqueue(enc.encode('data: [DONE]\n\n'));c.close()}}),{headers:{'content-type':'text/event-stream'}})}})
+ try{
+  const provider=createProvider({liveEnabled:true,endpoint:`http://127.0.0.1:${server.port}`,model:'test-model',apiKey:'test-key'}),events=[]
+  if(!provider.stream)throw new Error('Provider does not support streaming')
+  for await(const event of provider.stream([{role:'user',content:'test'}],10))events.push(event)
+  expect(events.filter(event=>event.usage)).toHaveLength(1);expect(events.at(-1)?.usage).toEqual({inputTokens:3,outputTokens:2})
+ }finally{server.stop()}
 })
