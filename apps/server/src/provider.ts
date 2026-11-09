@@ -1,6 +1,6 @@
 export type ChatMessage = { role: 'system' | 'developer' | 'user' | 'assistant' | 'tool'; content: string | null | Array<{type:'text';text:string}>; tool_calls?: unknown; tool_call_id?: string; name?: string; reasoning_content?: string }
 export type ChatOptions = { tools?: unknown[]; tool_choice?: unknown; parallel_tool_calls?: boolean; temperature?: number }
-export type Completion = { text: string | null; toolCalls?: unknown[]; inputTokens: number; outputTokens: number; finishReason: string }
+export type Completion = { text: string | null; toolCalls?: unknown[]; reasoningContent?: string; inputTokens: number; outputTokens: number; finishReason: string }
 export type StreamEvent = { data?: string; usage?: { inputTokens:number; outputTokens:number } }
 export type ProviderCapabilities = { streaming:boolean; toolCalls:boolean }
 export interface InferenceProvider { complete(messages: ChatMessage[], maxTokens: number, options?:ChatOptions): Promise<Completion>; stream?(messages:ChatMessage[], maxTokens:number, options?:ChatOptions): AsyncGenerator<StreamEvent> }
@@ -29,10 +29,10 @@ export function createProvider(config:{liveEnabled:boolean;endpoint:string;model
   return {
     async complete(messages,maxTokens,options) {
       const res=await request(messages,maxTokens,options,false)
-      const data=await res.json() as {choices?:Array<{message?:{content?:unknown;tool_calls?:unknown};finish_reason?:unknown}>;usage?:unknown}
-      const choice=data.choices?.[0],text=choice?.message?.content,toolCalls=choice?.message?.tool_calls,counts=usage(data.usage)
-      if((typeof text!=='string' && text!==null)|| (toolCalls!==undefined && !Array.isArray(toolCalls)) || (text===null && !Array.isArray(toolCalls)) || typeof choice?.finish_reason!=='string'||!counts) throw new Error('Provider response lacks valid message or usage')
-      return {text, ...(toolCalls?{toolCalls:toolCalls as unknown[]}:{}),...counts,finishReason:choice.finish_reason}
+      const data=await res.json() as {choices?:Array<{message?:{content?:unknown;tool_calls?:unknown;reasoning_content?:unknown};finish_reason?:unknown}>;usage?:unknown}
+      const choice=data.choices?.[0],text=choice?.message?.content,toolCalls=choice?.message?.tool_calls,reasoningContent=choice?.message?.reasoning_content,counts=usage(data.usage)
+      if((typeof text!=='string' && text!==null)|| (toolCalls!==undefined && !Array.isArray(toolCalls)) || (reasoningContent!==undefined && reasoningContent!==null && typeof reasoningContent!=='string') || (text===null && !Array.isArray(toolCalls)) || typeof choice?.finish_reason!=='string'||!counts) throw new Error('Provider response lacks valid message or usage')
+      return {text, ...(toolCalls?{toolCalls:toolCalls as unknown[]}:{}),...(typeof reasoningContent==='string'?{reasoningContent}:{}),...counts,finishReason:choice.finish_reason}
     },
     async *stream(messages,maxTokens,options) {
       const response=await request(messages,maxTokens,options,true)

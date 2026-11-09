@@ -5,6 +5,15 @@ import { GatewayKeys } from '../src/keys'
 import { Gateway } from '../src/gateway'
 import { mockProvider } from '../src/provider'
 const pricing={inputMicrosPerMillion:1_000_000,outputMicrosPerMillion:2_000_000,microsPerUnit:1_000_000,contextTokens:100,maxOutputTokens:10}
+test('preserves assistant reasoning in non-streaming tool responses',async()=>{
+ const db=new Database(':memory:'),ledger=new Accounting(db,1000),keys=new GatewayKeys(db)
+ ledger.creditReceipt('r','i','alice',1000);const key=keys.create('alice',1000)
+ const provider={async complete(){return {text:null,reasoningContent:'Inspect the file',toolCalls:[{id:'call_1',type:'function'}],inputTokens:2,outputTokens:2,finishReason:'tool_calls'}}}
+ const gateway=new Gateway(ledger,keys,provider,'model',pricing,'Mock',{streaming:false,toolCalls:true})
+ const result=await gateway.complete(key.key,'model',[{role:'user',content:'read the file'}],10,{tools:[{type:'function'}]})
+ expect(result.choices[0]?.message).toMatchObject({content:null,reasoning_content:'Inspect the file',tool_calls:[{id:'call_1'}]})
+ expect(ledger.usage('alice')[0]).toMatchObject({state:'settled',charged:6});db.close()
+})
 test('meters a mock response and enforces key quota',async()=>{
  const db=new Database(':memory:');const ledger=new Accounting(db,1000);const keys=new GatewayKeys(db)
  ledger.creditReceipt('receipt','intent','alice',1000);const key=keys.create('alice',120);const g=new Gateway(ledger,keys,mockProvider(),'model',pricing)

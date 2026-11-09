@@ -28,13 +28,13 @@ test('provider streams split SSE frames and requests usage for tool calls',async
 
 test('OpenAI-compatible provider forwards chat options and preserves tool calls and usage',async()=>{
  const received:{authorization?:string|null;body?:unknown}={}
- const server=Bun.serve({hostname:'127.0.0.1',port:0,async fetch(req){received.authorization=req.headers.get('authorization');received.body=await req.json();return Response.json({choices:[{message:{content:null,tool_calls:[{id:'call_1',type:'function',function:{name:'read_file',arguments:'{}'}}]},finish_reason:'tool_calls'}],usage:{prompt_tokens:7,completion_tokens:3}})}})
+ const server=Bun.serve({hostname:'127.0.0.1',port:0,async fetch(req){received.authorization=req.headers.get('authorization');received.body=await req.json();return Response.json({choices:[{message:{content:null,reasoning_content:'Inspect the file',tool_calls:[{id:'call_1',type:'function',function:{name:'read_file',arguments:'{}'}}]},finish_reason:'tool_calls'}],usage:{prompt_tokens:7,completion_tokens:3}})}})
  try{
   const provider=createProvider({liveEnabled:true,endpoint:`http://127.0.0.1:${server.port}/v1`,model:'test-model',apiKey:'server-secret'})
   const result=await provider.complete([{role:'user',content:'read a file'}],20,{tools:[{type:'function',function:{name:'read_file'}}],tool_choice:'auto'})
   expect(received.authorization).toBe('Bearer server-secret')
   expect(received.body).toMatchObject({model:'test-model',max_tokens:20,stream:false,tool_choice:'auto'})
-  expect(result).toMatchObject({text:null,finishReason:'tool_calls',inputTokens:7,outputTokens:3,toolCalls:[{id:'call_1'}]})
+  expect(result).toMatchObject({text:null,reasoningContent:'Inspect the file',finishReason:'tool_calls',inputTokens:7,outputTokens:3,toolCalls:[{id:'call_1'}]})
  }finally{server.stop()}
 })
 
