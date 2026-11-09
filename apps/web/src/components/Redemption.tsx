@@ -89,6 +89,7 @@ export function Redemption() {
         setIntent(null)
         setSubmitted(false)
         setHash('')
+        await refreshConfig()
         return
       }
       setIntent(i)
@@ -104,7 +105,7 @@ export function Redemption() {
         localStorage.setItem(slot, JSON.stringify({ id: pending.id }))
       }
     }
-  }, [session, request, slot])
+  }, [session, request, slot, refreshConfig])
 
   useEffect(() => {
     setIntent(previous => previous?.account_id === account ? previous : null)
