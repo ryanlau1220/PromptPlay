@@ -2,7 +2,7 @@ import { Database } from 'bun:sqlite'
 import { Account, JsonRpcProvider, KeyPairSigner, type KeyPairString } from 'near-api-js'
 import { Accounting } from './accounting'
 import { WalletAuth } from './auth'
-import { Redemption } from './redemption'
+import { EscrowRedemption, nearEscrowChain } from './escrow-redemption'
 import { createApp } from './app'
 import { GatewayKeys } from './keys'
 import { Gateway } from './gateway'
@@ -16,7 +16,7 @@ const rpc=new JsonRpcProvider({url:process.env.NEAR_RPC_URL ?? 'https://test.rpc
 if (await rpc.getNetworkId() !== 'testnet') throw new Error('Configured RPC is not NEAR Testnet')
 const ledger=new Accounting(db,cap)
 const auth=new WalletAuth(db,rpc)
-const redemption=new Redemption(db,ledger,rpc)
+let redemption:EscrowRedemption|null=null
 const keys=new GatewayKeys(db)
 const live=process.env.PROMPTPLAY_LIVE_INFERENCE==='true' && process.env.PROMPTPLAY_PROVIDER_AUTHORIZED==='true' && process.env.PROMPTPLAY_PROVIDER_FUNDED==='true'
 const config=providerConfig(process.env)
@@ -31,6 +31,16 @@ if(live) {
     freezeEconomy(db,{model:config.model,endpoint:config.endpoint,cap,...pricing})
     gateway=candidate
   } catch { console.error('Live inference remains disabled: provider or economy validation failed.') }
+}
+if(process.env.ESCROW_ACCOUNT && process.env.ESCROW_OWNER && process.env.ESCROW_CODE_HASH && process.env.ESCROW_KEY_PATH) {
+  try {
+    const contract=process.env.ESCROW_ACCOUNT,owner=process.env.ESCROW_OWNER,treasury='treasury.ryanlau1220.testnet',token='token.ryanlau1220.testnet'
+    if(!contract.endsWith('.testnet')||!owner.endsWith('.testnet'))throw new Error('Escrow must use Testnet accounts')
+    const credentials=await Bun.file(process.env.ESCROW_KEY_PATH).json() as {private_key:string}
+    const key=KeyPairSigner.fromSecretKey(credentials.private_key as KeyPairString),signer=new Account(owner,rpc,key)
+    const candidate=new EscrowRedemption(db,ledger,nearEscrowChain(rpc,signer,contract,process.env.ESCROW_CODE_HASH),contract,token,owner,treasury)
+    await candidate.initialize();redemption=candidate
+  } catch { console.error('Escrow redemption remains disabled: contract or signer validation failed.') }
 }
 let faucet:Faucet|null=null
 if(process.env.PROMPTPLAY_FAUCET_ENABLED==='true') {
@@ -47,6 +57,6 @@ if(process.env.PROMPTPLAY_FAUCET_ENABLED==='true') {
     return result.transaction.hash
   })
 }
-const app=createApp({auth,redemption,ledger,keys,gateway,faucet,redemptionAllowlist,allowRedemption:gateway !== null,origin:process.env.APP_ORIGIN ?? 'http://localhost:3000'})
+const app=createApp({auth,redemption,ledger,keys,gateway,faucet,redemptionAllowlist,allowRedemption:gateway !== null && redemption !== null,origin:process.env.APP_ORIGIN ?? 'http://localhost:3000'})
 app.listen({hostname:process.env.HOST ?? '127.0.0.1',port:Number(process.env.PORT ?? '3001')})
 console.log(`PromptPlay server listening on ${app.server?.port}`)

@@ -3,12 +3,16 @@ import { Database } from 'bun:sqlite'
 import { JsonRpcProvider } from 'near-api-js'
 import { WalletAuth } from '../src/auth'
 import { Accounting } from '../src/accounting'
-import { Redemption } from '../src/redemption'
+import { EscrowRedemption, type EscrowChain } from '../src/escrow-redemption'
 import { createApp } from '../src/app'
 import { GatewayKeys } from '../src/keys'
+function testRedemption(db:Database,ledger:Accounting){
+ const chain:EscrowChain={async settings(){return {token:'token.testnet',owner:'owner.testnet',treasury:'treasury.testnet',cap:String(Math.floor(ledger.issuanceLimit()/1000000)),allocated:'0'}},async deposit(){return {deposit:null,blockTimestampNs:'99999999999999999999'}},async rejected(){},async approve(){}}
+ return new EscrowRedemption(db,ledger,chain,'escrow.testnet','token.testnet','owner.testnet','treasury.testnet')
+}
 test('structured response formats are validated and forwarded for chat and Responses',async()=>{
  const {Gateway}=await import('../src/gateway')
- const db=new Database(':memory:'),rpc=new JsonRpcProvider({url:'https://test.rpc.fastnear.com'}),ledger=new Accounting(db,1000),auth=new WalletAuth(db,rpc,async()=>{}),redemption=new Redemption(db,ledger,rpc),keys=new GatewayKeys(db)
+ const db=new Database(':memory:'),rpc=new JsonRpcProvider({url:'https://test.rpc.fastnear.com'}),ledger=new Accounting(db,1000),auth=new WalletAuth(db,rpc,async()=>{}),redemption=testRedemption(db,ledger),keys=new GatewayKeys(db)
  ledger.creditReceipt('format-r','format-i','alice.testnet',1000);const key=keys.create('alice.testnet',1000)
  let received:unknown
  const provider={async complete(_messages:unknown,_max:number,options:unknown){received=options;return {text:'{"ok":true}',inputTokens:2,outputTokens:2,finishReason:'stop'}}}
@@ -25,7 +29,7 @@ test('structured response formats are validated and forwarded for chat and Respo
 })
 test('image inputs require an enabled provider and forward bounded inline images',async()=>{
  const {Gateway}=await import('../src/gateway')
- const db=new Database(':memory:'),rpc=new JsonRpcProvider({url:'https://test.rpc.fastnear.com'}),ledger=new Accounting(db,1000),auth=new WalletAuth(db,rpc,async()=>{}),redemption=new Redemption(db,ledger,rpc),keys=new GatewayKeys(db)
+ const db=new Database(':memory:'),rpc=new JsonRpcProvider({url:'https://test.rpc.fastnear.com'}),ledger=new Accounting(db,1000),auth=new WalletAuth(db,rpc,async()=>{}),redemption=testRedemption(db,ledger),keys=new GatewayKeys(db)
  ledger.creditReceipt('image-r','image-i','alice.testnet',1000);const key=keys.create('alice.testnet',1000)
  let received:unknown
  const provider={async complete(messages:unknown){received=messages;return {text:'a pixel',inputTokens:2,outputTokens:2,finishReason:'stop'}}}
@@ -44,7 +48,7 @@ test('image inputs require an enabled provider and forward bounded inline images
 })
 test('wallet sessions protect accounting and redemption stays disabled', async () => {
   const db=new Database(':memory:'); const rpc=new JsonRpcProvider({url:'https://test.rpc.fastnear.com'}); const ledger=new Accounting(db,100)
-  const auth=new WalletAuth(db,rpc,async()=>{}); const redemption=new Redemption(db,ledger,rpc)
+  const auth=new WalletAuth(db,rpc,async()=>{}); const redemption=testRedemption(db,ledger)
   const app=createApp({auth,redemption,ledger,allowRedemption:false,keys:new GatewayKeys(db),gateway:null,faucet:null,redemptionAllowlist:new Set(),origin:'http://localhost:3000'})
   const request=(path:string,method='GET',body?:unknown,token?:string)=>app.handle(new Request(`http://localhost${path}`,{method,headers:{...(body ? {'content-type':'application/json'} : {}),...(token ? {authorization:`Bearer ${token}`} : {})},body:body ? JSON.stringify(body) : undefined}))
   expect((await request('/api/inference/balance')).status).toBe(401)
@@ -59,7 +63,7 @@ test('wallet sessions protect accounting and redemption stays disabled', async (
 test('mock gateway authenticates keys and meters real reported mock usage', async () => {
   const {Gateway}=await import('../src/gateway'); const {mockProvider}=await import('../src/provider')
   const db=new Database(':memory:'), rpc=new JsonRpcProvider({url:'https://test.rpc.fastnear.com'}), ledger=new Accounting(db,1000)
-  const auth=new WalletAuth(db,rpc,async()=>{}), redemption=new Redemption(db,ledger,rpc), keys=new GatewayKeys(db)
+  const auth=new WalletAuth(db,rpc,async()=>{}), redemption=testRedemption(db,ledger), keys=new GatewayKeys(db)
   ledger.creditReceipt('test-receipt','test-intent','alice.testnet',1000)
   const gateway=new Gateway(ledger,keys,mockProvider(),'mock-model',{inputMicrosPerMillion:1000000,outputMicrosPerMillion:2000000,microsPerUnit:1000000,contextTokens:100,maxOutputTokens:10})
   const app=createApp({auth,redemption,ledger,keys,gateway,faucet:null,allowRedemption:false,redemptionAllowlist:new Set(),origin:'http://localhost:3000'})
@@ -81,7 +85,7 @@ test('mock gateway authenticates keys and meters real reported mock usage', asyn
 
 test('room sockets only send resync hints to the same match', async () => {
   const db=new Database(':memory:'),rpc=new JsonRpcProvider({url:'https://test.rpc.fastnear.com'}),ledger=new Accounting(db,100)
-  const auth=new WalletAuth(db,rpc,async()=>{}),redemption=new Redemption(db,ledger,rpc),keys=new GatewayKeys(db)
+  const auth=new WalletAuth(db,rpc,async()=>{}),redemption=testRedemption(db,ledger),keys=new GatewayKeys(db)
   const app=createApp({auth,redemption,ledger,keys,gateway:null,faucet:null,allowRedemption:false,redemptionAllowlist:new Set(),origin:'http://localhost:3000'}).listen({hostname:'127.0.0.1',port:0})
   if (!app.server) throw new Error('Server failed to start')
   const port=app.server.port
@@ -94,47 +98,28 @@ test('room sockets only send resync hints to the same match', async () => {
     a.close();b.close()
   } finally {app.stop();db.close()}
 },10000)
-test('only enrolled wallets can reserve funded redemption capacity',async()=>{
- const db=new Database(':memory:'),rpc=new JsonRpcProvider({url:'https://test.rpc.fastnear.com'}),ledger=new Accounting(db,1000000),auth=new WalletAuth(db,rpc,async()=>{}),redemption=new Redemption(db,ledger,rpc),keys=new GatewayKeys(db)
+test('escrow API requires wallet enrollment and paid finalized deposits',async()=>{
+ const db=new Database(':memory:'),rpc=new JsonRpcProvider({url:'https://test.rpc.fastnear.com'}),ledger=new Accounting(db,2000000),auth=new WalletAuth(db,rpc,async()=>{}),keys=new GatewayKeys(db)
+ let deposited=false,consumed=false,approved=false
+ const chain:EscrowChain={async settings(){return {token:'token.testnet',owner:'owner.testnet',treasury:'treasury.testnet',cap:'2',allocated:deposited?'1':'0'}},async deposit(account){return {deposit:deposited?{account,amount:'5000000',units:'1',expires:'9999999999999999999',approved,status:consumed?'Consumed':'Pending'}:null,blockTimestampNs:'99999999999999999999'}},async rejected(){},async approve(){approved=true}}
+ const redemption=new EscrowRedemption(db,ledger,chain,'escrow.testnet','token.testnet','owner.testnet','treasury.testnet');await redemption.initialize()
  const app=createApp({auth,redemption,ledger,keys,gateway:null,faucet:null,allowRedemption:true,redemptionAllowlist:new Set(['alice.testnet']),origin:'http://localhost:3000'})
  async function login(accountId:string){const challenge=auth.challenge();return (await auth.signIn({challengeId:challenge.id,accountId,publicKey:`ed25519:${'1'.repeat(32)}`,signature:Buffer.alloc(64).toString('base64')})).token}
- const send=async(token:string)=>app.handle(new Request('http://localhost/api/redemptions',{method:'POST',headers:{'content-type':'application/json',authorization:`Bearer ${token}`},body:JSON.stringify({units:1})}))
- expect((await send(await login('bob.testnet'))).status).toBe(403)
- const alice=await login('alice.testnet')
- const created=await send(alice);expect(created.status).toBe(200)
- const {id}=await created.json() as {id:string}
- const attempt=(bearer:string)=>app.handle(new Request(`http://localhost/api/redemptions/${id}/attempt`,{method:'POST',headers:{authorization:`Bearer ${bearer}`}}))
- expect((await attempt(await login('bob.testnet'))).status).toBe(403)
- expect((await attempt(alice)).status).toBe(200)
- expect((await attempt(alice)).status).toBe(409)
-})
-
-test('wildcard enrollment permits authenticated Testnet wallets within the shared cap',async()=>{
- const db=new Database(':memory:'),rpc=new JsonRpcProvider({url:'https://test.rpc.fastnear.com'}),ledger=new Accounting(db,2000000),auth=new WalletAuth(db,rpc,async()=>{}),redemption=new Redemption(db,ledger,rpc),keys=new GatewayKeys(db)
- const app=createApp({auth,redemption,ledger,keys,gateway:null,faucet:null,allowRedemption:true,redemptionAllowlist:new Set(['*']),origin:'http://localhost:3000'})
- async function login(accountId:string){const challenge=auth.challenge();return (await auth.signIn({challengeId:challenge.id,accountId,publicKey:`ed25519:${'1'.repeat(32)}`,signature:Buffer.alloc(64).toString('base64')})).token}
- const send=async(token?:string)=>app.handle(new Request('http://localhost/api/redemptions',{method:'POST',headers:{'content-type':'application/json',...(token?{authorization:`Bearer ${token}`}:{})},body:JSON.stringify({units:1})}))
- expect((await send()).status).toBe(401)
+ const post=(path:string,token:string)=>app.handle(new Request(`http://localhost${path}`,{method:'POST',headers:{authorization:`Bearer ${token}`}}))
  const alice=await login('alice.testnet'),bob=await login('bob.testnet')
- expect((await send(alice)).status).toBe(200);expect((await send(bob)).status).toBe(200)
- expect((await send(alice)).status).toBe(409)
- db.close()
-})
-
-test('gateway status distinguishes enabled inference from exhausted redemption allocation',async()=>{
- const {Gateway}=await import('../src/gateway');const {mockProvider}=await import('../src/provider')
- const db=new Database(':memory:'),rpc=new JsonRpcProvider({url:'https://test.rpc.fastnear.com'}),ledger=new Accounting(db,1000000),auth=new WalletAuth(db,rpc,async()=>{}),redemption=new Redemption(db,ledger,rpc),keys=new GatewayKeys(db)
- const gateway=new Gateway(ledger,keys,mockProvider(),'model',{inputMicrosPerMillion:1000000,outputMicrosPerMillion:2000000,microsPerUnit:1000000,contextTokens:100,maxOutputTokens:10})
- const app=createApp({auth,redemption,ledger,keys,gateway,faucet:null,allowRedemption:true,redemptionAllowlist:new Set(['alice.testnet']),origin:'http://localhost:3000'})
- const status=async()=>await (await app.handle(new Request('http://localhost/config'))).json()
- expect(await status()).toMatchObject({redemptionAvailable:true,redemptionUnitsAvailable:1})
- redemption.create('alice.testnet',1)
- expect(await status()).toMatchObject({redemptionAvailable:true,redemptionUnitsAvailable:0})
+ expect((await post('/api/redemptions',bob)).status).toBe(403)
+ const created=await post('/api/redemptions',alice);expect(created.status).toBe(200);const {id}=await created.json() as {id:string}
+ expect((await post(`/api/redemptions/${id}/approve`,alice)).status).toBe(409)
+ deposited=true;expect((await post(`/api/redemptions/${id}/approve`,alice)).status).toBe(200)
+ expect((await post(`/api/redemptions/${id}/claim`,alice)).status).toBe(409)
+ consumed=true;const claimed=await post(`/api/redemptions/${id}/claim`,alice);expect(await claimed.json()).toEqual({credited:true})
+ expect(await (await post(`/api/redemptions/${id}/claim`,alice)).json()).toEqual({credited:false})
+ expect(ledger.balance('alice.testnet')).toBe(1000000);db.close()
 })
 
 test('chat endpoint passes tool calls and streams metered events',async()=>{
  const {Gateway}=await import('../src/gateway')
- const db=new Database(':memory:'),rpc=new JsonRpcProvider({url:'https://test.rpc.fastnear.com'}),ledger=new Accounting(db,1000),auth=new WalletAuth(db,rpc,async()=>{}),redemption=new Redemption(db,ledger,rpc),keys=new GatewayKeys(db)
+ const db=new Database(':memory:'),rpc=new JsonRpcProvider({url:'https://test.rpc.fastnear.com'}),ledger=new Accounting(db,1000),auth=new WalletAuth(db,rpc,async()=>{}),redemption=testRedemption(db,ledger),keys=new GatewayKeys(db)
  ledger.creditReceipt('r','i','alice.testnet',1000);const key=keys.create('alice.testnet',1000)
  let received:unknown
  const provider={async complete(_m:unknown,_n:number,options:unknown){received=options;return {text:null,reasoningContent:'Find the answer',toolCalls:[{id:'call_1',type:'function',function:{name:'lookup',arguments:'{}'}}],inputTokens:2,outputTokens:2,finishReason:'tool_calls'}},async *stream(){yield {data:'{"choices":[{"delta":{"tool_calls":[{"index":0}]}}]}'};yield {data:'{"choices":[],"usage":{"prompt_tokens":2,"completion_tokens":2}}',usage:{inputTokens:2,outputTokens:2}}}}
@@ -148,7 +133,7 @@ test('chat endpoint passes tool calls and streams metered events',async()=>{
 
 test('chat endpoint returns 429 when the account concurrency limit is reached',async()=>{
  const {Gateway}=await import('../src/gateway')
- const db=new Database(':memory:'),rpc=new JsonRpcProvider({url:'https://test.rpc.fastnear.com'}),ledger=new Accounting(db,1000),auth=new WalletAuth(db,rpc,async()=>{}),redemption=new Redemption(db,ledger,rpc),keys=new GatewayKeys(db)
+ const db=new Database(':memory:'),rpc=new JsonRpcProvider({url:'https://test.rpc.fastnear.com'}),ledger=new Accounting(db,1000),auth=new WalletAuth(db,rpc,async()=>{}),redemption=testRedemption(db,ledger),keys=new GatewayKeys(db)
  ledger.creditReceipt('r','i','alice.testnet',1000);const key=keys.create('alice.testnet',1000)
  let release!:()=>void, bothStarted!:()=>void, started=0
  const waiting=new Promise<void>(resolve=>{release=resolve}),ready=new Promise<void>(resolve=>{bothStarted=resolve})
@@ -163,7 +148,7 @@ test('chat endpoint returns 429 when the account concurrency limit is reached',a
 
 test('accepts a large bounded agent tool catalog and meters the request',async()=>{
  const {Gateway}=await import('../src/gateway');const {mockProvider}=await import('../src/provider')
- const db=new Database(':memory:'),rpc=new JsonRpcProvider({url:'https://test.rpc.fastnear.com'}),ledger=new Accounting(db,1000),auth=new WalletAuth(db,rpc,async()=>{}),redemption=new Redemption(db,ledger,rpc),keys=new GatewayKeys(db)
+ const db=new Database(':memory:'),rpc=new JsonRpcProvider({url:'https://test.rpc.fastnear.com'}),ledger=new Accounting(db,1000),auth=new WalletAuth(db,rpc,async()=>{}),redemption=testRedemption(db,ledger),keys=new GatewayKeys(db)
  ledger.creditReceipt('r','i','alice.testnet',1000);const key=keys.create('alice.testnet',1000)
  const gateway=new Gateway(ledger,keys,mockProvider(),'model',{inputMicrosPerMillion:1000000,outputMicrosPerMillion:2000000,microsPerUnit:1000000,contextTokens:100,maxOutputTokens:10},'Mock',{streaming:false,toolCalls:true})
  const app=createApp({auth,redemption,ledger,keys,gateway,faucet:null,allowRedemption:false,redemptionAllowlist:new Set(),origin:'http://localhost:3000'})
@@ -177,7 +162,7 @@ test('accepts a large bounded agent tool catalog and meters the request',async()
 
 test('accepts structured text parts and rejects image inputs',async()=>{
  const {Gateway}=await import('../src/gateway');const {mockProvider}=await import('../src/provider')
- const db=new Database(':memory:'),rpc=new JsonRpcProvider({url:'https://test.rpc.fastnear.com'}),ledger=new Accounting(db,1000),auth=new WalletAuth(db,rpc,async()=>{}),redemption=new Redemption(db,ledger,rpc),keys=new GatewayKeys(db)
+ const db=new Database(':memory:'),rpc=new JsonRpcProvider({url:'https://test.rpc.fastnear.com'}),ledger=new Accounting(db,1000),auth=new WalletAuth(db,rpc,async()=>{}),redemption=testRedemption(db,ledger),keys=new GatewayKeys(db)
  ledger.creditReceipt('r','i','alice.testnet',1000);const key=keys.create('alice.testnet',1000),gateway=new Gateway(ledger,keys,mockProvider(),'model',{inputMicrosPerMillion:1000000,outputMicrosPerMillion:2000000,microsPerUnit:1000000,contextTokens:100,maxOutputTokens:10})
  const app=createApp({auth,redemption,ledger,keys,gateway,faucet:null,allowRedemption:false,redemptionAllowlist:new Set(),origin:'http://localhost:3000'})
  const send=(content:unknown)=>app.handle(new Request('http://localhost/v1/chat/completions',{method:'POST',headers:{'content-type':'application/json',authorization:`Bearer ${key.key}`},body:JSON.stringify({model:'model',messages:[{role:'user',content}],max_tokens:10})}))
@@ -190,7 +175,7 @@ test('error responses distinguish invalid input, missing routes and internal fai
   const rpc = new JsonRpcProvider({url:'https://test.rpc.fastnear.com'})
   const ledger = new Accounting(db, 100)
   const auth = new WalletAuth(db, rpc, async () => {})
-  const redemption = new Redemption(db, ledger, rpc)
+  const redemption = testRedemption(db,ledger)
   const app = createApp({auth, redemption, ledger, keys:new GatewayKeys(db), gateway:null, faucet:null, allowRedemption:false, redemptionAllowlist:new Set(), origin:'http://localhost:3000'})
   const malformed = await app.handle(new Request('http://localhost/api/auth/verify', {method:'POST',headers:{'content-type':'application/json'},body:'{'}))
   expect(malformed.status).toBe(400)
@@ -212,7 +197,7 @@ test('wallet signature rejection is a client error but RPC failures stay server 
     const rpc = new JsonRpcProvider({url:'https://test.rpc.fastnear.com'})
     const ledger = new Accounting(db, 100)
     const auth = new WalletAuth(db, rpc, async () => { throw new Error(message) })
-    const app = createApp({auth, redemption:new Redemption(db,ledger,rpc), ledger, keys:new GatewayKeys(db), gateway:null, faucet:null, allowRedemption:false, redemptionAllowlist:new Set(), origin:'http://localhost:3000'})
+    const app = createApp({auth, redemption:testRedemption(db,ledger), ledger, keys:new GatewayKeys(db), gateway:null, faucet:null, allowRedemption:false, redemptionAllowlist:new Set(), origin:'http://localhost:3000'})
     const challenge = auth.challenge()
     const response = await app.handle(new Request('http://localhost/api/auth/verify',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({challengeId:challenge.id,accountId:'alice.testnet',publicKey:`ed25519:${'1'.repeat(32)}`,signature:Buffer.alloc(64).toString('base64')})}))
     expect(response.status).toBe(status)
@@ -224,7 +209,7 @@ test('wallet signature rejection is a client error but RPC failures stay server 
 test('gateway reports provider failures separately from internal accounting failures', async () => {
   const {Gateway} = await import('../src/gateway')
   const db = new Database(':memory:'), rpc = new JsonRpcProvider({url:'https://test.rpc.fastnear.com'}), ledger = new Accounting(db, 1000)
-  const auth = new WalletAuth(db, rpc, async()=>{}), keys = new GatewayKeys(db), redemption = new Redemption(db, ledger, rpc)
+  const auth = new WalletAuth(db, rpc, async()=>{}), keys = new GatewayKeys(db), redemption = testRedemption(db,ledger)
   ledger.creditReceipt('r','i','alice.testnet',1000)
   const key = keys.create('alice.testnet',1000)
   const provider = {async complete():Promise<never> { throw new Error('provider detail') }}
@@ -243,7 +228,7 @@ test('gateway reports provider failures separately from internal accounting fail
 
 test('Responses text subset is authenticated, metered and rejects unsupported features',async()=>{
  const {Gateway}=await import('../src/gateway');const {mockProvider}=await import('../src/provider')
- const db=new Database(':memory:'),rpc=new JsonRpcProvider({url:'https://test.rpc.fastnear.com'}),ledger=new Accounting(db,1000),auth=new WalletAuth(db,rpc,async()=>{}),redemption=new Redemption(db,ledger,rpc),keys=new GatewayKeys(db)
+ const db=new Database(':memory:'),rpc=new JsonRpcProvider({url:'https://test.rpc.fastnear.com'}),ledger=new Accounting(db,1000),auth=new WalletAuth(db,rpc,async()=>{}),redemption=testRedemption(db,ledger),keys=new GatewayKeys(db)
  ledger.creditReceipt('responses-r','responses-i','alice.testnet',1000);const key=keys.create('alice.testnet',1000)
  const gateway=new Gateway(ledger,keys,mockProvider(),'model',{inputMicrosPerMillion:1000000,outputMicrosPerMillion:2000000,microsPerUnit:1000000,contextTokens:100,maxOutputTokens:10})
  const app=createApp({auth,redemption,ledger,keys,gateway,faucet:null,allowRedemption:false,redemptionAllowlist:new Set(),origin:'http://localhost:3000'})
@@ -260,7 +245,7 @@ test('Responses text subset is authenticated, metered and rejects unsupported fe
 
 test('Responses function calls preserve tool ids and account for every turn',async()=>{
  const {Gateway}=await import('../src/gateway')
- const db=new Database(':memory:'),rpc=new JsonRpcProvider({url:'https://test.rpc.fastnear.com'}),ledger=new Accounting(db,1000),auth=new WalletAuth(db,rpc,async()=>{}),redemption=new Redemption(db,ledger,rpc),keys=new GatewayKeys(db)
+ const db=new Database(':memory:'),rpc=new JsonRpcProvider({url:'https://test.rpc.fastnear.com'}),ledger=new Accounting(db,1000),auth=new WalletAuth(db,rpc,async()=>{}),redemption=testRedemption(db,ledger),keys=new GatewayKeys(db)
  ledger.creditReceipt('tool-r','tool-i','alice.testnet',1000);const key=keys.create('alice.testnet',1000)
  const seen:unknown[]=[]
  const provider={async complete(messages:unknown,_max:number,options:unknown){seen.push({messages,options});return seen.length===1?{text:null,toolCalls:[{id:'call_1',type:'function',function:{name:'lookup',arguments:'{"query":"x"}'}}],inputTokens:2,outputTokens:2,finishReason:'tool_calls'}:{text:'found',inputTokens:2,outputTokens:2,finishReason:'stop'}}}
@@ -277,7 +262,7 @@ test('Responses function calls preserve tool ids and account for every turn',asy
 
 test('Responses streaming translates deltas and settles only after provider completion',async()=>{
  const {Gateway}=await import('../src/gateway')
- const db=new Database(':memory:'),rpc=new JsonRpcProvider({url:'https://test.rpc.fastnear.com'}),ledger=new Accounting(db,1000),auth=new WalletAuth(db,rpc,async()=>{}),redemption=new Redemption(db,ledger,rpc),keys=new GatewayKeys(db)
+ const db=new Database(':memory:'),rpc=new JsonRpcProvider({url:'https://test.rpc.fastnear.com'}),ledger=new Accounting(db,1000),auth=new WalletAuth(db,rpc,async()=>{}),redemption=testRedemption(db,ledger),keys=new GatewayKeys(db)
  ledger.creditReceipt('stream-r','stream-i','alice.testnet',1000);const key=keys.create('alice.testnet',1000)
  const provider={async complete(){return {text:'unused',inputTokens:2,outputTokens:2,finishReason:'stop'}},async *stream(){yield {data:JSON.stringify({choices:[{delta:{role:'assistant',content:'Hello '},finish_reason:null}]})};yield {data:JSON.stringify({choices:[{delta:{content:'world',tool_calls:[{index:0,id:'call_1',type:'function',function:{name:'lookup',arguments:'{"x":'}}]},finish_reason:null}]})};yield {data:JSON.stringify({choices:[{delta:{tool_calls:[{index:0,function:{arguments:'1}'}}]},finish_reason:'tool_calls'}]})};yield {data:JSON.stringify({choices:[],usage:{prompt_tokens:2,completion_tokens:2,total_tokens:4}}),usage:{inputTokens:2,outputTokens:2}}}}
  const gateway=new Gateway(ledger,keys,provider,'model',{inputMicrosPerMillion:1000000,outputMicrosPerMillion:2000000,microsPerUnit:1000000,contextTokens:100,maxOutputTokens:10},'Mock',{streaming:true,toolCalls:true})
@@ -293,7 +278,7 @@ test('Responses streaming translates deltas and settles only after provider comp
 
 test('interrupted Responses stream retains the uncertain reservation',async()=>{
  const {Gateway}=await import('../src/gateway')
- const db=new Database(':memory:'),rpc=new JsonRpcProvider({url:'https://test.rpc.fastnear.com'}),ledger=new Accounting(db,1000),auth=new WalletAuth(db,rpc,async()=>{}),redemption=new Redemption(db,ledger,rpc),keys=new GatewayKeys(db)
+ const db=new Database(':memory:'),rpc=new JsonRpcProvider({url:'https://test.rpc.fastnear.com'}),ledger=new Accounting(db,1000),auth=new WalletAuth(db,rpc,async()=>{}),redemption=testRedemption(db,ledger),keys=new GatewayKeys(db)
  ledger.creditReceipt('broken-r','broken-i','alice.testnet',1000);const key=keys.create('alice.testnet',1000)
  const provider={async complete(){return {text:'unused',inputTokens:2,outputTokens:2,finishReason:'stop'}},async *stream(){yield {data:JSON.stringify({choices:[{delta:{content:'partial'},finish_reason:null}]})};throw new Error('upstream disconnected')}}
  const gateway=new Gateway(ledger,keys,provider,'model',{inputMicrosPerMillion:1000000,outputMicrosPerMillion:2000000,microsPerUnit:1000000,contextTokens:100,maxOutputTokens:10},'Mock',{streaming:true,toolCalls:false})
@@ -306,7 +291,7 @@ test('interrupted Responses stream retains the uncertain reservation',async()=>{
 
 test('cancelled Responses stream keeps the uncertain reservation',async()=>{
  const {Gateway}=await import('../src/gateway')
- const db=new Database(':memory:'),rpc=new JsonRpcProvider({url:'https://test.rpc.fastnear.com'}),ledger=new Accounting(db,1000),auth=new WalletAuth(db,rpc,async()=>{}),redemption=new Redemption(db,ledger,rpc),keys=new GatewayKeys(db)
+ const db=new Database(':memory:'),rpc=new JsonRpcProvider({url:'https://test.rpc.fastnear.com'}),ledger=new Accounting(db,1000),auth=new WalletAuth(db,rpc,async()=>{}),redemption=testRedemption(db,ledger),keys=new GatewayKeys(db)
  ledger.creditReceipt('cancel-r','cancel-i','alice.testnet',1000);const key=keys.create('alice.testnet',1000)
  let release=()=>{};const waiting=new Promise<void>(resolve=>{release=resolve})
  const provider={async complete(){return {text:'unused',inputTokens:2,outputTokens:2,finishReason:'stop'}},async *stream(){yield {data:JSON.stringify({choices:[{delta:{content:'partial'},finish_reason:null}]})};await waiting;yield {data:JSON.stringify({choices:[],usage:{prompt_tokens:2,completion_tokens:2,total_tokens:4}}),usage:{inputTokens:2,outputTokens:2}}}}
@@ -335,7 +320,7 @@ test('Responses streaming respects downstream backpressure and releases the read
 
 test('chat forwards bounded assistant reasoning context for a tool follow-up',async()=>{
  const {Gateway}=await import('../src/gateway')
- const db=new Database(':memory:'),rpc=new JsonRpcProvider({url:'https://test.rpc.fastnear.com'}),ledger=new Accounting(db,1000),auth=new WalletAuth(db,rpc,async()=>{}),redemption=new Redemption(db,ledger,rpc),keys=new GatewayKeys(db)
+ const db=new Database(':memory:'),rpc=new JsonRpcProvider({url:'https://test.rpc.fastnear.com'}),ledger=new Accounting(db,1000),auth=new WalletAuth(db,rpc,async()=>{}),redemption=testRedemption(db,ledger),keys=new GatewayKeys(db)
  ledger.creditReceipt('reason-r','reason-i','alice.testnet',1000);const key=keys.create('alice.testnet',1000)
  let seen:unknown
  const provider={async complete(messages:unknown){seen=messages;return {text:'done',inputTokens:2,outputTokens:2,finishReason:'stop'}}}

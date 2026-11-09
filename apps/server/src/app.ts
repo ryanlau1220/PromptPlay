@@ -1,7 +1,7 @@
 import { Elysia, t } from 'elysia'
 import { cors } from '@elysiajs/cors'
 import type { WalletAuth } from './auth'
-import type { Redemption } from './redemption'
+import type { EscrowRedemption } from './escrow-redemption'
 import type { Accounting } from './accounting'
 import type { GatewayKeys } from './keys'
 import type { Gateway } from './gateway'
@@ -10,13 +10,20 @@ import type { Faucet } from './faucet'
 import { RequestError, UpstreamError } from './errors'
 import { chatFormat, responsesFormat, responsesInput, responsesStream, responsesTools } from './responses'
 
-type Services = {auth:WalletAuth; redemption:Redemption; ledger:Accounting; allowRedemption:boolean; origin:string; keys:GatewayKeys; gateway:Gateway|null; faucet:Faucet|null; redemptionAllowlist:Set<string>}
+type Services = {auth:WalletAuth; redemption:EscrowRedemption|null; ledger:Accounting; allowRedemption:boolean; origin:string; keys:GatewayKeys; gateway:Gateway|null; faucet:Faucet|null; redemptionAllowlist:Set<string>}
 export function createApp({auth, redemption, ledger, allowRedemption, origin, keys, gateway, faucet, redemptionAllowlist}:Services) {
   const socketRates=new Map<string,number>()
   const limited=()=>auth.limited()
   const token=(header:string|undefined)=>header?.startsWith('Bearer ') ? header.slice(7) : ''
   const account=(header:string|undefined)=>auth.account(token(header))
   const enrolled=(who:string)=>who.endsWith('.testnet') && (redemptionAllowlist.has('*') || redemptionAllowlist.has(who))
+  let cachedCapacity:{value:number;until:number}|null=null,capacityRequest:Promise<number>|null=null
+  const capacity=async()=>{
+    if(!redemption)throw new Error('Redemption unavailable')
+    if(cachedCapacity && cachedCapacity.until>Date.now())return cachedCapacity.value
+    if(!capacityRequest)capacityRequest=redemption.remainingUnits().then(value=>{cachedCapacity={value,until:Date.now()+5000};return value}).finally(()=>{capacityRequest=null})
+    return capacityRequest
+  }
   return new Elysia({normalize:false,websocket:{maxPayloadLength:512,idleTimeout:120}}).use(cors({origin,methods:['GET','POST','DELETE'],allowedHeaders:['Content-Type','Authorization']}))
     .onError(({code,error,set,request})=>{
       const status=error instanceof RequestError ? error.status : code==='VALIDATION'||code==='PARSE' ? 400 : code==='NOT_FOUND' ? 404 : 500
@@ -33,7 +40,7 @@ export function createApp({auth, redemption, ledger, allowRedemption, origin, ke
       close(ws){socketRates.delete(ws.id);ws.unsubscribe(`room:${ws.data.params.id}`);ws.publish(`room:${ws.data.params.id}`,{type:'resync_required'})},
     })
     .get('/health',()=>({ok:true}))
-    .get('/config',()=>({network:'testnet',redemptionAvailable:allowRedemption && gateway !== null,redemptionUnitsAvailable:allowRedemption && gateway !== null ? redemption.remainingUnits() : null,pccPerUnit:'5',provider:gateway?.providerName ?? null,model:gateway?.model ?? null,capabilities:gateway?.capabilities ?? null,contextTokens:gateway?.contextTokens ?? null,faucetAvailable:faucet !== null,microsPerUnit:gateway?.maxUnitCostMicros ?? null,maxOutputTokens:gateway?.maxOutputTokens ?? null}))
+    .get('/config',async()=>{let units:number|null=null;if(allowRedemption && gateway && redemption){try{units=await capacity()}catch{console.error('Escrow capacity is unavailable')}}return {network:'testnet',redemptionAvailable:units!==null,redemptionUnitsAvailable:units,escrowAccount:redemption?.escrowAccount ?? null,pccPerUnit:'5',provider:gateway?.providerName ?? null,model:gateway?.model ?? null,capabilities:gateway?.capabilities ?? null,contextTokens:gateway?.contextTokens ?? null,faucetAvailable:faucet !== null,microsPerUnit:gateway?.maxUnitCostMicros ?? null,maxOutputTokens:gateway?.maxOutputTokens ?? null}})
     .post('/api/auth/challenge',({set})=>{if(limited()){set.status=429;return {error:'Try again later'}};return auth.challenge()})
     .post('/api/auth/verify',async({body,set})=>{if(limited()){set.status=429;return {error:'Try again later'}};return auth.signIn(body)}, {body:t.Object({challengeId:t.String({minLength:1,maxLength:64}),accountId:t.String({minLength:2,maxLength:64}),publicKey:t.String({minLength:1,maxLength:64}),signature:t.String({minLength:1,maxLength:128})})})
     .delete('/api/auth/session',({headers,set})=>{const raw=token(headers.authorization);if(!account(headers.authorization)){set.status=401;return {error:'Unauthorized'}};auth.revoke(raw);return {ok:true}})
@@ -93,10 +100,11 @@ export function createApp({auth, redemption, ledger, allowRedemption, origin, ke
       }
     },{body:t.Object({model:t.String({minLength:1,maxLength:200}),messages:t.Array(t.Object({role:t.String({maxLength:20}),content:t.Union([t.String({maxLength:100000}),t.Null(),t.Array(t.Union([t.Object({type:t.Literal('text'),text:t.String({maxLength:100000})},{additionalProperties:false}),t.Object({type:t.Literal('image_url'),image_url:t.Object({url:t.String({maxLength:200000}),detail:t.Optional(t.Union([t.Literal('auto'),t.Literal('low'),t.Literal('high')]))},{additionalProperties:false})},{additionalProperties:false})]),{minItems:1,maxItems:64})]),tool_calls:t.Optional(t.Array(t.Unknown(),{maxItems:32})),tool_call_id:t.Optional(t.String({maxLength:256})),name:t.Optional(t.String({maxLength:256})),reasoning_content:t.Optional(t.String({maxLength:100000}))},{additionalProperties:false}),{minItems:1,maxItems:32}),max_tokens:t.Optional(t.Integer({minimum:1,maximum:4096})),max_completion_tokens:t.Optional(t.Integer({minimum:1,maximum:4096})),stream:t.Optional(t.Boolean()),store:t.Optional(t.Literal(false)),stream_options:t.Optional(t.Object({include_usage:t.Optional(t.Boolean())},{additionalProperties:false})),tools:t.Optional(t.Array(t.Unknown(),{maxItems:128})),tool_choice:t.Optional(t.Unknown()),parallel_tool_calls:t.Optional(t.Boolean()),temperature:t.Optional(t.Number({minimum:0,maximum:2})),response_format:t.Optional(t.Unknown())},{additionalProperties:false})})
     .get('/api/inference/balance',({headers,set})=>{const who=account(headers.authorization);if(!who){set.status=401;return {error:'Unauthorized'}};return {units:ledger.balance(who)}})
-    .get('/api/redemptions',({headers,set})=>{const who=account(headers.authorization);if(!who){set.status=401;return {error:'Unauthorized'}};return {intents:redemption.list(who)}})
-    .post('/api/redemptions',({headers,body,set})=>{const who=account(headers.authorization);if(!who){set.status=401;return {error:'Unauthorized'}};if(!allowRedemption){set.status=503;return {error:'Redemption is unavailable'}};if(!enrolled(who)){set.status=403;return {error:'This wallet is not enrolled in the demo'}};if(limited()){set.status=429;return {error:'Try again later'}};return redemption.create(who,body.units)}, {body:t.Object({units:t.Integer({minimum:1,maximum:100})})})
-    .get('/api/redemptions/:id',({headers,params,set})=>{const who=account(headers.authorization);if(!who){set.status=401;return {error:'Unauthorized'}};const intent=redemption.get(params.id,who);if(!intent){set.status=404;return {error:'Not found'}};return intent})
-    .post('/api/redemptions/:id/attempt',({headers,params,set})=>{const who=account(headers.authorization);if(!who){set.status=401;return {error:'Unauthorized'}};if(!allowRedemption){set.status=503;return {error:'Redemption is unavailable'}};if(!enrolled(who)){set.status=403;return {error:'This wallet is not enrolled in the demo'}};if(limited()){set.status=429;return {error:'Try again later'}};redemption.beginTransfer(params.id,who);return {ok:true}})
-    .post('/api/redemptions/:id/verify',async({headers,params,body,set})=>{const who=account(headers.authorization);if(!who){set.status=401;return {error:'Unauthorized'}};if(limited()){set.status=429;return {error:'Try again later'}};return redemption.verify(params.id,who,body.transactionHash)}, {body:t.Object({transactionHash:t.String({minLength:32,maxLength:50})})})
-    .post('/api/redemptions/:id/failure',async({headers,params,body,set})=>{const who=account(headers.authorization);if(!who){set.status=401;return {error:'Unauthorized'}};if(limited()){set.status=429;return {error:'Try again later'}};return redemption.reconcileFailure(params.id,who,body.transactionHash)}, {body:t.Object({transactionHash:t.String({minLength:32,maxLength:50})})})
+    .get('/api/redemptions',({headers,set})=>{const who=account(headers.authorization);if(!who){set.status=401;return {error:'Unauthorized'}};if(!redemption){set.status=503;return {error:'Redemption is unavailable'}};return {intents:redemption.list(who)}})
+    .post('/api/redemptions',({headers,set})=>{const who=account(headers.authorization);if(!who){set.status=401;return {error:'Unauthorized'}};if(!allowRedemption||!redemption){set.status=503;return {error:'Redemption is unavailable'}};if(!enrolled(who)){set.status=403;return {error:'This wallet is not enrolled in the demo'}};if(limited()){set.status=429;return {error:'Try again later'}};return redemption.create(who)})
+    .get('/api/redemptions/:id',async({headers,params,set})=>{const who=account(headers.authorization);if(!who){set.status=401;return {error:'Unauthorized'}};if(!redemption){set.status=503;return {error:'Redemption is unavailable'}};return redemption.status(who,params.id)})
+    .post('/api/redemptions/:id/approve',async({headers,params,set})=>{const who=account(headers.authorization);if(!who){set.status=401;return {error:'Unauthorized'}};if(!allowRedemption||!redemption){set.status=503;return {error:'Redemption is unavailable'}};if(!enrolled(who)){set.status=403;return {error:'This wallet is not enrolled in the demo'}};if(limited()){set.status=429;return {error:'Try again later'}};const result=await redemption.authorize(who,params.id);cachedCapacity=null;return result})
+    .post('/api/redemptions/:id/claim',async({headers,params,set})=>{const who=account(headers.authorization);if(!who){set.status=401;return {error:'Unauthorized'}};if(!redemption){set.status=503;return {error:'Redemption is unavailable'}};if(limited()){set.status=429;return {error:'Try again later'}};const result=await redemption.claim(who,params.id);cachedCapacity=null;return result})
+    .post('/api/redemptions/:id/refund',async({headers,params,set})=>{const who=account(headers.authorization);if(!who){set.status=401;return {error:'Unauthorized'}};if(!redemption){set.status=503;return {error:'Redemption is unavailable'}};if(limited()){set.status=429;return {error:'Try again later'}};const result=await redemption.reconcileRefund(who,params.id);cachedCapacity=null;return result})
+    .post('/api/redemptions/:id/rejected',async({headers,params,body,set})=>{const who=account(headers.authorization);if(!who){set.status=401;return {error:'Unauthorized'}};if(!redemption){set.status=503;return {error:'Redemption is unavailable'}};if(limited()){set.status=429;return {error:'Try again later'}};return redemption.reconcileRejection(who,params.id,body.transactionHash)}, {body:t.Object({transactionHash:t.String({minLength:32,maxLength:50})})})
 }
