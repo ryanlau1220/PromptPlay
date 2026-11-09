@@ -49,7 +49,7 @@ export function Redemption() {
   const [newKey, setNewKey] = useState('')
   const [copiedKey, setCopiedKey] = useState(false)
   const [copiedSnippet, setCopiedSnippet] = useState(false)
-  const [activeSnippetTab, setActiveSnippetTab] = useState<'opencode' | 'pi' | 'curl'>('opencode')
+  const [activeSnippetTab, setActiveSnippetTab] = useState<'opencode' | 'pi' | 'codex' | 'curl'>('opencode')
 
   const [usage, setUsage] = useState<
     Array<{
@@ -519,7 +519,7 @@ export function Redemption() {
               </button>
             </div>
 
-            <p>Set PROMPTPLAY_API_KEY to your gateway key. OpenCode 1.18.21: opencode.json; Pi 0.73.1: ~/.pi/agent/models.json.</p>
+            <p>Set PROMPTPLAY_API_KEY to your gateway key. The Codex settings disable web search, plugins and multi-agent features; other MCP tools may be unsupported.</p>
             <div className="code-tabs-container">
               <div className="code-tabs-header">
                 <button
@@ -535,6 +535,13 @@ export function Redemption() {
                   onClick={() => setActiveSnippetTab('pi')}
                 >
                   Pi 0.73
+                </button>
+                <button
+                  type="button"
+                  className={`code-tab-btn ${activeSnippetTab === 'codex' ? 'active' : ''}`}
+                  onClick={() => setActiveSnippetTab('codex')}
+                >
+                  Codex 0.166
                 </button>
                 <button
                   type="button"
