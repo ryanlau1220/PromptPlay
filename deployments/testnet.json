@@ -1,5 +1,41 @@
 {
   "network": "testnet",
+  "responsesGateway": {
+    "scope": "local operator gateway; funded allowance and Nebius inference",
+    "provider": "Nebius Token Factory",
+    "model": "Qwen/Qwen3-30B-A3B-Instruct-2507",
+    "account": "arcade-a.ryanlau1220.testnet",
+    "toolStreamAllowanceBefore": 4707873,
+    "toolStreamAllowanceAfter": 4707851,
+    "codexAllowanceAfter": 4706614,
+    "codexVersion": "0.166.0",
+    "codexFileRead": true,
+    "codexRestrictions": "isolated bubblewrap workspace; web search, plugins, apps and multi-agent disabled; stateless Responses; reasoning effort none"
+  },
+  "arcadeSettlement": {
+    "accountId": "arcade.ryanlau1220.testnet",
+    "token": "token.ryanlau1220.testnet",
+    "sourceCommit": "678cb92ca3d29429f99a2c41c725b90026ece377",
+    "wasmSha256": "4fed549a5981d673917466ed94655124fa9c94e8c1ae21a88ea948bdbd8fdf2f",
+    "deploymentTransaction": "GjRo3qMdbQMi1xWvt7uQrnR5AAy6zwFzb8nv2bxu1apY",
+    "tokenRegistrationTransaction": "BDUCvsprjwFxXWA8MziZR4wpvTMMoLFaczGrDJsN1Qb5",
+    "sdkVerifiedMatch": {
+      "id": "0",
+      "game": "tic-tac-toe",
+      "outcome": "Tie",
+      "stakeBaseUnits": "1000000",
+      "players": ["arcade-a.ryanlau1220.testnet", "arcade-b.ryanlau1220.testnet"],
+      "payoutTransactions": ["BYor5ZPFj8E7P6LLbP7C4kmt3vpHeR3smH4zui74pst7", "9H1oe6oWAjTzu5RwiDu2zcofDZEVMqi7FcmYLTDPtycT"]
+    },
+    "browserVerifiedMatch": {
+      "id": "2",
+      "game": "tic-tac-toe",
+      "outcome": "Tie",
+      "stakeBaseUnits": "1000000",
+      "players": ["arcade-a.ryanlau1220.testnet", "arcade-b.ryanlau1220.testnet"],
+      "payoutTransactions": ["592GFcExeArPywqo6AzyBp8ufJHGPR8wWEcauPf21eV5", "59piN9fsyDPYt8ZfcTvGuJKR9ZTgkHQos1ZJvaioUu47"]
+    }
+  },
   "computeCredit": {
     "accountId": "token.ryanlau1220.testnet",
     "issuer": "ryanlau1220.testnet",
