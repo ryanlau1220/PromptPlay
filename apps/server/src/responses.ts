@@ -114,6 +114,29 @@ export function responsesTools(tools: unknown, choice: unknown, parallel: unknow
   return options
 }
 
+/** Map the supported Responses text formats to Chat Completions. */
+export function responsesFormat(value:unknown):unknown {
+  if(value===undefined)return undefined
+  const settings=record(value);only(settings,['format'])
+  const format=record(settings.format)
+  if(format.type==='text' || format.type==='json_object') {only(format,['type']);return {type:format.type}}
+  if(format.type!=='json_schema')throw new RequestError('Unsupported Responses format',400)
+  only(format,['type','name','description','schema','strict'])
+  const name=text(format.name,64)
+  if(!/^[a-zA-Z0-9_-]+$/.test(name) || !format.schema || typeof format.schema!=='object' || Array.isArray(format.schema) || (format.strict!==undefined && typeof format.strict!=='boolean'))throw new RequestError('Unsupported Responses format',400)
+  return {type:'json_schema',json_schema:{name,schema:format.schema,...(format.description!==undefined?{description:text(format.description,1000)}:{}),...(format.strict!==undefined?{strict:format.strict}:{})}}
+}
+export function chatFormat(value:unknown):unknown {
+  if(value===undefined)return undefined
+  const format=record(value)
+  if(format.type==='text' || format.type==='json_object') {only(format,['type']);return {type:format.type}}
+  if(format.type!=='json_schema')throw new RequestError('Unsupported response format',400)
+  only(format,['type','json_schema'])
+  const schema=record(format.json_schema)
+  only(schema,['name','description','schema','strict'])
+  return responsesFormat({format:{type:'json_schema',...schema}})
+}
+
 /** Convert metered Chat Completions SSE into stateless Responses SSE. */
 export function responsesStream(source: ReadableStream<Uint8Array>, model: string): ReadableStream<Uint8Array> {
   const reader = source.getReader(),

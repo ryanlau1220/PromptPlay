@@ -1,5 +1,5 @@
 export type ChatMessage = { role: 'system' | 'developer' | 'user' | 'assistant' | 'tool'; content: string | null | Array<{type:'text';text:string}|{type:'image_url';image_url:{url:string;detail?:'auto'|'low'|'high'}}> ; tool_calls?: unknown; tool_call_id?: string; name?: string; reasoning_content?: string }
-export type ChatOptions = { tools?: unknown[]; tool_choice?: unknown; parallel_tool_calls?: boolean; temperature?: number }
+export type ChatOptions = { tools?: unknown[]; tool_choice?: unknown; parallel_tool_calls?: boolean; temperature?: number; response_format?: unknown }
 export type Completion = { text: string | null; toolCalls?: unknown[]; reasoningContent?: string; inputTokens: number; outputTokens: number; finishReason: string }
 export type StreamEvent = { data?: string; usage?: { inputTokens:number; outputTokens:number } }
 export type ProviderCapabilities = { streaming:boolean; toolCalls:boolean; images?:boolean }

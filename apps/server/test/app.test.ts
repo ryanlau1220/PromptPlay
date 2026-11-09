@@ -6,6 +6,23 @@ import { Accounting } from '../src/accounting'
 import { Redemption } from '../src/redemption'
 import { createApp } from '../src/app'
 import { GatewayKeys } from '../src/keys'
+test('structured response formats are validated and forwarded for chat and Responses',async()=>{
+ const {Gateway}=await import('../src/gateway')
+ const db=new Database(':memory:'),rpc=new JsonRpcProvider({url:'https://test.rpc.fastnear.com'}),ledger=new Accounting(db,1000),auth=new WalletAuth(db,rpc,async()=>{}),redemption=new Redemption(db,ledger,rpc),keys=new GatewayKeys(db)
+ ledger.creditReceipt('format-r','format-i','alice.testnet',1000);const key=keys.create('alice.testnet',1000)
+ let received:unknown
+ const provider={async complete(_messages:unknown,_max:number,options:unknown){received=options;return {text:'{"ok":true}',inputTokens:2,outputTokens:2,finishReason:'stop'}}}
+ const gateway=new Gateway(ledger,keys,provider,'model',{inputMicrosPerMillion:1000000,outputMicrosPerMillion:2000000,microsPerUnit:1000000,contextTokens:100,maxOutputTokens:10})
+ const app=createApp({auth,redemption,ledger,keys,gateway,faucet:null,allowRedemption:false,redemptionAllowlist:new Set(),origin:'http://localhost:3000'})
+ const send=(path:string,body:unknown)=>app.handle(new Request('http://localhost'+path,{method:'POST',headers:{'content-type':'application/json',authorization:`Bearer ${key.key}`},body:JSON.stringify(body)}))
+ const schema={name:'result',schema:{type:'object',properties:{ok:{type:'boolean'}},required:['ok'],additionalProperties:false},strict:true}
+ expect((await send('/v1/responses',{model:'model',input:'hello',max_output_tokens:10,text:{format:{type:'json_schema',...schema}}})).status).toBe(200)
+ expect(received).toMatchObject({response_format:{type:'json_schema',json_schema:schema}})
+ expect((await send('/v1/chat/completions',{model:'model',messages:[{role:'user',content:'hello'}],max_tokens:10,response_format:{type:'json_schema',json_schema:schema}})).status).toBe(200)
+ expect(received).toMatchObject({response_format:{type:'json_schema',json_schema:schema}})
+ expect((await send('/v1/responses',{model:'model',input:'hello',text:{format:{type:'json_schema',name:'bad name',schema:{}}}})).status).toBe(400)
+ expect(ledger.usage('alice.testnet')).toHaveLength(2);db.close()
+})
 test('image inputs require an enabled provider and forward bounded inline images',async()=>{
  const {Gateway}=await import('../src/gateway')
  const db=new Database(':memory:'),rpc=new JsonRpcProvider({url:'https://test.rpc.fastnear.com'}),ledger=new Accounting(db,1000),auth=new WalletAuth(db,rpc,async()=>{}),redemption=new Redemption(db,ledger,rpc),keys=new GatewayKeys(db)
