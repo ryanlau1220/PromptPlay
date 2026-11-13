@@ -1,4 +1,15 @@
 {
+  "multiRoundRps": {
+    "accountId": "game2.ryanlau1220.testnet",
+    "deploymentTransaction": "9hseGNWCKBoTds2aSnoevBQJ6n3aZ7Xusvr2dLexmf1h",
+    "registrationTransaction": "BgC2FzT5gFibdF65Pq7hH3UXHcPkFWV4kxiro5HnGHz9",
+    "eventUpgradeTransaction": "H7FsBwmPVv97Yp5ZfYtn8ANbixhXpQ9px5o7uLEfwhph",
+    "codeHash": "DtB4aKoTBVfJLqPUSLoyXrgyrdgNmnKaq1zYEFRdH7Ks",
+    "twoWalletMatch": "0",
+    "eventReplayMatch": "1",
+    "pushVerificationMatch": "3",
+    "pushVerificationPayout": "D36kn5CyprFoBVs4EggaWqbq5BdJ8PPi27rPfgx9sv6P"
+  },
   "redemptionEscrow": {
     "network": "testnet",
     "owner": "ryanlau1220.testnet",
