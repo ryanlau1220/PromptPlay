@@ -39,6 +39,8 @@ pub struct Match {
     phase: Phase,
     deadline: U64,
     winner: Option<AccountId>,
+    round: u32,
+    wins: [u8; 2],
 }
 
 #[ext_contract(ext_ft)]
@@ -81,6 +83,22 @@ fn deadline() -> U64 {
         .checked_add(PHASE_NS)
         .expect("Timestamp overflow"))
 }
+fn emit(event: &str, m: &Match) {
+    let mut key = b"events:".to_vec();
+    key.extend_from_slice(&m.id.0.to_le_bytes());
+    let previous = env::storage_read(&key)
+        .map(|bytes| u64::from_le_bytes(bytes.try_into().expect("Invalid event sequence")))
+        .unwrap_or(0);
+    let sequence = previous.checked_add(1).expect("Event sequence exhausted");
+    env::storage_write(&key, &sequence.to_le_bytes());
+    env::log_str(&format!(
+        "EVENT_JSON:{}",
+        near_sdk::serde_json::json!({
+            "standard": "promptplay_rps", "version": "1.0.0", "event": event,
+            "data": [{"sequence": U64(sequence), "match": m}]
+        })
+    ));
+}
 fn refund(m: &mut Match) {
     for p in &mut m.players {
         if p.funded {
@@ -118,22 +136,27 @@ impl Contract {
         require!(stake.0 > 0 && stake.0 <= u128::MAX / 2, "Invalid stake");
         let id = self.next_id;
         self.next_id = id.checked_add(1).expect("Match IDs exhausted");
-        self.matches.insert(
-            &id,
-            &Match {
-                id: U64(id),
-                stake,
-                players: [player(caller), player(opponent)],
-                phase: Phase::Funding,
-                deadline: deadline(),
-                winner: None,
-            },
-        );
+        let game = Match {
+            id: U64(id),
+            stake,
+            players: [player(caller), player(opponent)],
+            phase: Phase::Funding,
+            deadline: deadline(),
+            winner: None,
+            round: 1,
+            wins: [0, 0],
+        };
+        self.matches.insert(&id, &game);
+        emit("match_created", &game);
         U64(id)
     }
 
     pub fn get_match(&self, match_id: U64) -> Option<Match> {
         self.matches.get(&match_id.0)
+    }
+
+    pub fn get_match_count(&self) -> U64 {
+        U64(self.next_id)
     }
 
     pub fn commit_move(&mut self, match_id: U64, commitment: Base64VecU8) {
@@ -155,6 +178,7 @@ impl Contract {
             m.deadline = deadline();
         }
         self.matches.insert(&match_id.0, &m);
+        emit("move_committed", &m);
     }
 
     /// SHA-256 of domain, length-prefixed contract and account IDs, match ID (LE u64), round (LE u32), move and 32-byte secret.
@@ -174,7 +198,7 @@ impl Contract {
             bytes.extend_from_slice(part);
         }
         bytes.extend_from_slice(&match_id.0.to_le_bytes());
-        bytes.extend_from_slice(&1u32.to_le_bytes());
+        bytes.extend_from_slice(&m.round.to_le_bytes());
         bytes.push(choice);
         bytes.extend_from_slice(&secret.0);
         require!(
@@ -183,14 +207,27 @@ impl Contract {
             "Commitment mismatch"
         );
         m.players[i].revealed = Some(choice);
+        emit("move_revealed", &m);
         if let (Some(a), Some(b)) = (m.players[0].revealed, m.players[1].revealed) {
-            if a == b {
-                refund(&mut m);
-                m.phase = Phase::Completed;
-            } else if (a + 3 - b) % 3 == 1 {
-                award(&mut m, 0);
+            if a != b {
+                let winner = if (a + 3 - b) % 3 == 1 { 0 } else { 1 };
+                m.wins[winner] += 1;
+                if m.wins[winner] == 2 {
+                    award(&mut m, winner);
+                }
+            }
+            emit("round_resolved", &m);
+            if m.phase != Phase::Completed {
+                m.round = m.round.checked_add(1).expect("Rounds exhausted");
+                for player in &mut m.players {
+                    player.commitment = None;
+                    player.revealed = None;
+                }
+                m.phase = Phase::Committing;
+                m.deadline = deadline();
+                emit("round_started", &m);
             } else {
-                award(&mut m, 1);
+                emit("match_resolved", &m);
             }
         }
         self.matches.insert(&match_id.0, &m);
@@ -215,6 +252,7 @@ impl Contract {
             _ => env::panic_str("Match already resolved"),
         }
         self.matches.insert(&match_id.0, &m);
+        emit("timeout_resolved", &m);
     }
 
     #[payable]
@@ -231,6 +269,7 @@ impl Contract {
         m.players[i].pending = true;
         let recipient = m.players[i].account.clone();
         self.matches.insert(&match_id.0, &m);
+        emit("payout_started", &m);
         ext_ft::ext(self.token.clone())
             .with_attached_deposit(NearToken::from_yoctonear(1))
             .with_static_gas(Gas::from_tgas(15))
@@ -253,6 +292,14 @@ impl Contract {
             p.claim = amount;
         }
         self.matches.insert(&match_id.0, &m);
+        emit(
+            if success {
+                "payout_succeeded"
+            } else {
+                "payout_failed"
+            },
+            &m,
+        );
         success
     }
 }
@@ -290,6 +337,7 @@ impl FungibleTokenReceiver for Contract {
             m.deadline = deadline();
         }
         self.matches.insert(&id, &m);
+        emit("stake_funded", &m);
         PromiseOrValue::Value(U128(0))
     }
 }
@@ -298,7 +346,7 @@ impl FungibleTokenReceiver for Contract {
 mod tests {
     use super::*;
     use near_sdk::{
-        test_utils::{VMContextBuilder, accounts},
+        test_utils::{VMContextBuilder, accounts, get_logs},
         testing_env,
     };
 
@@ -318,6 +366,25 @@ mod tests {
         c.create_match(accounts(1), U128(10));
         c
     }
+    #[test]
+    fn emits_structured_nep297_match_events() {
+        let mut contract = setup();
+        let log = get_logs().last().unwrap().clone();
+        let event: near_sdk::serde_json::Value =
+            near_sdk::serde_json::from_str(log.strip_prefix("EVENT_JSON:").unwrap()).unwrap();
+        assert_eq!(event["standard"], "promptplay_rps");
+        assert_eq!(event["version"], "1.0.0");
+        assert_eq!(event["event"], "match_created");
+        assert_eq!(event["data"][0]["match"]["id"], "0");
+        assert_eq!(event["data"][0]["sequence"], "1");
+        deposit(&mut contract, accounts(4), accounts(0), 10);
+        let log = get_logs().last().unwrap().clone();
+        let event: near_sdk::serde_json::Value =
+            near_sdk::serde_json::from_str(log.strip_prefix("EVENT_JSON:").unwrap()).unwrap();
+        assert_eq!(event["event"], "stake_funded");
+        assert_eq!(event["data"][0]["match"]["players"][0]["funded"], true);
+        assert_eq!(event["data"][0]["sequence"], "2");
+    }
     fn deposit(c: &mut Contract, token: AccountId, sender: AccountId, amount: u128) -> u128 {
         ctx(token, 2, NearToken::from_yoctonear(0));
         match c.ft_on_transfer(sender, U128(amount), "0".into()) {
@@ -326,13 +393,22 @@ mod tests {
         }
     }
     fn hash(id: u64, account: &AccountId, choice: u8, secret: &[u8; 32]) -> Base64VecU8 {
+        hash_round(id, account, 1, choice, secret)
+    }
+    fn hash_round(
+        id: u64,
+        account: &AccountId,
+        round: u32,
+        choice: u8,
+        secret: &[u8; 32],
+    ) -> Base64VecU8 {
         let mut bytes = b"PromptPlay:RPS:v1".to_vec();
         for part in [accounts(5).as_bytes(), account.as_bytes()] {
             bytes.extend_from_slice(&(part.len() as u32).to_le_bytes());
             bytes.extend_from_slice(part);
         }
         bytes.extend_from_slice(&id.to_le_bytes());
-        bytes.extend_from_slice(&1u32.to_le_bytes());
+        bytes.extend_from_slice(&round.to_le_bytes());
         bytes.push(choice);
         bytes.extend_from_slice(secret);
         Base64VecU8(env::sha256(&bytes))
@@ -364,24 +440,58 @@ mod tests {
                 fund(&mut c);
                 for (who, choice) in [(accounts(0), a), (accounts(1), b)] {
                     ctx(who.clone(), 3, NearToken::from_yoctonear(0));
-                    c.commit_move(U64(0), hash(0, &who, choice, &[choice; 32]));
+                    c.commit_move(U64(0), hash_round(0, &who, 1, choice, &[choice; 32]));
                 }
                 for (who, choice) in [(accounts(0), a), (accounts(1), b)] {
                     ctx(who, 4, NearToken::from_yoctonear(0));
                     c.reveal_move(U64(0), choice, Base64VecU8(vec![choice; 32]));
                 }
                 let m = c.get_match(U64(0)).unwrap();
-                assert!(m.phase == Phase::Completed);
-                let expected = if a == b {
-                    (10, 10)
-                } else if (a + 3 - b) % 3 == 1 {
-                    (20, 0)
-                } else {
-                    (0, 20)
-                };
-                assert_eq!((m.players[0].claim.0, m.players[1].claim.0), expected);
+                assert!(m.phase == Phase::Committing);
+                assert_eq!(m.round, 2);
+                assert_eq!(m.players[0].claim.0, 0);
+                assert_eq!(m.players[1].claim.0, 0);
+                assert_eq!(
+                    m.wins,
+                    if a == b {
+                        [0, 0]
+                    } else if (a + 3 - b) % 3 == 1 {
+                        [1, 0]
+                    } else {
+                        [0, 1]
+                    }
+                );
+                assert!(
+                    m.players
+                        .iter()
+                        .all(|p| p.commitment.is_none() && p.revealed.is_none())
+                );
             }
         }
+    }
+    #[test]
+    fn first_to_two_wins_settles_once_after_tied_round() {
+        let mut c = setup();
+        fund(&mut c);
+        for (round, a, b) in [(1, 0, 0), (2, 0, 2), (3, 1, 0)] {
+            for (who, choice) in [(accounts(0), a), (accounts(1), b)] {
+                ctx(
+                    who.clone(),
+                    3 + u64::from(round) * 2,
+                    NearToken::from_yoctonear(0),
+                );
+                c.commit_move(U64(0), hash_round(0, &who, round, choice, &[choice; 32]));
+            }
+            for (who, choice) in [(accounts(0), a), (accounts(1), b)] {
+                ctx(who, 4 + u64::from(round) * 2, NearToken::from_yoctonear(0));
+                c.reveal_move(U64(0), choice, Base64VecU8(vec![choice; 32]));
+            }
+        }
+        let m = c.get_match(U64(0)).unwrap();
+        assert!(m.phase == Phase::Completed);
+        assert_eq!(m.wins, [2, 0]);
+        assert_eq!(m.players[0].claim.0, 20);
+        assert_eq!(m.players[1].claim.0, 0);
     }
     #[test]
     fn one_reveal_wins_on_timeout() {
@@ -484,8 +594,16 @@ mod tests {
             ctx(who.clone(), 3, NearToken::from_yoctonear(0));
             c.commit_move(U64(0), hash(0, &who, choice, &[4; 32]));
         }
-        for (who, choice) in [(alice, 0), (bob, 2)] {
+        for (who, choice) in [(alice.clone(), 0), (bob.clone(), 2)] {
             ctx(who, 4, NearToken::from_yoctonear(0));
+            c.reveal_move(U64(0), choice, Base64VecU8(vec![4; 32]));
+        }
+        for (who, choice) in [(alice.clone(), 0), (bob.clone(), 2)] {
+            ctx(who.clone(), 5, NearToken::from_yoctonear(0));
+            c.commit_move(U64(0), hash_round(0, &who, 2, choice, &[4; 32]));
+        }
+        for (who, choice) in [(alice, 0), (bob, 2)] {
+            ctx(who, 6, NearToken::from_yoctonear(0));
             c.reveal_move(U64(0), choice, Base64VecU8(vec![4; 32]));
         }
         let bytes = env::storage_usage() - before;

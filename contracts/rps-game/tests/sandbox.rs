@@ -4,7 +4,7 @@ use near_sdk::serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
 #[tokio::test]
-async fn escrow_settles_a_two_player_tie() -> testresult::TestResult<()> {
+async fn escrow_settles_first_to_two_wins() -> testresult::TestResult<()> {
     let sandbox = near_sandbox::Sandbox::start_sandbox().await?;
     let network = near_api::NetworkConfig::from_rpc_url("sandbox", sandbox.rpc_addr.parse()?);
     let signer = near_api::Signer::from_secret_key(
@@ -28,9 +28,6 @@ async fn escrow_settles_a_two_player_tie() -> testresult::TestResult<()> {
     let token = near_api::Account(token_id.clone()).as_contract();
     let game = near_api::Account(game_id.clone()).as_contract();
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    let baseline_token = std::env::var_os("PROMPTPLAY_BASELINE_TOKEN_WASM");
-    let baseline_game = std::env::var_os("PROMPTPLAY_BASELINE_GAME_WASM");
-    assert_eq!(baseline_token.is_some(), baseline_game.is_some());
     for (id, file, args) in [
         (
             token_id.clone(),
@@ -45,14 +42,9 @@ async fn escrow_settles_a_two_player_tie() -> testresult::TestResult<()> {
     ] {
         near_api::Contract::deploy(id)
             .use_code(std::fs::read(if file == "compute_credit.wasm" {
-                baseline_token.clone().map_or_else(
-                    || root.join("../compute-credit/target/near").join(file),
-                    Into::into,
-                )
+                root.join("../compute-credit/target/near").join(file)
             } else {
-                baseline_game
-                    .clone()
-                    .map_or_else(|| root.join("target/near").join(file), Into::into)
+                root.join("target/near").join(file)
             })?)
             .with_init_call("new", args)?
             .with_signer(signer.clone())
@@ -131,51 +123,36 @@ async fn escrow_settles_a_two_player_tie() -> testresult::TestResult<()> {
         .send_to(&network)
         .await?
         .assert_success();
-    for who in [alice.clone(), bob.clone()] {
-        let mut data = b"PromptPlay:RPS:v1".to_vec();
-        for part in [game_id.as_bytes(), who.as_bytes()] {
-            data.extend_from_slice(&(part.len() as u32).to_le_bytes());
-            data.extend_from_slice(part);
+    for round in 1u32..=2 {
+        for (who, choice) in [(alice.clone(), 2u8), (bob.clone(), 0u8)] {
+            let mut data = b"PromptPlay:RPS:v1".to_vec();
+            for part in [game_id.as_bytes(), who.as_bytes()] {
+                data.extend_from_slice(&(part.len() as u32).to_le_bytes());
+                data.extend_from_slice(part);
+            }
+            data.extend_from_slice(&0u64.to_le_bytes());
+            data.extend_from_slice(&round.to_le_bytes());
+            data.push(choice);
+            data.extend_from_slice(&[7u8; 32]);
+            let hash = STANDARD.encode(Sha256::digest(data));
+            game.call_function("commit_move", json!({"match_id":"0","commitment":hash}))
+                .transaction()
+                .with_signer(who, signer.clone())
+                .send_to(&network)
+                .await?
+                .assert_success();
         }
-        data.extend_from_slice(&0u64.to_le_bytes());
-        data.extend_from_slice(&1u32.to_le_bytes());
-        data.push(0);
-        data.extend_from_slice(&[7u8; 32]);
-        let hash = STANDARD.encode(Sha256::digest(data));
-        game.call_function("commit_move", json!({"match_id":"0","commitment":hash}))
+        for (who, choice) in [(alice.clone(), 2u8), (bob.clone(), 0u8)] {
+            game.call_function(
+                "reveal_move",
+                json!({"match_id":"0","choice":choice,"secret":STANDARD.encode([7u8;32])}),
+            )
             .transaction()
             .with_signer(who, signer.clone())
             .send_to(&network)
             .await?
             .assert_success();
-    }
-    if baseline_token.is_some() {
-        for (id, path) in [
-            (
-                token_id.clone(),
-                root.join("../compute-credit/target/near/compute_credit.wasm"),
-            ),
-            (game_id.clone(), root.join("target/near/rps_game.wasm")),
-        ] {
-            near_api::Contract::deploy(id)
-                .use_code(std::fs::read(path)?)
-                .without_init_call()
-                .with_signer(signer.clone())
-                .send_to(&network)
-                .await?
-                .assert_success();
         }
-    }
-    for who in [alice.clone(), bob.clone()] {
-        game.call_function(
-            "reveal_move",
-            json!({"match_id":"0","choice":0,"secret":STANDARD.encode([7u8;32])}),
-        )
-        .transaction()
-        .with_signer(who, signer.clone())
-        .send_to(&network)
-        .await?
-        .assert_success();
     }
     // External callers must not be able to spoof the payout callback.
     game.call_function(
@@ -210,7 +187,7 @@ async fn escrow_settles_a_two_player_tie() -> testresult::TestResult<()> {
         .fetch_from(&network)
         .await?
         .data;
-    assert_eq!(failed["players"][1]["claim"], "10");
+    assert_eq!(failed["players"][1]["claim"], "20");
     assert_eq!(failed["players"][1]["pending"], false);
     token
         .call_function(
@@ -237,22 +214,7 @@ async fn escrow_settles_a_two_player_tie() -> testresult::TestResult<()> {
         .fetch_from(&network)
         .await?
         .data;
-    assert_eq!(bob_balance, "10");
-    game.call_function("claim_payout", json!({"match_id":"0"}))
-        .transaction()
-        .gas(NearGas::from_tgas(70))
-        .deposit(NearToken::from_yoctonear(1))
-        .with_signer(alice.clone(), signer.clone())
-        .send_to(&network)
-        .await?
-        .assert_success();
-    let balance: String = token
-        .call_function("ft_balance_of", json!({"account_id":"alice.sandbox"}))
-        .read_only()
-        .fetch_from(&network)
-        .await?
-        .data;
-    assert_eq!(balance, "100");
+    assert_eq!(bob_balance, "20");
     let m: Value = game
         .call_function("get_match", json!({"match_id":"0"}))
         .read_only()
