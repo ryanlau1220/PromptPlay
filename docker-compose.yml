@@ -6,12 +6,16 @@ services:
     ports:
       - "127.0.0.1:3001:3001"
     environment:
-      APP_ORIGIN: http://localhost:3000
+      APP_ORIGIN: ${APP_ORIGIN:-http://localhost:3000}
       PROMPTPLAY_FAUCET_ENABLED: ${PROMPTPLAY_FAUCET_ENABLED:-false}
       FAUCET_KEY_PATH: /run/secrets/faucet-key.json
       PROMPTPLAY_LIVE_INFERENCE: ${PROMPTPLAY_LIVE_INFERENCE:-false}
       PROMPTPLAY_PROVIDER_AUTHORIZED: ${PROMPTPLAY_PROVIDER_AUTHORIZED:-false}
       REDEMPTION_ALLOWLIST: ${REDEMPTION_ALLOWLIST:-}
+      ESCROW_ACCOUNT: ${ESCROW_ACCOUNT:-}
+      ESCROW_OWNER: ${ESCROW_OWNER:-}
+      ESCROW_CODE_HASH: ${ESCROW_CODE_HASH:-}
+      ESCROW_KEY_PATH: /run/secrets/escrow-key.json
       PROMPTPLAY_PROVIDER_FUNDED: ${PROMPTPLAY_PROVIDER_FUNDED:-false}
       INFERENCE_BASE_URL: ${INFERENCE_BASE_URL:-https://cloud-api.near.ai/v1}
       INFERENCE_MODEL: ${INFERENCE_MODEL:-zai-org/GLM-5.1-FP8}
@@ -28,6 +32,7 @@ services:
     volumes:
       - promptplay-data:/data
       - ${FAUCET_KEY_FILE:-./apps/server/.env.example}:/run/secrets/faucet-key.json:ro
+      - ${ESCROW_KEY_FILE:-./apps/server/.env.example}:/run/secrets/escrow-key.json:ro
   web:
     build:
       context: .

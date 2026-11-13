@@ -10,6 +10,7 @@
     "generate-routes": "vite build",
     "build": "bun run --bun vite build",
     "preview": "vite preview",
+    "start": "bun serve.mjs",
     "typecheck": "bun run --bun tsc --noEmit",
     "test": "bun test"
   },
