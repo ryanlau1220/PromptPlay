@@ -77,6 +77,12 @@ export function Redemption() {
     setKeys(k.keys)
     setUsage(u.requests)
 
+    // Existing gateway allowance remains usable when escrow is not configured.
+    if (!config?.escrowAccount) {
+      setIntent(null)
+      setIntentHistory([])
+      return
+    }
     const saved = localStorage.getItem(slot)
     const list=await request<{intents:Array<{id:string;rejected:number}>}>('/api/redemptions','GET',undefined,token)
     setIntentHistory(list.intents)
@@ -91,7 +97,7 @@ export function Redemption() {
       if(!saved)localStorage.setItem(slot,JSON.stringify({id,submitted:state.deposit!==null}))
     }
 
-  }, [session, request, slot, refreshConfig, account])
+  }, [session, request, slot, refreshConfig, account, config?.escrowAccount])
 
   useEffect(() => {
     setIntent(previous => previous?.account_id === account ? previous : null)
@@ -231,17 +237,17 @@ export function Redemption() {
                 width: '10px',
                 height: '10px',
                 borderRadius: '50%',
-                background: config?.redemptionAvailable ? 'var(--emerald)' : 'var(--amber)'
+                background: config?.model ? 'var(--emerald)' : 'var(--amber)'
               }}
             />
             <span style={{ fontSize: '20px' }}>
-              {!config ? 'CONNECTING' : config.redemptionAvailable ? 'ENABLED' : 'DISABLED'}
+              {!config ? 'CONNECTING' : config.model ? 'ENABLED' : 'DISABLED'}
             </span>
           </span>
           <span className="hint">
-            {!config ? 'Checking gateway' : config.redemptionAvailable ? `${config.provider} · ${config.model}` : 'Live redemption unavailable'}
+            {!config ? 'Checking gateway' : config.model ? `${config.provider} · ${config.model}` : 'Gateway unavailable'}
           </span>
-          {config?.redemptionAvailable && <span className="hint">Chat completions{config.capabilities?.streaming ? ' · Streaming' : ''}{config.capabilities?.toolCalls ? ' · Tool calls' : ''}</span>}
+          {config?.model && <span className="hint">Chat completions{config.capabilities?.streaming ? ' · Streaming' : ''}{config.capabilities?.toolCalls ? ' · Tool calls' : ''}</span>}
         </div>
       </div>
 
@@ -336,7 +342,7 @@ export function Redemption() {
                 <button type="button"
                   className="btn-primary"
                   style={{ fontSize: '12px', padding: '6px 14px' }}
-                  disabled={busy || !config.redemptionAvailable}
+                  disabled={busy || !config.model || !balance}
                   onClick={() => void action(createKey)}
                 >
                   <Key size={14} />
