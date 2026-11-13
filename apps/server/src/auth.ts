@@ -5,7 +5,7 @@ import { verifyMessage } from 'near-api-js/nep413'
 import { RequestError } from './errors'
 
 const MESSAGE = 'Sign in to PromptPlay on NEAR Testnet.'
-const RECIPIENT = 'game.ryanlau1220.testnet'
+const RECIPIENT = 'game2.ryanlau1220.testnet'
 const CHALLENGE_MS = 5 * 60_000
 const SESSION_MS = 12 * 60 * 60_000
 const digest = (s:string) => createHash('sha256').update(s).digest('hex')

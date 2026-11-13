@@ -5,6 +5,7 @@ import base64, json, os, re, shutil, signal, socket, subprocess, tempfile, time
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 
+web=os.environ.get('BROWSER_TEST_WEB_URL','http://localhost:3000').rstrip('/')
 extension=Path(os.environ['METEOR_EXTENSION_PATH']).resolve()
 ids=[os.environ['TESTNET_PLAYER_A'],os.environ['TESTNET_PLAYER_B']]
 assert len(set(ids)) == 2 and all(x.endswith('.testnet') for x in ids)
@@ -21,6 +22,7 @@ trace={'network':'testnet','players':ids,'outcome':outcome,'status':'setup','ste
 restart_server=os.environ.get('BROWSER_TEST_RESTART_SERVER')=='true'
 redeem=os.environ.get('BROWSER_TEST_REDEEM')=='true'
 redemption_rejection=os.environ.get('BROWSER_TEST_REDEMPTION_REJECT')=='true'
+push_test=os.environ.get('BROWSER_TEST_PUSH')=='true'
 interrupt_verification=os.environ.get('BROWSER_TEST_INTERRUPT_VERIFICATION')=='true'
 if redeem and outcome!='win': raise ValueError('Browser redemption requires a winning match')
 if redemption_rejection and (not restart_server or redeem): raise ValueError('Redemption rejection requires a test-owned server and cannot be combined with live redemption')
@@ -87,7 +89,7 @@ def waitfor(fn,timeout=30):
   apps[0].wait_for_timeout(200)
  raise RuntimeError('Timed out waiting for browser state')
 def popup(c,previous):
- return waitfor(lambda:next((q for q in c.pages if q not in previous and q.url.startswith('chrome-extension://') and 'ext_index.html?' in q.url and not q.is_closed()),None))
+ return waitfor(lambda:next((q for q in c.pages if q not in previous and q.url.startswith('chrome-extension://') and 'ext_index.html?' in q.url and not q.is_closed()),None),90)
 def wallet_prompt(q,accept=True):
  unlock=q.get_by_role('button',name='Unlock',exact=True);approve_button=q.get_by_role('button',name=re.compile(r'^(Approve|Sign|Sign Message)$',re.I))
  unlock.or_(approve_button).first.wait_for(timeout=30000)
@@ -128,7 +130,7 @@ try:
  with sync_playwright() as p:
   apps=[]
   for i in range(1 if redemption_rejection else 2):
-   c=p.chromium.launch_persistent_context(str(profiles/f'profile-{i}'),channel='chromium',headless=True,args=['--no-sandbox',f'--disable-extensions-except={extension}',f'--load-extension={extension}'])
+   c=p.chromium.launch_persistent_context(str(profiles/f'profile-{i}'),channel='chromium',headless=not push_test,ignore_default_args=['--disable-background-networking'] if push_test else None,args=['--no-sandbox',f'--disable-extensions-except={extension}',f'--load-extension={extension}'])
    contexts.append(c);w=c.service_workers[0] if c.service_workers else c.wait_for_event('serviceworker',timeout=20000)
    network=w.evaluate("async()=>JSON.parse((await chrome.storage.local.get('selectedNetwork')).selectedNetwork || 'null')")
    if network!='testnet': raise RuntimeError('Meteor profile must be set to Testnet')
@@ -136,7 +138,7 @@ try:
    if q.get_by_role('button',name='Unlock').count():q.locator('input[type=password]').fill(password);q.get_by_role('button',name='Unlock').click()
    try: q.get_by_text(ids[i],exact=True).first.wait_for(timeout=15000)
    except Exception: raise RuntimeError('Meteor profile does not contain the expected account; check the extension path and wallet profile') from None
-   a=c.new_page();apps.append(a);a.set_default_timeout(30000);a.goto('http://localhost:3000/#play',wait_until='domcontentloaded');a.wait_for_timeout(3000)
+   a=c.new_page();apps.append(a);a.set_default_timeout(30000);a.goto(web+'/#play',wait_until='domcontentloaded');a.wait_for_timeout(3000)
    if ids[i] not in a.locator('header').inner_text():
     a.get_by_role('button',name='Connect Wallet',exact=True).first.click()
     a.get_by_text('Meteor Wallet',exact=True).click()
@@ -153,7 +155,7 @@ try:
   if redemption_rejection:
    a=apps[0];ca=contexts[0]
    a.evaluate('(key)=>localStorage.removeItem(key)',f'promptplay:redemption:{ids[0]}')
-   a.goto('http://localhost:3000/#redeem',wait_until='domcontentloaded')
+   a.goto(web+'/#redeem',wait_until='domcontentloaded')
    previous=set(ca.pages);a.get_by_role('button',name='Sign NEP-413 Challenge').click(timeout=30000);wallet_prompt(popup(ca,previous))
    with a.expect_response(lambda r:r.url.endswith('/api/redemptions') and r.request.method=='POST' and r.ok) as created:
     a.get_by_role('button',name='Create 1-Unit Intent').click(timeout=30000)
@@ -175,12 +177,12 @@ try:
    raise RejectionComplete()
   a,b=apps;ca,cb=contexts
   if resume:
-   state=chain_view('game.ryanlau1220.testnet','get_match',{'match_id':resume})
-   if not state or state['phase']!='Revealing' or state['stake']!='1000000' or [player['account'] for player in state['players']]!=ids or any(not player['commitment'] or player['revealed'] is not None for player in state['players']): raise RuntimeError('Resume requires these players with both moves committed and neither revealed')
+   state=chain_view('game2.ryanlau1220.testnet','get_match',{'match_id':resume})
+   if not state or state['phase']!='Revealing' or state['round']!=1 or state['stake']!='1000000' or [player['account'] for player in state['players']]!=ids or any(not player['commitment'] or player['revealed'] is not None for player in state['players']): raise RuntimeError('Resume requires the first round with both moves committed and neither revealed')
    match=resume;trace['matchId']=match;save('resuming unrevealed match '+match)
-   for page in apps: page.goto(f'http://localhost:3000/?match={match}#play',wait_until='domcontentloaded')
+   for page in apps: page.goto(f'{web}/?match={match}#play',wait_until='domcontentloaded')
    for i,page in enumerate(apps):
-    key=f'promptplay:testnet:game.ryanlau1220.testnet:{ids[i]}:{match}'
+    key=f'promptplay:testnet:game2.ryanlau1220.testnet:{ids[i]}:{match}:{state["round"]}'
     raw=page.evaluate('(key)=>localStorage.getItem(key)',key)
     if not raw or json.loads(raw).get('choice')!=(0 if i==0 or outcome=='tie' else 2): raise RuntimeError('Saved browser moves do not match the requested outcome; preserve profiles for manual recovery')
   else:
@@ -196,40 +198,48 @@ try:
    match=parse_qs(urlparse(a.url).query).get('match',[None])[0]
    if not match or not match.isdigit():raise RuntimeError('Match ID missing after creation')
    trace['matchId']=match;save('created match '+match)
-   b.goto(f'http://localhost:3000/?match={match}#play',wait_until='domcontentloaded')
+   b.goto(f'{web}/?match={match}#play',wait_until='domcontentloaded')
    sign(ca,a,'Deposit 1 PCC Into Escrow');sign(cb,b,'Deposit 1 PCC Into Escrow')
+   if push_test:
+    ca.grant_permissions(['notifications'],origin=web)
+    previous=set(ca.pages);a.get_by_role('button',name='Notify me').click();wallet_prompt(popup(ca,previous))
+    a.get_by_role('button',name='Notifications enabled').wait_for(timeout=60000);save('match push subscribed')
+    a.evaluate("async id => {for (const n of await (await navigator.serviceWorker.ready).getNotifications()) if (n.tag === `match-${id}`) n.close()}",match)
    sign(ca,a,'Rock');sign(cb,b,'Rock' if outcome=='tie' else 'Scissors')
   if restart_server:
    save('restarting test-owned server during reveal')
    stop_server();start_server();save('test-owned server restarted')
   a.reload(wait_until='domcontentloaded');save('refreshed before reveal')
   sign(ca,a,'Reveal Secret Move');sign(cb,b,'Reveal Secret Move')
-  if outcome=='tie':
-   a.get_by_text('Match Tied',exact=False).first.wait_for(timeout=30000)
-   sign(ca,a,'Claim 1 PCC Payout');sign(cb,b,'Claim 1 PCC Payout')
-  else:
-   a.get_by_text('Victory!',exact=False).first.wait_for(timeout=30000)
-   sign(ca,a,'Claim 2 PCC Payout')
-  state=chain_view('game.ryanlau1220.testnet','get_match',{'match_id':match})
-  if state['id']!=match or state['stake']!='1000000' or state['phase']!='Completed' or state['winner']!=(None if outcome=='tie' else ids[0]) or any(player['claim']!='0' or player['pending'] for player in state['players']): raise RuntimeError('Final on-chain match state did not match the browser result')
+  # A tie advances to another round; the match ends when either player wins twice.
+  for _ in range(2 if outcome=='tie' else 1):
+   sign(ca,a,'Rock');sign(cb,b,'Scissors')
+   sign(ca,a,'Reveal Secret Move');sign(cb,b,'Reveal Secret Move')
+  a.get_by_text('Victory!',exact=False).first.wait_for(timeout=30000)
+  if push_test:
+   waitfor(lambda:a.evaluate("async id => (await (await navigator.serviceWorker.ready).getNotifications()).some(n => n.tag === `match-${id}`)",match),120)
+   save('match push delivered')
+  sign(ca,a,'Claim 2 PCC Payout')
+  state=chain_view('game2.ryanlau1220.testnet','get_match',{'match_id':match})
+  if state['id']!=match or state['stake']!='1000000' or state['phase']!='Completed' or state['winner']!=ids[0] or state['wins']!=[2,0] or any(player['claim']!='0' or player['pending'] for player in state['players']): raise RuntimeError('Final on-chain match state did not match the browser result')
   if [player['account'] for player in state['players']]!=ids or not all(player['funded'] and player['commitment'] and player['revealed'] is not None for player in state['players']): raise RuntimeError('On-chain players or moves did not match')
   def payout(receipt,recipient,amount):
    if receipt['outcome']['executor_id']!='token.ryanlau1220.testnet' or 'SuccessValue' not in receipt['outcome']['status']: return False
    for line in receipt['outcome']['logs']:
     if not line.startswith('EVENT_JSON:'): continue
     event=json.loads(line[len('EVENT_JSON:'):])
-    if event.get('standard')=='nep141' and event.get('event')=='ft_transfer' and any(item.get('old_owner_id')=='game.ryanlau1220.testnet' and item.get('new_owner_id')==recipient and item.get('amount')==amount for item in event.get('data',[])): return True
+    if event.get('standard')=='nep141' and event.get('event')=='ft_transfer' and any(item.get('old_owner_id')=='game2.ryanlau1220.testnet' and item.get('new_owner_id')==recipient and item.get('amount')==amount for item in event.get('data',[])): return True
    return False
-  claims=[item['hash'] for item in trace['transactions'] if item['step']==('Claim 1 PCC Payout' if outcome=='tie' else 'Claim 2 PCC Payout')]
-  recipients=ids if outcome=='tie' else ids[:1]
+  claims=[item['hash'] for item in trace['transactions'] if item['step']=='Claim 2 PCC Payout']
+  recipients=ids[:1]
   if len(claims)!=len(recipients): raise RuntimeError('Missing claim transaction')
   for claim,recipient in zip(claims,recipients):
    tx=chain_call('tx',{'tx_hash':claim,'sender_account_id':recipient,'wait_until':'FINAL'})
-   if tx['final_execution_status']!='FINAL' or tx['transaction']['signer_id']!=recipient or tx['transaction']['receiver_id']!='game.ryanlau1220.testnet' or base64.b64decode(tx['status'].get('SuccessValue','')).decode()!='true': raise RuntimeError('Claim transaction did not complete')
-   if not any(payout(receipt,recipient,'1000000' if outcome=='tie' else '2000000') for receipt in tx['receipts_outcome']): raise RuntimeError('Successful PCC payout receipt missing')
+   if tx['final_execution_status']!='FINAL' or tx['transaction']['signer_id']!=recipient or tx['transaction']['receiver_id']!='game2.ryanlau1220.testnet' or base64.b64decode(tx['status'].get('SuccessValue','')).decode()!='true': raise RuntimeError('Claim transaction did not complete')
+   if not any(payout(receipt,recipient,'2000000') for receipt in tx['receipts_outcome']): raise RuntimeError('Successful PCC payout receipt missing')
   if redeem:
    save('opening browser redemption')
-   a.goto('http://localhost:3000/#redeem',wait_until='domcontentloaded')
+   a.goto(web+'/#redeem',wait_until='domcontentloaded')
    previous=set(ca.pages);a.get_by_role('button',name='Sign NEP-413 Challenge').click(timeout=30000);wallet_prompt(popup(ca,previous))
    previous_redemption=a.get_by_role('button',name='Create another redemption')
    abandoned=a.get_by_role('button',name='Start another',exact=True)

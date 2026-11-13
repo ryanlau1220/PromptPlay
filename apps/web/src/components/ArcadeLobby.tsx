@@ -107,7 +107,7 @@ export function ArcadeLobby() {
     let active = true
     const secret = crypto.getRandomValues(new Uint8Array(32))
     setExample(null)
-    void commitment('example.testnet', '0', simulatedChoice, secret).then((hash) => {
+    void commitment('example.testnet', '0', 1, simulatedChoice, secret).then((hash) => {
       if (active) setExample({ salt: base64(secret), hash })
     })
     return () => { active = false }
@@ -301,15 +301,15 @@ export function ArcadeLobby() {
             </div>
 
             <div className="status-col">
-              <div className="status-col-header status-next-header">
-                <span className="status-dot status-dot-next" />
-                <span>Coming Next</span>
+              <div className="status-col-header status-live-header">
+                <span className="status-dot status-dot-live" />
+                <span>Available &amp; tested</span>
               </div>
               <ul className="status-list">
                 {[
                   ['Best-of-Two-Wins Rounds', 'Multi-round match structure'],
                   ['Match History Projection', 'On-chain event replay & stats'],
-                  ['Agent-Finished Notifications', 'Browser push when match resolves'],
+                  ['Match Notifications', 'Browser push when match resolves'],
                   ['NEP-297 Contract Events', 'Structured on-chain event log'],
                 ].map(([title, sub], i) => (
                   <motion.li
@@ -319,7 +319,7 @@ export function ArcadeLobby() {
                     animate={{ opacity: stage >= 9 ? 1 : 0, x: stage >= 9 ? 0 : 10 }}
                     transition={{ ...SPRING.snappy, delay: stage >= 9 ? 0.1 + i * 0.07 : 0 }}
                   >
-                    <span className="status-badge status-badge-next">→</span>
+                    <span className="status-badge status-badge-live">✓</span>
                     <div>
                       <div className="status-item-title">{title}</div>
                       <div className="status-item-sub">{sub}</div>

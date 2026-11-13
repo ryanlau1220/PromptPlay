@@ -9,6 +9,10 @@ import { Gateway } from './gateway'
 import { createProvider, providerConfig, verifyProviderModel } from './provider'
 import { Faucet } from './faucet'
 import { freezeEconomy } from './economy'
+import { MatchNotifications } from './match-notifications'
+import { MatchEvents } from './match-events'
+import * as webpush from 'web-push'
+import { GAME } from '../../web/src/lib/game'
 
 const cap=Number(process.env.INFERENCE_CAP_MICROUNITS ?? '1000000')
 const db=new Database(process.env.DATABASE_PATH ?? 'promptplay.sqlite', {create:true})
@@ -57,6 +61,17 @@ if(process.env.PROMPTPLAY_FAUCET_ENABLED==='true') {
     return result.transaction.hash
   })
 }
-const app=createApp({auth,redemption,ledger,keys,gateway,faucet,redemptionAllowlist,allowRedemption:gateway !== null && redemption !== null,origin:process.env.APP_ORIGIN ?? 'http://localhost:3000'})
+let notifications:MatchNotifications|null=null
+if(process.env.PUSH_PUBLIC_KEY && process.env.PUSH_PRIVATE_KEY && process.env.PUSH_SUBJECT){
+  webpush.setVapidDetails(process.env.PUSH_SUBJECT,process.env.PUSH_PUBLIC_KEY,process.env.PUSH_PRIVATE_KEY)
+  notifications=new MatchNotifications(db,async id=>await rpc.callFunction({contractId:GAME,method:'get_match',args:{match_id:id},blockQuery:{finality:'final'}}) as Awaited<ReturnType<ConstructorParameters<typeof MatchNotifications>[1]>>,async(subscription,payload)=>{await webpush.sendNotification(subscription,payload)},process.env.PUSH_PUBLIC_KEY)
+  let polling=false
+  setInterval(()=>{if(polling)return;polling=true;void notifications?.poll().catch(()=>console.error('Match notification polling failed')).finally(()=>{polling=false})},15000).unref()
+}
+const history=new MatchEvents(db,new JsonRpcProvider({url:'https://archival-rpc.testnet.near.org'}),GAME)
+let indexing=false,historyRetryAfter=0
+const syncHistory=()=>{if(indexing || Date.now()<historyRetryAfter)return;indexing=true;void history.sync().catch(()=>{historyRetryAfter=Date.now()+60000;console.error('Match event indexing delayed')}).finally(()=>{indexing=false})}
+syncHistory();setInterval(syncHistory,15000).unref()
+const app=createApp({auth,redemption,ledger,keys,gateway,faucet,redemptionAllowlist,notifications,matchEvents:history,allowRedemption:gateway !== null && redemption !== null,origin:process.env.APP_ORIGIN ?? 'http://localhost:3000'})
 app.listen({hostname:process.env.HOST ?? '127.0.0.1',port:Number(process.env.PORT ?? '3001')})
 console.log(`PromptPlay server listening on ${app.server?.port}`)

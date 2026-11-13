@@ -9,9 +9,11 @@ import type { ChatMessage, ChatOptions } from './provider'
 import type { Faucet } from './faucet'
 import { RequestError, UpstreamError } from './errors'
 import { chatFormat, responsesFormat, responsesInput, responsesStream, responsesTools } from './responses'
+import type { MatchNotifications } from './match-notifications'
+import type { MatchEvents } from './match-events'
 
-type Services = {auth:WalletAuth; redemption:EscrowRedemption|null; ledger:Accounting; allowRedemption:boolean; origin:string; keys:GatewayKeys; gateway:Gateway|null; faucet:Faucet|null; redemptionAllowlist:Set<string>}
-export function createApp({auth, redemption, ledger, allowRedemption, origin, keys, gateway, faucet, redemptionAllowlist}:Services) {
+type Services = {auth:WalletAuth; redemption:EscrowRedemption|null; ledger:Accounting; allowRedemption:boolean; origin:string; keys:GatewayKeys; gateway:Gateway|null; faucet:Faucet|null; redemptionAllowlist:Set<string>; notifications?:MatchNotifications|null; matchEvents?:MatchEvents|null}
+export function createApp({auth, redemption, ledger, allowRedemption, origin, keys, gateway, faucet, redemptionAllowlist, notifications, matchEvents}:Services) {
   const socketRates=new Map<string,number>()
   const limited=()=>auth.limited()
   const token=(header:string|undefined)=>header?.startsWith('Bearer ') ? header.slice(7) : ''
@@ -40,6 +42,10 @@ export function createApp({auth, redemption, ledger, allowRedemption, origin, ke
       close(ws){socketRates.delete(ws.id);ws.unsubscribe(`room:${ws.data.params.id}`);ws.publish(`room:${ws.data.params.id}`,{type:'resync_required'})},
     })
     .get('/health',()=>({ok:true}))
+    .get('/api/notifications/config',()=>({publicKey:notifications?.publicKey ?? null}))
+    .get('/api/matches/:id/events',({params,set})=>{if(!matchEvents){set.status=503;return {error:'Match events are unavailable'}};if(!/^\d{1,20}$/.test(params.id)){set.status=400;return {error:'Invalid match'}};return {events:matchEvents.events(params.id)}})
+    .post('/api/match-events',async({body,set})=>{if(!matchEvents){set.status=503;return {error:'Match events are unavailable'}};if(limited()){set.status=429;return {error:'Try again later'}};await matchEvents.ingest(body.hash,body.signer);return {ok:true}}, {body:t.Object({hash:t.String({pattern:'^[1-9A-HJ-NP-Za-km-z]{32,50}$'}),signer:t.String({pattern:'^[a-z0-9._-]{2,64}$'})})})
+    .post('/api/matches/:id/notifications',async({headers,params,body,set})=>{const who=account(headers.authorization);if(!who){set.status=401;return {error:'Unauthorized'}};if(!notifications){set.status=503;return {error:'Notifications are unavailable'}};if(limited()){set.status=429;return {error:'Try again later'}};return notifications.subscribe(who,params.id,body)}, {body:t.Object({endpoint:t.String({maxLength:2048}),keys:t.Object({p256dh:t.String({maxLength:100}),auth:t.String({maxLength:50})})})})
     .get('/config',async()=>{let units:number|null=null;if(allowRedemption && gateway && redemption){try{units=await capacity()}catch{console.error('Escrow capacity is unavailable')}}return {network:'testnet',redemptionAvailable:units!==null,redemptionUnitsAvailable:units,escrowAccount:redemption?.escrowAccount ?? null,pccPerUnit:'5',provider:gateway?.providerName ?? null,model:gateway?.model ?? null,capabilities:gateway?.capabilities ?? null,contextTokens:gateway?.contextTokens ?? null,faucetAvailable:faucet !== null,microsPerUnit:gateway?.maxUnitCostMicros ?? null,maxOutputTokens:gateway?.maxOutputTokens ?? null}})
     .post('/api/auth/challenge',({set})=>{if(limited()){set.status=429;return {error:'Try again later'}};return auth.challenge()})
     .post('/api/auth/verify',async({body,set})=>{if(limited()){set.status=429;return {error:'Try again later'}};return auth.signIn(body)}, {body:t.Object({challengeId:t.String({minLength:1,maxLength:64}),accountId:t.String({minLength:2,maxLength:64}),publicKey:t.String({minLength:1,maxLength:64}),signature:t.String({minLength:1,maxLength:128})})})

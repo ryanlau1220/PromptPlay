@@ -2,7 +2,8 @@ import { describe, expect, test } from 'bun:test'
 import { amount, commitment, confirmStakeTransfer, pcc } from '../src/lib/game'
 describe('game client encoding', () => {
   test('matches the Rust commitment byte encoding', async () => {
-    expect(await commitment('player.testnet','42',2,Uint8Array.from({length:32},(_,i)=>i))).toBe('Oalzh2rozyM3V6tAIU3k/QWytN4KcaWcoxq8YoFv1cs=')
+    expect(await commitment('player.testnet','42',1,2, Uint8Array.from({length:32},(_,i)=>i))).toBe('KT9oaOWHW2YbpYYnLgD7G7amYDR6eLcY22iLJumReJk=')
+    expect(await commitment('player.testnet','42',2,2, Uint8Array.from({length:32},(_,i)=>i))).not.toBe('KT9oaOWHW2YbpYYnLgD7G7amYDR6eLcY22iLJumReJk=')
   })
   test('uses integer PCC base units', () => {
     expect(amount('12.000001')).toBe('12000001'); expect(pcc('12000001')).toBe('12.000001')

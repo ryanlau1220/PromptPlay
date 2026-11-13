@@ -34,6 +34,7 @@ import {
   type Secret
 } from '../lib/game'
 import { useSession } from './Session'
+import { MatchHistory } from './MatchHistory'
 
 const SNAP = { type: 'spring', stiffness: 420, damping: 24 } as const
 
@@ -56,7 +57,10 @@ export function GameRoom() {
   const [copiedLink, setCopiedLink] = useState(false)
   const [registered, setRegistered] = useState<boolean | null>(null)
   const [now, setNow] = useState(Date.now())
-  const [selectedMove, setSelectedMove] = useState<number | null>(null)
+  const [selectedMove, setSelectedMove] = useState<{match:string;round:number;choice:number} | null>(null)
+  const [notificationBusy, setNotificationBusy] = useState(false)
+  const [notificationMatch, setNotificationMatch] = useState('')
+  const indexing = useRef(false)
 
   const confettiFired = useRef<string | null>(null)
 
@@ -77,6 +81,49 @@ export function GameRoom() {
   }, [checkRegistration])
 
   const me = room?.players.find((p) => p.account === account)
+
+  const syncEvents = useCallback(async () => {
+    if (!account || indexing.current) return
+    indexing.current = true
+    const key=`promptplay:events:${GAME}:${account}`
+    try {
+      let queue: string[] = JSON.parse(localStorage.getItem(key) ?? '[]')
+      while (queue.length) {
+        await request('/api/match-events','POST',{hash:queue[0],signer:account})
+        const current: string[] = JSON.parse(localStorage.getItem(key) ?? '[]')
+        queue=current.filter(hash=>hash!==queue[0]);localStorage.setItem(key,JSON.stringify(queue))
+      }
+    } catch { /* Retry when the index or RPC recovers. */ }
+    finally { indexing.current = false }
+  },[account,request])
+  useEffect(()=>{void syncEvents();const timer=window.setInterval(()=>void syncEvents(),30000);return()=>window.clearInterval(timer)},[syncEvents])
+
+
+  async function subscribeToMatch() {
+    if (!room || !('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+      setMessage('Push notifications are not supported by this browser.')
+      return
+    }
+    setNotificationBusy(true)
+    try {
+      if (await Notification.requestPermission() !== 'granted') throw new Error('Notification permission was not granted.')
+      const {publicKey} = await request<{publicKey:string|null}>('/api/notifications/config')
+      if (!publicKey) throw new Error('Match notifications are unavailable.')
+      const registration = await navigator.serviceWorker.register('/push-worker.js')
+      const ready = await navigator.serviceWorker.ready
+      const subscription = await ready.pushManager.getSubscription() ?? await registration.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:Uint8Array.from(atob(publicKey.replace(/-/g,'+').replace(/_/g,'/')),c=>c.charCodeAt(0))})
+      const auth=token || await login()
+      const {endpoint,keys}=subscription.toJSON()
+      if(!endpoint || !keys?.p256dh || !keys.auth)throw new Error('Invalid browser push subscription.')
+      await request(`/api/matches/${encodeURIComponent(room.id)}/notifications`,'POST',{endpoint,keys:{p256dh:keys.p256dh,auth:keys.auth}},auth)
+      setNotificationMatch(room.id)
+      setMessage('Match notification enabled.')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Could not enable notifications.')
+    } finally {
+      setNotificationBusy(false)
+    }
+  }
 
   // Trigger win confetti
   useEffect(() => {
@@ -177,6 +224,12 @@ export function GameRoom() {
     if (!outcome.status || typeof outcome.status !== 'object' || !('SuccessValue' in outcome.status)) {
       throw new Error('Transaction was not confirmed on-chain. Refresh match state before retrying.')
     }
+    if(outcome.transaction?.hash){
+      const key=`promptplay:events:${GAME}:${account}`
+      const queue:string[]=JSON.parse(localStorage.getItem(key) ?? '[]')
+      if(!queue.includes(outcome.transaction.hash))localStorage.setItem(key,JSON.stringify([...queue,outcome.transaction.hash]))
+      void syncEvents()
+    }
     return getTransactionLastResult(outcome)
   }
 
@@ -263,8 +316,8 @@ export function GameRoom() {
 
   async function choose(choice: number) {
     if (!room || !me) return
-    setSelectedMove(choice)
-    const key = secretKey(account, room.id)
+    setSelectedMove({match:room.id,round:room.round,choice})
+    const key = secretKey(account, room.id, room.round)
     let saved: Secret | null = null
     const existing = localStorage.getItem(key)
 
@@ -278,7 +331,7 @@ export function GameRoom() {
       saved = {
         choice,
         secret: base64(secret),
-        commitment: await commitment(account, room.id, choice, secret)
+        commitment: await commitment(account, room.id, room.round, choice, secret)
       }
       localStorage.setItem(key, JSON.stringify(saved))
     }
@@ -293,12 +346,12 @@ export function GameRoom() {
 
   async function reveal() {
     if (!room || !me) return
-    const raw = localStorage.getItem(secretKey(account, room.id))
+    const raw = localStorage.getItem(secretKey(account, room.id, room.round))
     if (!raw) {
       throw new Error('Saved move secret not found in this browser. Reveal must happen on the same device.')
     }
     const saved = JSON.parse(raw) as Secret
-    const computed = await commitment(account, room.id, saved.choice, fromBase64(saved.secret))
+    const computed = await commitment(account, room.id, room.round, saved.choice, fromBase64(saved.secret))
     if (computed !== saved.commitment || !me.commitment || base64(Uint8Array.from(me.commitment)) !== computed) {
       throw new Error('Locally saved move does not match the on-chain commitment hash.')
     }
@@ -348,6 +401,8 @@ export function GameRoom() {
 
   return (
     <div className="arena-container">
+      {room && <div>Round {room.round} · {room.players[0].account}: {room.wins[0]} — {room.players[1].account}: {room.wins[1]} {me && !['Completed','Cancelled'].includes(room.phase) && <button type="button" disabled={notificationBusy || notificationMatch === room.id} onClick={()=>void subscribeToMatch()}>{notificationMatch === room.id ? 'Notifications enabled' : 'Notify me'}</button>}</div>}
+      <MatchHistory key={account} account={account} onSelect={matchId=>{setRoom(null);setId(matchId);window.history.replaceState(null,'',`?match=${matchId}#play`)}} />
       {/* ARENA TOPBAR */}
       <div className="arena-topbar">
         <a href="#arcade" className="back-btn">
@@ -532,7 +587,7 @@ export function GameRoom() {
             <div>
               <div className="move-selection-deck">
                 {movesList.map((move, i) => {
-                  const selected = selectedMove === move.id
+                  const selected = selectedMove?.match === room.id && selectedMove.round === room.round && selectedMove.choice === move.id
                   return (
                     <motion.button
                       key={move.id}
