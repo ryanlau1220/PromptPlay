@@ -45,7 +45,8 @@ export class EscrowRedemption {
       if(allocated!==0n)throw new Error('Escrow must be empty at initialization')
       const exists=this.db.query("SELECT 1 FROM sqlite_master WHERE type='table' AND name='redemption_intents'").get()
       if(exists){
-        const pending=this.db.query("SELECT COUNT(*) AS count FROM redemption_intents WHERE receipt_id IS NULL AND EXISTS(SELECT 1 FROM redemption_attempts WHERE intent_id=redemption_intents.id) AND NOT EXISTS(SELECT 1 FROM redemption_failures WHERE intent_id=redemption_intents.id)").get() as {count:number}
+        const failures=this.db.query("SELECT 1 FROM sqlite_master WHERE type='table' AND name='redemption_failures'").get()
+        const pending=this.db.query(`SELECT COUNT(*) AS count FROM redemption_intents WHERE receipt_id IS NULL AND EXISTS(SELECT 1 FROM redemption_attempts WHERE intent_id=redemption_intents.id) ${failures?'AND NOT EXISTS(SELECT 1 FROM redemption_failures WHERE intent_id=redemption_intents.id)':''}`).get() as {count:number}
         if(pending.count)throw new Error('Reconcile previous payment attempts before switching')
       }
       const {issued}=this.db.query('SELECT COALESCE(SUM(amount),0) AS issued FROM receipts').get() as {issued:number}

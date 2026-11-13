@@ -65,6 +65,12 @@ test('initial cap accounts for previous issuance and blocks pending legacy payme
  const g=fixture();g.db.exec("CREATE TABLE redemption_intents(id TEXT,receipt_id TEXT);CREATE TABLE redemption_attempts(intent_id TEXT);CREATE TABLE redemption_failures(intent_id TEXT);INSERT INTO redemption_intents VALUES ('x',NULL);INSERT INTO redemption_attempts VALUES ('x')")
  await expect(g.service.initialize()).rejects.toThrow('Reconcile previous');g.db.close()
 })
+test('accepts settled older ledgers without a failures table but blocks unresolved attempts',async()=>{
+ const f=fixture();f.db.exec("CREATE TABLE redemption_intents(id TEXT,receipt_id TEXT);CREATE TABLE redemption_attempts(intent_id TEXT);INSERT INTO redemption_intents VALUES ('x','receipt');INSERT INTO redemption_attempts VALUES ('x')")
+ await f.service.initialize();f.db.close()
+ const g=fixture();g.db.exec("CREATE TABLE redemption_intents(id TEXT,receipt_id TEXT);CREATE TABLE redemption_attempts(intent_id TEXT);INSERT INTO redemption_intents VALUES ('x',NULL);INSERT INTO redemption_attempts VALUES ('x')")
+ await expect(g.service.initialize()).rejects.toThrow('Reconcile previous');g.db.close()
+})
 test('chain adapter pins code and uses the same finalized block for views',async()=>{
  const hash='1'.repeat(44),calls:unknown[]=[]
  const rpc={getNetworkId:async()=> 'testnet',viewAccount:async()=>({code_hash:hash,block_hash:'block'}),callFunction:async(input:unknown)=>{calls.push(input);return {token:'token.testnet',owner:'owner.testnet',treasury:'treasury.testnet',cap:'3',allocated:'0'}},viewAccessKey:async()=>({permission:{FunctionCall:{receiver_id:'escrow.testnet',method_names:['approve']}}})} as unknown as JsonRpcProvider
