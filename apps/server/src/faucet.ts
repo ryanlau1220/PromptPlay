@@ -6,8 +6,8 @@ const AMOUNT='10000000'
 type Transfer = (account:string,amount:string)=>Promise<string>
 /** One claim per authenticated account; pending claims are never retried automatically. */
 export class Faucet {
-  constructor(private db:Database,private rpc:JsonRpcProvider,private transfer:Transfer,private maxClaims=10){
-    if(!Number.isSafeInteger(maxClaims)||maxClaims<1||maxClaims>10)throw new Error('Invalid faucet limit')
+  constructor(private db:Database,private rpc:JsonRpcProvider,private transfer:Transfer,private maxClaims=1000){
+    if(!Number.isSafeInteger(maxClaims)||maxClaims<1||maxClaims>1000)throw new Error('Invalid faucet limit')
     db.exec("CREATE TABLE IF NOT EXISTS faucet_claims (account_id TEXT PRIMARY KEY, state TEXT NOT NULL CHECK(state IN ('pending','complete')), tx_hash TEXT, created INTEGER NOT NULL)")
   }
   status(account:string){return this.db.query('SELECT state,tx_hash,created FROM faucet_claims WHERE account_id=?').get(account) ?? null}
