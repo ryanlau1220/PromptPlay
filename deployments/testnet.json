@@ -5,10 +5,13 @@
     "registrationTransaction": "BgC2FzT5gFibdF65Pq7hH3UXHcPkFWV4kxiro5HnGHz9",
     "eventUpgradeTransaction": "H7FsBwmPVv97Yp5ZfYtn8ANbixhXpQ9px5o7uLEfwhph",
     "codeHash": "DtB4aKoTBVfJLqPUSLoyXrgyrdgNmnKaq1zYEFRdH7Ks",
+    "wasmSha256": "bf683db8c59ea3d45338451ee9375fd8b5ca42b73f9b0ee30c4da05b76c8cbde",
     "twoWalletMatch": "0",
     "eventReplayMatch": "1",
     "pushVerificationMatch": "3",
-    "pushVerificationPayout": "D36kn5CyprFoBVs4EggaWqbq5BdJ8PPi27rPfgx9sv6P"
+    "pushVerificationPayout": "D36kn5CyprFoBVs4EggaWqbq5BdJ8PPi27rPfgx9sv6P",
+    "closedTabPushMatch": "4",
+    "closedTabPushPayout": "733b1DKfcUL1Pj5Dy7nNnr1L46zriYhoVqoMsuqmVa2X"
   },
   "redemptionEscrow": {
     "network": "testnet",

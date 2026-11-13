@@ -102,10 +102,19 @@ try {
   const contracts = [
     await verifyCode(evidence.computeCredit, '../contracts/compute-credit/target/reproducible/compute_credit.wasm'),
     await verifyCode(evidence.rpsGame, '../contracts/rps-game/target/reproducible/rps_game.wasm'),
+    await verifyCode(evidence.multiRoundRps, '../contracts/rps-game/target/deployed/rps_game.wasm'),
     await verifyCode(evidence.arcadeSettlement, '../contracts/arcade-settlement/target/near/arcade_settlement.wasm')
   ]
   const matches = []
   for (const match of [evidence.rpsGame.verifiedMatch, evidence.rpsGame.meteorBrowserMatch, evidence.rpsGame.meteorBrowserTie, evidence.rpsGame.journeyMatch, evidence.rpsGame.automatedMeteorMatch, evidence.rpsGame.automatedMeteorTie, evidence.rpsGame.automatedMeteorRestart, evidence.rpsGame.automatedBrowserRedemption, evidence.rpsGame.upgradedBrowserMatch]) matches.push(await verifyMatch(match))
+  const multi = evidence.multiRoundRps
+  const multiQuery = await rpc('query', {request_type:'call_function',finality:'final',account_id:multi.accountId,method_name:'get_match',args_base64:Buffer.from(JSON.stringify({match_id:multi.pushVerificationMatch})).toString('base64')})
+  const multiMatch = JSON.parse(Buffer.from(multiQuery.result).toString())
+  assert.equal(multiMatch.phase,'Completed');assert.deepEqual(multiMatch.wins,[2,0]);assert.equal(multiMatch.winner,multiMatch.players[0].account)
+  assert.ok(multiMatch.players.every(player=>player.claim==='0' && !player.pending))
+  const multiPayout=await rpc('tx',{tx_hash:multi.pushVerificationPayout,sender_account_id:multiMatch.winner,wait_until:'FINAL'})
+  assert.equal(multiPayout.final_execution_status,'FINAL');assert.equal(multiPayout.transaction.receiver_id,multi.accountId)
+  assert.ok(transferEvent(multiPayout,multi.accountId,multiMatch.winner,(BigInt(multiMatch.stake)*2n).toString()),'Missing multi-round payout')
 
   const payments = [evidence.redemptionTreasury.openCodeGatewaySmokeTest, evidence.redemptionTreasury.localOperatorGatewaySmokeTest, evidence.redemptionTreasury.journeyPayment, evidence.redemptionTreasury.browserRecoveryPayment, evidence.redemptionTreasury.upgradedBrowserPayment]
   for (const payment of payments) {
@@ -119,7 +128,7 @@ try {
   }
 
   const arcadeMatches = await Promise.all([evidence.arcadeSettlement.sdkVerifiedMatch, evidence.arcadeSettlement.browserVerifiedMatch].map(verifyArcadeMatch))
-  console.log(JSON.stringify({ checkedAt: new Date().toISOString(), network: status.chain_id, contracts, matches, arcadeMatches,
+  console.log(JSON.stringify({ checkedAt: new Date().toISOString(), network: status.chain_id, contracts, matches, arcadeMatches, multiRoundMatch:multiMatch.id,
     operatorPayments: payments.map(payment => ({ transaction: payment.transferTransaction, amountBaseUnits: payment.amountBaseUnits })),
     limitations: 'Read-only chain evidence; does not reproduce browser wallet interactions, infer linkage between match and payment, or verify a live inference request.' }, null, 2))
 } catch (error) {
