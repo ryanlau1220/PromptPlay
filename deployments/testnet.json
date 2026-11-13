@@ -1,4 +1,23 @@
 {
+  "redemptionEscrow": {
+    "network": "testnet",
+    "owner": "ryanlau1220.testnet",
+    "contract": "redeem.ryanlau1220.testnet",
+    "token": "token.ryanlau1220.testnet",
+    "treasury": "treasury.ryanlau1220.testnet",
+    "cap": "993",
+    "sha256": "a376af053db2fb64c1880ec7a9257838f36929edf57dc6af11ce00361413df6b",
+    "status": "verified",
+    "deploymentTransaction": "G2zneFhugpHZnw9mvFxaRDtXaE4dmQdxXmLCdPEnF17c",
+    "registrationTransaction": "Bf5BK38cKijqXkE71EpJewhaoDBQsbZy7HJZ9WmLhAxC",
+    "keyTransaction": "8ndHqf2X7zXKTEWqJxwVhgcGaywtUxkDADdXbAhmcPMK",
+    "codeHash": "C16RK7ccsQQWhqnJbGUGvzL6CKwHeLChmmvSNvNj5sdU",
+    "browserVerification": {"matchId": "30", "depositTransaction": "8scn6NncJbdW8TfAwZtDqgVpqHutbp1tUGvqZc8DCMc", "scope": "Meteor wallet deposit and consume, interrupted claim recovered once, live Nebius inference"},
+    "scope": "Testnet contract; public wallet enrollment on local gateway",
+    "faucetMintTransaction": "3NCmzJsyZRSEwhn6vySEykYqktyzvJfXhhBoEVQqcxHR",
+    "faucetAdditionalBaseUnits": "9900000000",
+    "faucetMaximumWalletClaims": 1000
+  },
   "network": "testnet",
   "responsesGateway": {
     "scope": "local operator gateway; funded allowance and Nebius inference",
