@@ -126,6 +126,9 @@ export function Redemption() {
   async function createIntent() {
     const created = await request<{id:string}>('/api/redemptions', 'POST', {})
     localStorage.setItem(slot, JSON.stringify({ id: created.id }))
+    setIntent({id:created.id,account_id:account,deposit:null,reservation:null,rejected:false})
+    setSubmitted(false)
+    setDepositHash('')
     await refresh()
   }
 

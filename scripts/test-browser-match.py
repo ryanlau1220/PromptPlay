@@ -232,10 +232,15 @@ try:
    a.goto('http://localhost:3000/#redeem',wait_until='domcontentloaded')
    previous=set(ca.pages);a.get_by_role('button',name='Sign NEP-413 Challenge').click(timeout=30000);wallet_prompt(popup(ca,previous))
    previous_redemption=a.get_by_role('button',name='Create another redemption')
-   previous_redemption.or_(a.get_by_role('button',name='Create 1-Unit Intent')).first.wait_for(timeout=30000)
+   abandoned=a.get_by_role('button',name='Start another',exact=True)
+   ready_create=a.get_by_role('button',name='Create 1-Unit Intent').and_(a.locator('button:enabled'))
+   previous_redemption.or_(abandoned).or_(ready_create).first.wait_for(timeout=60000)
    if previous_redemption.is_visible(): previous_redemption.click()
-   a.get_by_role('button',name='Create 1-Unit Intent').click(timeout=30000)
+   elif abandoned.is_visible(): abandoned.click()
+   with a.expect_response(lambda r:r.url.endswith('/api/redemptions') and r.request.method=='POST' and r.ok,timeout=60000):
+    a.get_by_role('button',name='Create 1-Unit Intent').click(timeout=30000)
    save('created redemption intent')
+   a.get_by_role('button',name='Deposit PCC').wait_for(timeout=60000)
    previous=set(ca.pages);a.get_by_role('button',name='Deposit PCC').click();wallet_prompt(popup(ca,previous))
    for _ in range(30):
     if a.get_by_role('button',name='Authorize and consume').count(): break
