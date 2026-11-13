@@ -7,7 +7,7 @@ const server = Bun.serve({
   port: Number(process.env.PORT || 3000),
   async fetch(request) {
     const path = new URL(request.url).pathname
-    if (path.startsWith('/assets/') || path.startsWith('/hands/') || ['/favicon.svg', '/favicon-32.png', '/apple-touch-icon.png'].includes(path)) {
+    if (path.startsWith('/assets/') || path.startsWith('/hands/') || ['/favicon.svg', '/favicon-32.png', '/apple-touch-icon.png', '/push-worker.js'].includes(path)) {
       const filePath = resolve(assets, `.${path}`)
       if (!filePath.startsWith(`${assets}${sep}`)) return new Response('Not found', { status: 404 })
       const file = Bun.file(filePath)
