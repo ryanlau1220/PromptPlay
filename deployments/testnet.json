@@ -12,7 +12,7 @@
     "registrationTransaction": "Bf5BK38cKijqXkE71EpJewhaoDBQsbZy7HJZ9WmLhAxC",
     "keyTransaction": "8ndHqf2X7zXKTEWqJxwVhgcGaywtUxkDADdXbAhmcPMK",
     "codeHash": "C16RK7ccsQQWhqnJbGUGvzL6CKwHeLChmmvSNvNj5sdU",
-    "browserVerification": {"matchId": "30", "depositTransaction": "8scn6NncJbdW8TfAwZtDqgVpqHutbp1tUGvqZc8DCMc", "scope": "Meteor wallet deposit and consume, interrupted claim recovered once, live Nebius inference"},
+    "browserVerification": {"matchId": "30", "depositTransaction": "8scn6NncJbdW8TfAwZtDqgVpqHutbp1tUGvqZc8DCMc", "scope": "Meteor wallet deposit and consume, interrupted claim recovered once, live Nebius inference; public HTTPS wallet session, inference and OpenCode file-read verified"},
     "scope": "Testnet contract; public wallet enrollment on local gateway",
     "faucetMintTransaction": "3NCmzJsyZRSEwhn6vySEykYqktyzvJfXhhBoEVQqcxHR",
     "faucetAdditionalBaseUnits": "9900000000",
