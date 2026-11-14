@@ -1,6 +1,9 @@
 .git
 .agents
 tmp
+data
+backups
+secrets
 **/node_modules
 **/dist
 **/.tanstack
