@@ -4,10 +4,10 @@ import os
 from playwright.sync_api import expect, sync_playwright
 
 web = os.environ.get("BROWSER_TEST_WEB_URL", "http://localhost:3000")
-profiles = [(390, 844, "reduce"), (1366, 768, "no-preference")]
+profiles = [(320, 700, "reduce", True), (390, 844, "reduce", False), (1366, 768, "no-preference", False)]
 
 with sync_playwright() as playwright:
-    for width, height, motion in profiles:
+    for width, height, motion, light in profiles:
         with playwright.chromium.launch() as browser:
             page = browser.new_page(
                 viewport={"width": width, "height": height}, reduced_motion=motion
@@ -16,7 +16,12 @@ with sync_playwright() as playwright:
             page.on("pageerror", lambda error: errors.append(str(error)))
             page.goto(web)
             expect(page.get_by_role("heading", name="Play while your coding agent runs.")).to_be_visible()
-            assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+            if light:
+                page.get_by_role("button", name="Switch to light mode").click()
+                expect(page.locator("html")).to_have_attribute("data-theme", "light")
+                page.reload()
+                expect(page.locator("html")).to_have_attribute("data-theme", "light")
+            assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), f"Landing overflow at {width}px"
             page.get_by_role("button", name="Claim", exact=True).click()
             expect(page.get_by_text("10 PCC claimed", exact=True)).to_be_visible()
             if motion == "no-preference":
