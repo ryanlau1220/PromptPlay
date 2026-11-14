@@ -25,6 +25,7 @@ restart_server=os.environ.get('BROWSER_TEST_RESTART_SERVER')=='true'
 redeem=os.environ.get('BROWSER_TEST_REDEEM')=='true'
 redemption_rejection=os.environ.get('BROWSER_TEST_REDEMPTION_REJECT')=='true'
 push_test=os.environ.get('BROWSER_TEST_PUSH')=='true'
+headed=push_test or os.environ.get('BROWSER_TEST_HEADED')=='true'
 interrupt_verification=os.environ.get('BROWSER_TEST_INTERRUPT_VERIFICATION')=='true'
 if redeem and outcome!='win': raise ValueError('Browser redemption requires a winning match')
 if redemption_rejection and (not restart_server or redeem): raise ValueError('Redemption rejection requires a test-owned server and cannot be combined with live redemption')
@@ -97,7 +98,16 @@ def wallet_prompt(q,accept=True):
  unlock.or_(approve_button).first.wait_for(timeout=30000)
  if unlock.is_visible():q.locator('input[type=password]').fill(password);unlock.click()
  (approve_button if accept else q.get_by_role('button',name=re.compile(r'^(Reject|Cancel)$',re.I))).click(timeout=30000)
- waitfor(lambda:q.is_closed(),60)
+ def completed():
+  if q.is_closed(): return True
+  try:
+   close=q.get_by_role('button',name='Close Wallet',exact=True)
+   if close.is_visible(): close.click()
+   return q.is_closed()
+  except Exception:
+   if q.is_closed(): return True
+   raise
+ waitfor(completed,60)
 
 def sign(c,a,name):
  save('opening '+name)
@@ -132,7 +142,7 @@ try:
  with sync_playwright() as p:
   apps=[]
   for i in range(1 if redemption_rejection else 2):
-   c=p.chromium.launch_persistent_context(str(profiles/f'profile-{i}'),channel='chromium',headless=not push_test,ignore_default_args=['--disable-background-networking'] if push_test else None,args=['--no-sandbox',f'--disable-extensions-except={extension}',f'--load-extension={extension}'])
+   c=p.chromium.launch_persistent_context(str(profiles/f'profile-{i}'),channel='chromium',headless=not headed,ignore_default_args=['--disable-background-networking'] if headed else None,args=['--no-sandbox',f'--disable-extensions-except={extension}',f'--load-extension={extension}'])
    contexts.append(c);w=c.service_workers[0] if c.service_workers else c.wait_for_event('serviceworker',timeout=20000)
    network=w.evaluate("async()=>JSON.parse((await chrome.storage.local.get('selectedNetwork')).selectedNetwork || 'null')")
    if network!='testnet': raise RuntimeError('Meteor profile must be set to Testnet')
@@ -141,8 +151,11 @@ try:
    try: q.get_by_text(ids[i],exact=True).first.wait_for(timeout=15000)
    except Exception: raise RuntimeError('Meteor profile does not contain the expected account; check the extension path and wallet profile') from None
    a=c.new_page();apps.append(a);a.set_default_timeout(30000);a.goto(web+'/#play',wait_until='domcontentloaded');a.wait_for_timeout(3000)
-   if ids[i] not in a.locator('header').inner_text():
-    a.get_by_role('button',name='Connect Wallet',exact=True).first.click()
+   connected=a.locator('header').get_by_text(ids[i],exact=True)
+   connect_wallet=a.get_by_role('button',name='Connect Wallet',exact=True)
+   connected.or_(connect_wallet).first.wait_for(timeout=60000)
+   if not connected.is_visible():
+    connect_wallet.click()
     a.get_by_text('Meteor Wallet',exact=True).click()
     frame=waitfor(lambda:next((f for f in a.frames if f.get_by_role('button',name='Chrome Extension').count()),None))
     previous=set(c.pages)
