@@ -3,5 +3,10 @@
   "name": "promptplay-web",
   "compatibility_date": "2026-11-01",
   "compatibility_flags": ["nodejs_compat"],
-  "main": "@tanstack/react-start/server-entry"
+  "main": "cloudflare-worker.js",
+  "vpc_services": [{
+    "binding": "PROMPTPLAY_API",
+    "service_id": "01a1da1d-6e34-71b0-9ec2-ce8d336710b3",
+    "remote": true
+  }]
 }

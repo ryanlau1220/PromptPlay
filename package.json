@@ -13,6 +13,7 @@
     "build:contracts": "cd contracts/compute-credit && cargo near build non-reproducible-wasm && cd ../rps-game && cargo near build non-reproducible-wasm && cd ../arcade-settlement && cargo near build non-reproducible-wasm && cd ../redemption-escrow && cargo near build non-reproducible-wasm",
     "build:contracts:release": "bun scripts/build-contracts-release.ts",
     "build:web": "bun run --filter @promptplay/web build",
+    "build:cloudflare": "CLOUDFLARE_BUILD=true VITE_API_URL=https://promptplay-web.ryanlau1220.workers.dev bun run build:web",
     "test": "bun run test:apps && bun run test:contracts",
     "test:apps": "bun run --parallel --filter \"@promptplay/*\" test",
     "test:contracts": "bun run build:contracts && cd contracts/compute-credit && cargo test --lib && cd ../rps-game && cargo test && cd ../arcade-settlement && cargo test && cd ../redemption-escrow && cargo test",
