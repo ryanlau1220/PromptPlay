@@ -1727,3 +1727,9 @@ button:disabled:is(button, .btn-primary, .btn-accent, .move-card-btn) {
   outline: 3px solid var(--text);
   outline-offset: -5px;
 }
+
+.inference-supply {
+  color: var(--text-muted);
+  font-size: 13px;
+  margin-block: 0 18px;
+}

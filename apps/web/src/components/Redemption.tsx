@@ -268,7 +268,7 @@ export function Redemption() {
         <div className="telemetry-card highlight-cyan">
           <span className="label">ACTIVE INFERENCE ALLOWANCE</span>
           <span className="value">
-            {balance === null ? '—' : (balance / 1_000_000).toFixed(4)}{' '}
+            {balance === null ? '—' : pcc(String(balance))}{' '}
             <small style={{ fontSize: '14px', color: 'var(--text-muted)' }}>UNITS</small>
           </span>
           {balance === null && <span className="hint">{session ? 'Allowance unavailable' : 'Sign challenge to inspect'}</span>}
@@ -293,9 +293,7 @@ export function Redemption() {
               }}
             />
             <span style={{ fontSize: '20px' }}>
-              {supply !== null && <p>Testnet token supply · {supply} PCC across all wallets and contract balances</p>}
-
-      {!config ? (configStatus === 'unavailable' ? 'UNREACHABLE' : 'CONNECTING') : config.model ? 'ENABLED' : 'DISABLED'}
+              {!config ? (configStatus === 'unavailable' ? 'UNREACHABLE' : 'CONNECTING') : config.model ? 'ENABLED' : 'DISABLED'}
             </span>
           </span>
           <span className="hint">
@@ -304,6 +302,8 @@ export function Redemption() {
           {config?.model && <span className="hint">Chat completions{config.capabilities?.streaming ? ' · Streaming' : ''}{config.capabilities?.toolCalls ? ' · Tool calls' : ''}</span>}
         </div>
       </div>
+
+      {supply !== null && <p className="inference-supply">Testnet token supply · {supply} PCC across wallets and contracts</p>}
 
       {!config ? (
         <div style={{ textAlign: 'center', padding: '60px 0' }}>
