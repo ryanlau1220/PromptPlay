@@ -1,8 +1,9 @@
 import { useState } from 'react'
-
 import { demoMoves as moves, initialDemoDuel as initial, playDemoRound } from '../lib/compute-demo'
 
 export function ComputeDemo() {
+  const [demand, setDemand] = useState(50)
+  const fundedUnits = Math.min(demand, 50)
   const [duel, setDuel] = useState(initial)
   const [stage, setStage] = useState<'play' | 'claimed' | 'redeemed' | 'used'>('play')
   const won = duel.wins === 2
@@ -40,6 +41,15 @@ export function ComputeDemo() {
         <button className="btn-ghost" type="button" onClick={() => { setDuel(initial); setStage('play') }}>Restart demo</button>
         <a className="btn-ghost" href="#play">Open Testnet duel</a>
       </div>
+      <details>
+        <summary>Simulate redemption demand</summary>
+        <p>Assume 500 PCC in players’ wallets, a fixed 5 PCC per unit, and 50 remaining funded gateway units.</p>
+        <label className="field-label">
+          <span>Requested units: {demand}</span>
+          <input type="range" min="0" max="100" value={demand} onChange={event => setDemand(Number(event.target.value))} />
+        </label>
+        <output>{fundedUnits} units funded · {fundedUnits * 5} PCC transferred · {50 - fundedUnits} units left · {demand - fundedUnits} requests unmet</output>
+      </details>
     </section>
   )
 }
