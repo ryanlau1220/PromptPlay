@@ -68,7 +68,7 @@ if(process.env.PUSH_PUBLIC_KEY && process.env.PUSH_PRIVATE_KEY && process.env.PU
   let polling=false
   setInterval(()=>{if(polling)return;polling=true;void notifications?.poll().catch(()=>console.error('Match notification polling failed')).finally(()=>{polling=false})},15000).unref()
 }
-const history=new MatchEvents(db,new JsonRpcProvider({url:'https://archival-rpc.testnet.near.org'}),GAME)
+const history=new MatchEvents(db,new JsonRpcProvider({url:'https://archival-rpc.testnet.fastnear.com'}),GAME)
 let indexing=false,historyRetryAfter=0
 const syncHistory=()=>{if(indexing || Date.now()<historyRetryAfter)return;indexing=true;void history.sync().catch(()=>{historyRetryAfter=Date.now()+60000;console.error('Match event indexing delayed')}).finally(()=>{indexing=false})}
 syncHistory();setInterval(syncHistory,15000).unref()
