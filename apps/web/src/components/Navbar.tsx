@@ -1,7 +1,7 @@
 import { useNearWallet } from 'near-connect-hooks'
 import { useEffect, useState } from 'react'
 import { Moon, Sun, Terminal, Gamepad2, Cpu, Wallet as WalletIcon, LogOut } from 'lucide-react'
-import { TOKEN } from '../lib/game'
+import { pcc, TOKEN } from '../lib/game'
 import { Brand } from './Brand'
 
 type NavbarProps = {
@@ -17,19 +17,14 @@ export function Navbar({ view, theme, onToggleTheme }: NavbarProps) {
 
   useEffect(() => {
     let active = true
-    if (!signedAccountId) {
-      setBalance(null)
-      return
-    }
+    setBalance(null)
+    if (!signedAccountId) return
 
     function readBalance() {
       viewFunction({ contractId: TOKEN, method: 'ft_balance_of', args: { account_id: signedAccountId } })
         .then((result: unknown) => {
           if (active) {
-            const units = BigInt(String(result))
-            const whole = units / 1000000n
-            const fraction = (units % 1000000n).toString().padStart(6, '0').replace(/0+$/, '')
-            setBalance(`${whole}${fraction ? `.${fraction}` : ''}`)
+            setBalance(pcc(String(result)))
             setError('')
           }
         })

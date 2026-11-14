@@ -225,10 +225,14 @@ export function GameRoom() {
       throw new Error('Transaction was not confirmed on-chain. Refresh match state before retrying.')
     }
     if(outcome.transaction?.hash){
-      const key=`promptplay:events:${GAME}:${account}`
-      const queue:string[]=JSON.parse(localStorage.getItem(key) ?? '[]')
-      if(!queue.includes(outcome.transaction.hash))localStorage.setItem(key,JSON.stringify([...queue,outcome.transaction.hash]))
-      void syncEvents()
+      try {
+        const key=`promptplay:events:${GAME}:${account}`
+        const queue:string[]=JSON.parse(localStorage.getItem(key) ?? '[]')
+        if(!queue.includes(outcome.transaction.hash))localStorage.setItem(key,JSON.stringify([...queue,outcome.transaction.hash]))
+        void syncEvents()
+      } catch {
+        // The server can backfill events independently of browser storage.
+      }
     }
     return getTransactionLastResult(outcome)
   }
@@ -245,10 +249,16 @@ export function GameRoom() {
       if (socket.current?.readyState === WebSocket.OPEN) {
         socket.current.send(JSON.stringify({ type: 'resync' }))
       }
-      setMessage('Transaction confirmed on NEAR Testnet!')
-      if (refreshAfter) await refresh()
+      setMessage('Transaction confirmed on NEAR Testnet.')
+      if (refreshAfter) {
+        try {
+          await refresh()
+        } catch {
+          setMessage('Transaction confirmed. Match refresh is unavailable. Check the explorer while the room reconnects.')
+        }
+      }
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : 'Transaction was not completed.')
+      setMessage(err instanceof Error ? err.message : 'Transaction status is unknown. Check wallet history and refresh the match before retrying.')
     } finally {
       pendingAction.current = false
       setPending(false)
@@ -274,7 +284,7 @@ export function GameRoom() {
       window.dispatchEvent(new Event('promptplay:balance'))
       setMessage(result.claim?.state === 'complete' ? '10 PCC transferred to your wallet!' : 'Faucet transfer submitted.')
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : 'Faucet claim failed.')
+      setMessage(err instanceof Error ? err.message : 'Faucet claim status is unknown. Check the claim status before trying again.')
     } finally {
       pendingAction.current = false
       setPending(false)
@@ -449,6 +459,8 @@ export function GameRoom() {
           </a>
         </div>
       </div>
+
+      {!room && <p>Bring a second Testnet wallet, Testnet NEAR for fees and storage, and enough PCC in each wallet for the stake. Share the room link after creating the match.</p>}
 
       {/* MATCH STEPPER */}
       {room && (
@@ -651,7 +663,7 @@ export function GameRoom() {
                   <Trophy size={42} color="var(--amber)" style={{ marginBottom: '12px' }} />
                   <h2>{room.winner === account ? '🎉 Victory!' : `${room.winner} Wins`}</h2>
                   <div style={{ fontFamily: 'var(--font-mono)', fontSize: '14px', color: 'var(--amber)', marginTop: '4px' }}>
-                    +{pcc((BigInt(room.stake) * 2n).toString())} PCC Pot
+                    {pcc((BigInt(room.stake) * 2n).toString())} PCC pot · includes the winner’s original stake
                   </div>
                 </>
               ) : room.phase === 'Completed' ? (
@@ -667,7 +679,7 @@ export function GameRoom() {
                   <AlertCircle size={42} color="var(--crimson)" style={{ marginBottom: '12px' }} />
                   <h2 style={{ color: 'var(--crimson)' }}>Match Cancelled</h2>
                   <div style={{ fontFamily: 'var(--font-mono)', fontSize: '14px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                    Timeout Refund Available
+                    {me && BigInt(me.claim) > 0n ? 'Refund available to claim' : me?.pending ? 'Refund transfer pending' : 'Check match history for settlement'}
                   </div>
                 </>
               )}
@@ -678,25 +690,31 @@ export function GameRoom() {
                     className="btn-primary"
                     disabled={pending || me.pending}
                     onClick={() =>
-                      void action(() =>
-                        callFunction({
+                      void action(async () => {
+                        const paid: unknown = await callFunction({
                           contractId: GAME,
                           method: 'claim_payout',
                           args: { match_id: room.id },
                           gas: '70000000000000',
                           deposit: '1'
-                        }).then(() => {})
-                      )
+                        })
+                        if (paid === false) {
+                          throw new Error('PCC transfer failed. The contract restored the claim. Refresh the match before retrying.')
+                        }
+                        if (paid !== true) {
+                          throw new Error('Payout status is unknown. Check the explorer and refresh the match before retrying.')
+                        }
+                      })
                     }
                   >
                     <Coins size={16} />
                     <span>Claim {pcc(me.claim)} PCC Payout</span>
                   </button>
-                  <a href="#redeem" className="btn-accent">
-                    <Zap size={16} />
-                    <span>Redeem to AI Compute →</span>
-                  </a>
                 </div>
+              )}
+              {me?.pending && <output>Payout transfer pending. Check the explorer or wait for the room to refresh.</output>}
+              {me && !me.pending && BigInt(me.claim) === 0n && room.winner === account && (
+                <p><a href="#redeem" className="btn-accent">Open Inference Hub · 5 PCC per unit</a></p>
               )}
             </div>
           )}

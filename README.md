@@ -82,11 +82,13 @@ Contract builds require the Rust WASM target and `cargo-near`; sandbox tests req
 
 ### Demo walkthrough
 
+See the [judge walkthrough and sprint checks](docs/FINAL-SPRINT.md) for the shortest practice route and the full Testnet payout-to-inference flow.
+
 1. Open the arcade. The 11 practice games are local and award no PCC; select **Duel Arena** for on-chain RPS.
 2. Connect two independent Testnet wallets in separate browser profiles. Each account needs Testnet NEAR for gas and storage, PCC storage registration and sufficient PCC for the agreed stake. The optional capped faucet requires its separately funded operator account.
 3. The first player creates a room by entering the other account and stake, then shares its match link. Both players deposit the stake and confirm the transactions in their own wallets.
 4. Each player commits a move, waits for both commitments, and reveals from the same browser profile. The random reveal secret is kept in that browser's storage; clearing it or changing profiles can prevent reveal.
-5. Check the result and claim any payout. The room reads its state from the Testnet contract; WebSockets only prompt a refresh. Use the displayed transaction links and [game contract](https://testnet.nearblocks.io/address/game.ryanlau1220.testnet) to inspect the outcome independently.
+5. Check the result and claim any payout. The room reads its state from the Testnet contract; WebSockets only prompt a refresh. Use the displayed transaction links and [game contract](https://testnet.nearblocks.io/address/game2.ryanlau1220.testnet) to inspect the outcome independently.
 6. An authenticated Testnet wallet can redeem PCC for a gateway allowance or use an existing one. `bun run demo:mock` separately exercises simulated escrow redemption, replay protection and metering: it performs neither a chain transfer nor a real model request. Testnet redemption is enabled in the configured local gateway.
 
 The Meteor browser match 8 [claim transaction](https://testnet.nearblocks.io/txns/4KLYPVz7FA4Rn16pna1uTWSgLiKqFqftSpdHpST7sjFv), match 0 [claim transaction](https://testnet.nearblocks.io/txns/2TFvTTXewMxJbeejauoHZ1juojVcm5ahnVcAHG2M2ZCk) and the [operator-only OpenCode payment](https://testnet.nearblocks.io/txns/2jJQrZkWHHyGY8C35DSeoPDSCDxGQXYA5QnKvzXbNC9X) are separate demonstrations, not evidence that a match winner redeemed their payout. The earlier OpenCode test used temporary accounting rates. A separate [local gateway payment](https://testnet.nearblocks.io/txns/DUiKv1ceybjjyrkwoLJjT4QYKZk18diixrJiMetHzzFx) was verified and credited once; a streamed Nebius tool call reduced its allowance from 1,000,000 to 999,978 microunits at the configured published rates. OpenCode 1.18.21 then completed a real file-read task through that local gateway; its recorded allowance moved from 999,807 to 995,424 microunits. Other transaction references and their scope are in `deployments/testnet.json`.

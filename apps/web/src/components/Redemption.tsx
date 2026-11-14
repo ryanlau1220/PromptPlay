@@ -1,7 +1,8 @@
 import { useNearWallet } from 'near-connect-hooks'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   Coins,
+  ExternalLink,
   Key,
   Terminal,
   Send,
@@ -34,11 +35,13 @@ type KeyItem = {
 
 export function Redemption() {
   const { signedAccountId: account, callFunctionRaw } = useNearWallet()
-  const { config, refreshConfig, token: session, login, request } = useSession()
+  const { config, configStatus, refreshConfig, token: session, login, request } = useSession()
 
   const [balance, setBalance] = useState<number | null>(null)
   const [intent, setIntent] = useState<Intent | null>(null)
   const [depositHash, setDepositHash] = useState('')
+  const [escrowTx, setEscrowTx] = useState<{ account: string; hash: string } | null>(null)
+  const actionRunning = useRef(false)
   const [recoveryId, setRecoveryId] = useState('')
   const [intentHistory, setIntentHistory] = useState<Array<{id:string}>>([])
   const [keys, setKeys] = useState<KeyItem[]>([])
@@ -112,6 +115,8 @@ export function Redemption() {
   }, [session, refresh])
 
   async function action(fn: () => Promise<void>) {
+    if (actionRunning.current) return
+    actionRunning.current = true
     setBusy(true)
     setMessage('')
     try {
@@ -119,6 +124,7 @@ export function Redemption() {
     } catch (e) {
       setMessage(e instanceof Error ? e.message : 'Request failed.')
     } finally {
+      actionRunning.current = false
       setBusy(false)
     }
   }
@@ -145,21 +151,23 @@ export function Redemption() {
   async function approveAndConsume() {
     if (!intent || !config?.escrowAccount) return
     await request(`/api/redemptions/${encodeURIComponent(intent.id)}/approve`, 'POST')
-    await callFunctionRaw({contractId:config.escrowAccount,method:'consume',args:{id:intent.id},gas:'30000000000000',deposit:'0'})
+    const result = await callFunctionRaw({contractId:config.escrowAccount,method:'consume',args:{id:intent.id},gas:'30000000000000',deposit:'0'})
+    if (result.transaction?.hash) setEscrowTx({ account, hash: result.transaction.hash })
     await claim()
   }
 
   async function claim() {
     if (!intent) return
-    await request(`/api/redemptions/${encodeURIComponent(intent.id)}/claim`, 'POST')
+    const { credited } = await request<{ credited: boolean }>(`/api/redemptions/${encodeURIComponent(intent.id)}/claim`, 'POST')
     await refresh(); await refreshConfig()
     window.dispatchEvent(new Event('promptplay:balance'))
-    setMessage('Gateway units credited.')
+    setMessage(credited ? 'Gateway units credited.' : 'This deposit was already credited.')
   }
 
   async function refund() {
     if (!intent || !config?.escrowAccount) return
-    await callFunctionRaw({contractId:config.escrowAccount,method:'refund',args:{id:intent.id},gas:'70000000000000',deposit:'1'})
+    const result = await callFunctionRaw({contractId:config.escrowAccount,method:'refund',args:{id:intent.id},gas:'70000000000000',deposit:'1'})
+    if (result.transaction?.hash) setEscrowTx({ account, hash: result.transaction.hash })
     const state=await request<{deposit:Intent['deposit']}>(`/api/redemptions/${encodeURIComponent(intent.id)}`,'GET')
     if(state.deposit){await refresh();setMessage('Refund is not finalized. Refresh and try again if needed.');return}
     if(intent.reservation==='held')await request(`/api/redemptions/${encodeURIComponent(intent.id)}/refund`, 'POST')
@@ -244,11 +252,11 @@ export function Redemption() {
               }}
             />
             <span style={{ fontSize: '20px' }}>
-              {!config ? 'CONNECTING' : config.model ? 'ENABLED' : 'DISABLED'}
+              {!config ? (configStatus === 'unavailable' ? 'UNREACHABLE' : 'CONNECTING') : config.model ? 'ENABLED' : 'DISABLED'}
             </span>
           </span>
           <span className="hint">
-            {!config ? 'Checking gateway' : config.model ? `${config.provider} · ${config.model}` : 'Gateway unavailable'}
+            {!config ? (configStatus === 'unavailable' ? 'Check your connection and retry' : 'Checking gateway') : config.model ? `${config.provider} · ${config.model}` : 'Gateway unavailable'}
           </span>
           {config?.model && <span className="hint">Chat completions{config.capabilities?.streaming ? ' · Streaming' : ''}{config.capabilities?.toolCalls ? ' · Tool calls' : ''}</span>}
         </div>
@@ -256,7 +264,12 @@ export function Redemption() {
 
       {!config ? (
         <div style={{ textAlign: 'center', padding: '60px 0' }}>
-          <p>Connecting to Gateway...</p>
+          {configStatus === 'unavailable' ? (
+            <>
+              <output>Could not reach the gateway. You can still play practice games or view Testnet match state.</output>
+              <button type="button" className="btn-ghost" onClick={() => void refreshConfig()}>Retry gateway connection</button>
+            </>
+          ) : <output>Connecting to gateway…</output>}
         </div>
       ) : !session ? (
         <div className="terminal-card" style={{ maxWidth: '540px', margin: '40px auto', textAlign: 'center' }}>
@@ -288,6 +301,15 @@ export function Redemption() {
                 </h3>
                 <span className="story-card-detail">5 PCC = 1 Unit</span>
               </div>
+              <p>The operator funds inference. The fixed demo rate converts Testnet PCC into allowance for metered requests, subject to gateway eligibility and available capacity.</p>
+              <div className="promptplay-quickstart-actions">
+                {/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(depositHash) && intent?.account_id === account && (
+                  <a href={`https://testnet.nearblocks.io/txns/${depositHash}`} target="_blank" rel="noreferrer" className="arena-contract-link">Deposit transaction <ExternalLink size={12} /></a>
+                )}
+                {escrowTx?.account === account && (
+                  <a href={`https://testnet.nearblocks.io/txns/${escrowTx.hash}`} target="_blank" rel="noreferrer" className="arena-contract-link">Latest escrow transaction <ExternalLink size={12} /></a>
+                )}
+              </div>
 
               {!config.redemptionAvailable && (
                 <div
@@ -314,14 +336,14 @@ export function Redemption() {
                   </button>
                 </div>
               )}
-              {!intent && config.escrowAccount && <details><summary>Recover a deposit</summary>{intentHistory.slice(0,5).map(item=><button key={item.id} type="button" className="btn-ghost" disabled={busy} onClick={()=>void action(async()=>{localStorage.setItem(slot,JSON.stringify({id:item.id,submitted:true}));await refresh()})}>{item.id.slice(0,12)}…</button>)}<input className="input-field" value={recoveryId} onChange={e=>setRecoveryId(e.target.value.trim())} placeholder="Deposit ID" /><button type="button" className="btn-ghost" disabled={busy || !/^[A-Za-z0-9_-]{32,64}$/.test(recoveryId)} onClick={()=>void action(async()=>{localStorage.setItem(slot,JSON.stringify({id:recoveryId,submitted:true}));await refresh()})}>Open deposit</button></details>}
+              {!intent && config.escrowAccount && <details><summary>Recover a deposit</summary>{intentHistory.slice(0,5).map(item=><button key={item.id} type="button" className="btn-ghost" disabled={busy} onClick={()=>void action(async()=>{localStorage.setItem(slot,JSON.stringify({id:item.id,submitted:true}));await refresh()})}>{item.id.slice(0,12)}…</button>)}<input className="input-field" value={recoveryId} onChange={e=>setRecoveryId(e.target.value.trim())} aria-label="Deposit ID" placeholder="Deposit ID" /><button type="button" className="btn-ghost" disabled={busy || !/^[A-Za-z0-9_-]{32,64}$/.test(recoveryId)} onClick={()=>void action(async()=>{localStorage.setItem(slot,JSON.stringify({id:recoveryId,submitted:true}));await refresh()})}>Open deposit</button></details>}
 
               {intent && intent.reservation !== 'credited' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   <div>5 PCC · {intent.id.slice(0, 12)}…</div>
                   {!intent.deposit && !submitted && <button type="button" className="btn-primary" disabled={busy || !config.redemptionAvailable} onClick={() => void action(transfer)}>Deposit PCC</button>}
                   {!intent.deposit && submitted && <p>Check wallet history and refresh before attempting another deposit.</p>}
-                  {!intent.deposit && submitted && <><input className="input-field" value={depositHash} onChange={e=>setDepositHash(e.target.value.trim())} placeholder="Deposit transaction hash" /><button type="button" className="btn-ghost" disabled={busy || !depositHash} onClick={()=>void action(reconcileRejection)}>Confirm returned deposit</button></>}
+                  {!intent.deposit && submitted && <><input className="input-field" value={depositHash} onChange={e=>setDepositHash(e.target.value.trim())} aria-label="Deposit transaction hash" placeholder="Deposit transaction hash" /><button type="button" className="btn-ghost" disabled={busy || !depositHash} onClick={()=>void action(reconcileRejection)}>Confirm returned deposit</button></>}
                   {!intent.deposit && submitted && <button type="button" className="btn-ghost" disabled={busy} onClick={()=>{localStorage.removeItem(slot);setIntent(null);setSubmitted(false);setDepositHash('');setMessage('Any submitted transaction can still be recovered by its deposit ID.')}}>Start another</button>}
                   {(intent.rejected || intent.reservation === 'refunded') && intent.deposit && <p>This deposit ID is closed. Refund after expiry.</p>}
                   {intent.deposit?.status === 'Pending' && !intent.rejected && intent.reservation !== 'refunded' && !intent.deposit.approved && <button type="button" className="btn-primary" disabled={busy || !config.redemptionAvailable} onClick={() => void action(approveAndConsume)}>Authorize and consume</button>}

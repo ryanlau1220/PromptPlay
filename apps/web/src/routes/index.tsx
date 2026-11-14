@@ -87,14 +87,14 @@ function Content() {
         onToggleTheme={() => setTheme(theme === 'light' ? 'dark' : 'light')}
       />
 
-      <Suspense fallback={null}>
+      <Suspense fallback={<output className="arena-container">Loading arcade…</output>}>
       {view === 'arcade' && <ArcadeLobby />}
       {view === 'practice' && <PracticeArcade id={hash.slice('#practice/'.length)} />}
       {view === 'settlement' && (signedAccountId ? <ArcadeSettlement hash={hash} /> : <div className="arena-container"><button type="button" className="btn-primary" onClick={() => void connectWallet()} disabled={loading}>Connect NEAR Wallet</button></div>)}
 
       {view === 'play' &&
         (signedAccountId ? (
-          <GameRoom />
+          <GameRoom key={signedAccountId} />
         ) : (
           <div className="arena-container" style={{ textAlign: 'center', padding: '80px 0' }}>
             <div className="terminal-card" style={{ maxWidth: '440px', margin: '0 auto' }}>
@@ -102,8 +102,9 @@ function Content() {
               <h2 style={{ fontFamily: 'var(--font-display)', margin: '0 0 20px' }}>
                 Enter Duel Arena
               </h2>
+              <p>Play first to two round wins with another Testnet wallet.</p>
               <button type="button" className="btn-primary" onClick={() => void connectWallet()} disabled={loading} style={{ width: '100%' }}>
-                <span>Connect NEAR Wallet</span>
+                <span>{loading ? 'Connecting wallet…' : 'Connect NEAR Wallet'}</span>
               </button>
             </div>
           </div>
@@ -111,7 +112,7 @@ function Content() {
 
       {view === 'redeem' &&
         (signedAccountId ? (
-          <Redemption />
+          <Redemption key={signedAccountId} />
         ) : (
           <div className="arena-container" style={{ textAlign: 'center', padding: '80px 0' }}>
             <div className="terminal-card" style={{ maxWidth: '440px', margin: '0 auto' }}>
@@ -119,8 +120,9 @@ function Content() {
               <h2 style={{ fontFamily: 'var(--font-display)', margin: '0 0 20px' }}>
                 Inference Terminal
               </h2>
+              <p>Sign in with your Testnet wallet to view your allowance and check redemption access.</p>
               <button type="button" className="btn-accent" onClick={() => void connectWallet()} disabled={loading} style={{ width: '100%' }}>
-                <span>Connect NEAR Wallet</span>
+                <span>{loading ? 'Connecting wallet…' : 'Connect NEAR Wallet'}</span>
               </button>
             </div>
           </div>

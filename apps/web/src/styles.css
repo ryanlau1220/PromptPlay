@@ -1588,3 +1588,9 @@ button:disabled:is(button, .btn-primary, .btn-accent, .move-card-btn) {
 .settlement-panel > button { justify-self: start; }
 .settlement-panel > div { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .settlement-panel > div > p { flex-basis: 100%; margin: 0; }
+
+.promptplay-quickstart-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}

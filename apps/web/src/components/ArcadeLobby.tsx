@@ -131,6 +131,17 @@ export function ArcadeLobby() {
   return (
     <div className="lobby-container">
 
+      <section className="terminal-card story-section" aria-labelledby="quickstart-title">
+        <h2 id="quickstart-title">Play while your coding agent runs</h2>
+        <p>Try a solo game immediately, or challenge a friend on NEAR Testnet. In a funded RPS duel, the winner claims both players’ stakes. The faucet supplies starter PCC from its pre-funded allocation.</p>
+        <p>Claimed PCC goes to your wallet. At the Inference Hub, eligible wallets can redeem 5 PCC for one operator-funded gateway unit and use it in the playground or a compatible coding agent.</p>
+        <div className="promptplay-quickstart-actions">
+          <a className="btn-primary" href="#practice/tic-tac-toe">Try practice · no wallet</a>
+          <a className="btn-ghost" href="#play">Start a Testnet duel</a>
+          <a className="btn-ghost" href="#redeem">Open Inference Hub</a>
+        </div>
+      </section>
+
       <ArcadeScene />
 
       {/* ── FEATURED GAME ─────────────────────────────────────────────── */}
@@ -159,7 +170,7 @@ export function ArcadeLobby() {
         <FadeUp show={stage >= 6} offsetY={20} spring={SPRING.smooth}>
           <div className="section-kicker">
             <Layers size={14} />
-            <span>CIRCULAR COMPUTE ECONOMY</span>
+            <span>FROM GAME STAKES TO INFERENCE</span>
           </div>
 
           <div className="section-heading-row">
@@ -174,9 +185,9 @@ export function ArcadeLobby() {
 
         <div className="story-grid">
           {[
-            { num: '01', accent: 'var(--cyan)', icon: <Coins size={24} />, title: 'Stake & Escrow', metric: '5.0 PCC ➔ On-Chain Vault', detail: 'ft_transfer_call · Non-custodial' },
+            { num: '01', accent: 'var(--cyan)', icon: <Coins size={24} />, title: 'Stake & Escrow', metric: 'Both players stake PCC', detail: 'The winner can claim the pot' },
             { num: '02', accent: 'var(--crimson)', icon: <Lock size={24} />, title: 'Commit & Reveal', metric: 'SHA-256 (Secret + Move)', detail: '32-Byte Client Salt' },
-            { num: '03', accent: 'var(--amber)', icon: <Terminal size={24} />, title: 'Fuel Your Agent', metric: 'PCC ➔ Gateway Units', detail: config?.redemptionAvailable ? 'Redemption enabled' : 'Redemption currently gated' },
+            { num: '03', accent: 'var(--amber)', icon: <Terminal size={24} />, title: 'Fuel Your Agent', metric: '5 PCC ➔ 1 gateway unit', detail: config?.redemptionAvailable ? 'Redemption enabled' : 'Check access in the Inference Hub' },
           ].map((card, i) => (
             <StaggerItem key={card.num} show={stage >= 7} index={i} stagger={0.12}>
               <div className="story-card" style={{ '--card-accent': card.accent } as React.CSSProperties}>
