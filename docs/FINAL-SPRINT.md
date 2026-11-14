@@ -29,7 +29,7 @@ The baseline is upstream `main` at `85117194445e084d0897e6e11345328b2db30c4e`. T
 | Local service smoke | Web HTTP 200, backend health and Testnet config, and initial room WebSocket resync passed. Local faucet and live provider were disabled. |
 | Contract builds and unit suites | All four Wasm builds completed. All 37 contract unit tests passed. The Rust downloader could not connect. A direct download succeeded, but the sandbox executable requires a file-descriptor limit of 65,535 and the workspace hard limit is 16,384. |
 | Archival Testnet verifier | The extended archival verifier passed, including deployed Wasm hashes, recorded payout and payment receipts, and escrow settings. A separate escrow-only run also passed. |
-| Chromium smoke | Environment denied Chromium's socket creation. |
+| Chromium smoke | Passed in a headless Chromium shell at 320px, 390px and 1366px. Covered the wallet-free loop, fullscreen, theme persistence, keyboard navigation and all eleven practice routes. |
 | Fresh wallet-to-live-provider journey | Requires funded wallet profiles, an eligible account and the operator's gateway configuration. Public hosting availability remains unverified. |
 
 The next operator check is the real Testnet walkthrough against the intended public web and API URLs. Use the existing wallet profiles, operator configuration and persistent ledger. See the [README](../README.md#test-and-verify) for the full test commands.
