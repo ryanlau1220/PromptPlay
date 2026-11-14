@@ -28,7 +28,7 @@ The baseline is upstream `main` at `85117194445e084d0897e6e11345328b2db30c4e`. T
 | `bun run demo:mock` | Passed. First claim credited, replay credited nothing, and mock usage reduced allowance from 1,000,000 to 999,994 microunits. |
 | Local service smoke | Web HTTP 200, backend health and Testnet config, and initial room WebSocket resync passed. Local faucet and live provider were disabled. |
 | Contract builds and unit suites | All four Wasm builds completed. All 37 contract unit tests passed. The Rust downloader could not connect. A direct download succeeded, but the sandbox executable requires a file-descriptor limit of 65,535 and the workspace hard limit is 16,384. |
-| Archival Testnet verifier | The original full verifier passed. A full rerun of the extended verifier timed out on the alternate RPC. The new escrow code hash and settings were verified separately on Testnet. |
+| Archival Testnet verifier | The extended archival verifier passed, including deployed Wasm hashes, recorded payout and payment receipts, and escrow settings. A separate escrow-only run also passed. |
 | Chromium smoke | Environment denied Chromium's socket creation. |
 | Fresh wallet-to-live-provider journey | Requires funded wallet profiles, an eligible account and the operator's gateway configuration. Public hosting availability remains unverified. |
 
