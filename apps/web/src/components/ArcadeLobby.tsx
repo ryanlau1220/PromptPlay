@@ -20,7 +20,7 @@ const steps = [
 ]
 
 export function ArcadeLobby() {
-  const { config, configStatus } = useSession()
+  const { config, configStatus, refreshConfig } = useSession()
   const intro = useRef<HTMLElement>(null)
   const gallery = useRef<HTMLDivElement>(null)
   const [selected, setSelected] = useState<number | null>(null)
@@ -160,10 +160,13 @@ export function ArcadeLobby() {
         <div>
           <h2 id="agents-title" className="section-title">Use your compute allowance</h2>
           <p>Try the inference playground or connect OpenCode or Pi through the OpenAI-compatible gateway.</p>
-          <p>{configStatus === 'loading' ? 'Checking gateway availability…' : config?.redemptionAvailable ? 'Live redemption is enabled for eligible wallets.' : configStatus === 'unavailable' ? 'The gateway status is currently unavailable.' : 'Live redemption is currently disabled.'}</p>
+          <output className="story-gateway-status">{configStatus === 'loading' ? 'Checking gateway availability…' : config?.redemptionAvailable ? 'Live redemption is enabled for eligible wallets.' : configStatus === 'unavailable' ? 'The gateway status is currently unavailable.' : 'Live redemption is currently disabled.'}</output>
         </div>
         <div className="promptplay-quickstart-actions">
           <a className="btn-primary" href="#redeem">Open Inference Hub</a>
+          {configStatus === 'unavailable' && (
+            <button type="button" className="btn-ghost" onClick={() => void refreshConfig()}>Retry gateway status</button>
+          )}
           <a className="btn-ghost" href={`https://testnet.nearblocks.io/address/${TOKEN}`} target="_blank" rel="noreferrer">View PCC on Testnet ↗</a>
         </div>
       </section>

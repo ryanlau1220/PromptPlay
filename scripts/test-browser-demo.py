@@ -116,3 +116,24 @@ with sync_playwright() as playwright:
         page.get_by_role("button", name="Reload screen").click()
         expect(page.get_by_role("heading", name="Practice the compute loop")).to_be_visible()
         print("A failed demo download can recover without losing the route")
+
+    with playwright.chromium.launch() as browser:
+        page = browser.new_page()
+        status_calls = []
+
+        def gateway_status(route):
+            status_calls.append(route.request.url)
+            if len(status_calls) == 1:
+                route.abort()
+            else:
+                route.fulfill(json={"network": "testnet", "redemptionAvailable": False},
+                              headers={"access-control-allow-origin": "*"})
+
+        page.route("**/config", gateway_status)
+        page.goto(web)
+        expect(page.get_by_text("The gateway status is currently unavailable.")).to_be_visible()
+        page.get_by_role("button", name="Retry gateway status").click()
+        expect(page.get_by_text("Live redemption is currently disabled.")).to_be_visible()
+        page.get_by_role("link", name="Play the wallet-free demo").click()
+        expect(page.get_by_role("heading", name="Practice the compute loop")).to_be_visible()
+        print("Gateway status recovers after an outage and the wallet-free demo stays available")

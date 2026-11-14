@@ -38,7 +38,8 @@
 }
 
 .story-intro p,
-.story-gateway p {
+.story-gateway p,
+.story-gateway-status {
   max-width: 54ch;
   margin: 22px 0;
   color: var(--text-muted);
@@ -268,4 +269,8 @@
   0% { transform: perspective(600px) rotateY(-18deg) scale(.92); }
   50% { transform: perspective(600px) rotateY(0deg) scale(1); }
   100% { transform: perspective(600px) rotateY(18deg) scale(.92); }
+}
+
+.story-gateway-status {
+  display: block;
 }

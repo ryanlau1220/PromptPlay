@@ -8,7 +8,7 @@ Start from `origin/codex/final-hackathon-sprint`. The latest implementation comm
 
 - The landing page offers a playable wallet-free story, a scroll-snap game gallery, a manually stepped workspace preview, and optional fullscreen. Motion follows the reduced-motion preference. The demo covers RPS, a simulated PCC payout, redemption, a mock inference debit, and a separate demand slider.
 - Duel and shared-settlement screens handle failed, uncertain and confirmed wallet outcomes separately. Match history loads in bounded RPC batches. A match ID is loaded on submit. Gateway recovery includes explicit account refresh, previously created deposit recovery, and precise allowance display.
-- The Testnet verifier retries transient reads and checks recorded chain evidence. The browser smoke script exercises the landing page, full demo, compact light mode, fullscreen, keyboard navigation, Tic-Tac-Toe, Sequence replay, 2048 controls, all eleven practice routes, and recovery after an interrupted demo download.
+- The Testnet verifier retries transient reads and checks recorded chain evidence. The browser smoke script exercises the landing page, full demo, compact light mode, fullscreen, keyboard navigation, Tic-Tac-Toe, Sequence replay, 2048 controls, all eleven practice routes, and recovery after an interrupted demo download or gateway status outage.
 
 ## Reproduce the checks
 
