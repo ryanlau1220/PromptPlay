@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 const api=process.env.JOURNEY_API_URL || 'http://127.0.0.1:3001',account=process.env.TESTNET_PLAYER_A
 if(!account?.endsWith('.testnet') || !process.env.TESTNET_PLAYER_A_KEY || !process.env.TESTNET_PLAYER_B_KEY || !process.env.TESTNET_PLAYER_B) throw new Error('Set both Testnet player accounts and credential file paths.')
-if(new URL(api).hostname !== '127.0.0.1' && new URL(api).hostname !== 'localhost') throw new Error('Journey requires a local operator gateway.')
+if(!['127.0.0.1','localhost'].includes(new URL(api).hostname) && new URL(api).protocol !== 'https:') throw new Error('Remote gateways require HTTPS.')
 const credentials=await Bun.file(process.env.TESTNET_PLAYER_A_KEY).json()
 const pair=KeyPair.fromString(credentials.private_key),rpc=new JsonRpcProvider({url:'https://archival-rpc.testnet.near.org'}),signer=new Account(account,rpc,new KeyPairSigner(pair))
 async function request(path:string,method='GET',body?:unknown,token?:string){
@@ -14,7 +14,7 @@ async function request(path:string,method='GET',body?:unknown,token?:string){
  if(!response.ok)throw new Error(`${path}: HTTP ${response.status}`)
  return response
 }
-const trace:Record<string,unknown>={scope:'operator-only local server; real Testnet and configured provider',account,status:'starting'}
+const trace:Record<string,unknown>={scope:'operator-signed Testnet and configured provider',gateway:api,account,status:'starting'}
 const path=`tmp/testnet-journey-${randomUUID()}.json`
 const save=async()=>await writeFile(path,`${JSON.stringify(trace,null,2)}\n`,{mode:0o600})
 await mkdir('tmp',{recursive:true})
