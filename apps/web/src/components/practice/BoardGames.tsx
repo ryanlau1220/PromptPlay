@@ -4,15 +4,14 @@ import { adjacent, drop, move2048, shuffle, slide, ticTacToeReply, winner } from
 // These fixed positions identify board cells, rather than reorderable items.
 const positionKeys = Array.from({length: 100}, (_, position) => `position-${position}`)
 type Cell = string | null
-function botMove(board: Cell[], width: number, height: number, run: number): Cell[] {
-  const choices = width === 7 ? Array.from({ length: 7 }, (_, col) => drop(board, col, 'O')).filter((v): v is Cell[] => !!v) : board.flatMap((cell, i) => cell ? [] : [board.map((v, n) => n === i ? 'O' : v)])
-  const winning = choices.find(next => winner(next, width, height, run) === 'O')
+function connectFourReply(board: Cell[]): Cell[] {
+  const choices = Array.from({ length: 7 }, (_, col) => drop(board, col, 'O')).filter((value): value is Cell[] => value !== null)
+  const winning = choices.find(next => winner(next, 7, 6, 4) === 'O')
   if (winning) return winning
-  const threats = choices.filter(next => {
-    if (width === 7) return !Array.from({ length: 7 }, (_, col) => drop(next, col, 'X')).some(v => v && winner(v, width, height, run) === 'X')
-    return !next.some((v, i) => !v && winner(next.map((c, n) => n === i ? 'X' : c), width, height, run) === 'X')
-  })
-  return shuffle(threats.length ? threats : choices)[0] ?? board
+  const safeChoices = choices.filter(next =>
+    !Array.from({ length: 7 }, (_, col) => drop(next, col, 'X')).some(reply => reply && winner(reply, 7, 6, 4) === 'X'),
+  )
+  return shuffle(safeChoices.length ? safeChoices : choices)[0] ?? board
 }
 export function TicTacToe() {
   const [{ board, reason }, setPosition] = useState<{ board: Cell[]; reason: string }>({ board: Array(9).fill(null), reason: '' })
@@ -27,7 +26,7 @@ export function TicTacToe() {
 export function ConnectFour() {
   const [board, setBoard] = useState<Cell[]>(Array(42).fill(null))
   const result = winner(board, 7, 6, 4), over = !!result || board.every(Boolean)
-  function play(col: number) { if (over) return; const next = drop(board, col, 'X'); if (!next) return; setBoard(winner(next, 7, 6, 4) || next.every(Boolean) ? next : botMove(next, 7, 6, 4)) }
+  function play(col: number) { if (over) return; const next = drop(board, col, 'X'); if (!next) return; setBoard(winner(next, 7, 6, 4) || next.every(Boolean) ? next : connectFourReply(next)) }
   return <><p className="practice-status">{result ? result === 'X' ? 'You win!' : 'Computer wins' : over ? 'Draw' : 'Drop four in a row'}</p><div className="connect-board"><div className="connect-actions">{Array.from({length:7}, (_, i) => <button type="button" key={positionKeys[i]} onClick={() => play(i)} disabled={over || !!board[i]} aria-label={`Drop in column ${i + 1}`}>↓</button>)}</div><div className="practice-grid connect-grid">{board.map((cell, i) => <span key={positionKeys[i]} className={`connect-slot mark-${cell ?? 'empty'}`} />)}</div></div></>
 }
 const icons = ['◆','●','▲','★','☀','✿','♥','☂']
@@ -54,6 +53,26 @@ export function Game2048() {
   const [board, setBoard] = useState(() => addTile(addTile(Array<number>(16).fill(0))))
   const win = board.some(v => v >= 2048), lost = !['left','right','up','down'].some(dir => move2048(board, dir as 'left'|'right'|'up'|'down').some((v, i) => v !== board[i]))
   const move = useCallback((direction: 'left'|'right'|'up'|'down') => { if (lost) return; setBoard(old => { const next = move2048(old, direction); return next.some((v, i) => v !== old[i]) ? addTile(next) : old }) }, [lost])
-  useEffect(() => { const handle = (e: KeyboardEvent) => { const dirs = {ArrowLeft:'left', ArrowRight:'right', ArrowUp:'up', ArrowDown:'down'} as const; const dir = dirs[e.key as keyof typeof dirs]; if (dir) { e.preventDefault(); move(dir) } }; window.addEventListener('keydown', handle); return () => window.removeEventListener('keydown', handle) }, [move])
-  return <><p className="practice-status">{lost ? 'No moves left' : win ? '2048 reached!' : 'Combine matching tiles'}</p><div className="practice-grid slide-grid tiles-2048">{board.map((n, i) => <div key={positionKeys[i]} className={`practice-cell tile-${n || 'empty'}`}>{n || ''}</div>)}</div><section className="practice-directions" aria-label="Move tiles">{(['left','up','down','right'] as const).map((dir, i) => <button type="button" key={dir} onClick={() => move(dir)} aria-label={`Move ${dir}`}>{['←','↑','↓','→'][i]}</button>)}</section></>
+
+  return (
+    <>
+      <p className="practice-status">{lost ? 'No moves left' : win ? '2048 reached!' : 'Combine matching tiles'}</p>
+      <p>Use the move buttons, or focus one and press an arrow key.</p>
+      <div className="practice-grid slide-grid tiles-2048">
+        {board.map((number, index) => <div key={positionKeys[index]} className={`practice-cell tile-${number || 'empty'}`}>{number || ''}</div>)}
+      </div>
+      <section className="practice-directions" aria-label="Move tiles" onKeyDown={event => {
+        const directions = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' } as const
+        const direction = directions[event.key as keyof typeof directions]
+        if (direction) {
+          event.preventDefault()
+          move(direction)
+        }
+      }}>
+        {(['left', 'up', 'down', 'right'] as const).map((direction, index) => (
+          <button type="button" key={direction} onClick={() => move(direction)} aria-label={`Move ${direction}`}>{['←', '↑', '↓', '→'][index]}</button>
+        ))}
+      </section>
+    </>
+  )
 }
