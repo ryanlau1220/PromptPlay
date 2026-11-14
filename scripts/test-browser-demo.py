@@ -92,5 +92,15 @@ with sync_playwright() as playwright:
                 document.activeElement.dispatchEvent(event)
                 return event.defaultPrevented
             }""")
+            if width == 320:
+                page.goto(web.split("#", 1)[0] + "#games")
+                gallery = page.locator('#story-game-gallery a[href^="#practice/"]')
+                expect(gallery).to_have_count(11)
+                practice_routes = gallery.evaluate_all("(links) => links.map(link => link.hash)")
+                for route in practice_routes:
+                    page.goto(web.split("#", 1)[0] + route)
+                    expect(page.locator(".practice-playfield")).to_be_visible()
+                    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), route
+                print("All eleven practice games fit at 320px")
             assert not errors, errors
             print(f"{width}px ({motion}): wallet-free demo passed")
