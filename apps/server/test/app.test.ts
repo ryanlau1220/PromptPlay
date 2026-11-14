@@ -52,6 +52,7 @@ test('wallet sessions protect accounting and redemption stays disabled', async (
   const app=createApp({auth,redemption,ledger,allowRedemption:false,keys:new GatewayKeys(db),gateway:null,faucet:null,redemptionAllowlist:new Set(),origin:'http://localhost:3000'})
   const request=(path:string,method='GET',body?:unknown,token?:string)=>app.handle(new Request(`http://localhost${path}`,{method,headers:{...(body ? {'content-type':'application/json'} : {}),...(token ? {authorization:`Bearer ${token}`} : {})},body:body ? JSON.stringify(body) : undefined}))
   expect((await request('/api/inference/balance')).status).toBe(401)
+  expect((await request('/api/inference/totals')).status).toBe(401)
   const c=await (await request('/api/auth/challenge','POST')).json() as {id:string}
   const login=await (await request('/api/auth/verify','POST',{challengeId:c.id,accountId:'alice.testnet',publicKey:`ed25519:${'1'.repeat(32)}`,signature:Buffer.alloc(64).toString('base64')})).json() as {token:string}
   expect((await request('/api/inference/balance','GET',undefined,login.token)).status).toBe(200)
@@ -77,6 +78,10 @@ test('mock gateway authenticates keys and meters real reported mock usage', asyn
   expect(response.status).toBe(200)
   const body=await response.json() as {choices:Array<{message:{content:string}}>;usage:{total_tokens:number}};expect(body.choices[0].message.content).toBe('Mock response');expect(body.usage.total_tokens).toBe(4)
   expect(ledger.balance('alice.testnet')).toBe(994)
+  expect((await call('/api/inference/totals','GET',undefined,key.key)).status).toBe(401)
+  const totals=await call('/api/inference/totals','GET',undefined,session.token)
+  expect(totals.status).toBe(200)
+  expect(await totals.json()).toEqual({credited:1000,available:994,reserved:0,charged:6,settledRequests:1})
   expect((await call('/v1/chat/completions','POST',{model:'mock-model',messages:[{role:'user',content:'hello'}],max_tokens:10,stream:true},key.key)).status).toBe(400)
   expect((await call('/v1/chat/completions','POST',{model:'mock-model',messages:[{role:'user',content:'hello'}],max_tokens:10,tools:[]},key.key)).status).toBe(200)
   expect((await call(`/api/keys/${key.id}`,'DELETE',undefined,session.token)).status).toBe(200)
