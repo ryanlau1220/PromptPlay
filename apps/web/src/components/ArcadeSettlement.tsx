@@ -20,13 +20,15 @@ type Match = {
 }
 export function ArcadeSettlement({ hash }: { hash: string }) {
   const { signedAccountId: account, viewFunction, callFunctionRaw } = useNearWallet()
+  const chainView = useRef(viewFunction)
+  useEffect(() => { chainView.current = viewFunction }, [viewFunction])
   const params = new URLSearchParams(hash.split('?')[1] ?? ''),
     matchId = params.get('match') ?? '',
     gameId = params.get('game') ?? ''
   const [opponent, setOpponent] = useState(''),
     [stake, setStake] = useState('1'),
     [join, setJoin] = useState(''),
-    [match, setMatch] = useState<Match | null>(null),
+    [loadedMatch, setMatch] = useState<Match | null>(null),
     [pending, setPending] = useState(false),
     [message, setMessage] = useState(''),
     [txHash, setTxHash] = useState(''),
@@ -34,15 +36,16 @@ export function ArcadeSettlement({ hash }: { hash: string }) {
     [now, setNow] = useState(Date.now())
   const running = useRef(false),
     funded = useRef('')
+  const match = loadedMatch?.id === matchId ? loadedMatch : null
   const validId = /^\d{1,20}$/.test(matchId) && BigInt(matchId) <= 2n ** 64n - 1n
   const checkRegistration = useCallback(async () => {
-    const storage = await viewFunction({
+    const storage = await chainView.current({
       contractId: TOKEN,
       method: 'storage_balance_of',
       args: { account_id: account },
     })
     setRegistered(storage !== null)
-  }, [account, viewFunction])
+  }, [account])
   useEffect(() => {
     setRegistered(null)
     void checkRegistration().catch(() => setMessage('Could not check PCC registration.'))
@@ -52,13 +55,13 @@ export function ArcadeSettlement({ hash }: { hash: string }) {
       setMatch(null)
       return
     }
-    const result = (await viewFunction({
+    const result = (await chainView.current({
       contractId: CONTRACT,
       method: 'get_match',
       args: { match_id: matchId },
     })) as Match | null
     setMatch(result?.id === matchId ? result : null)
-  }, [matchId, validId, viewFunction])
+  }, [matchId, validId])
   useEffect(() => {
     void refresh().catch(() => setMessage('Could not load the match.'))
     const timer = window.setInterval(() => {
@@ -112,7 +115,7 @@ export function ArcadeSettlement({ hash }: { hash: string }) {
   }
   function open(id: string) {
     if (!/^\d{1,20}$/.test(id) || BigInt(id) > 2n ** 64n - 1n) throw new Error('Enter a valid match ID.')
-    window.location.hash = `arcade-duel?match=${id}`
+    window.location.hash = `arcade-duel?match=${BigInt(id)}`
   }
   const me = match?.players.find((p) => p.account === account),
     expired = !!match && now >= Number(BigInt(match.deadline) / 1000000n)

@@ -103,7 +103,7 @@ function Content() {
       {view === 'arcade' && <ArcadeLobby />}
       {view === 'demo' && <ComputeDemo />}
       {view === 'practice' && <PracticeArcade id={hash.slice('#practice/'.length)} />}
-      {view === 'settlement' && (signedAccountId ? <ArcadeSettlement hash={hash} /> : <div className="arena-container"><button type="button" className="btn-primary" onClick={() => void connectWallet()} disabled={loading}>Connect NEAR Wallet</button></div>)}
+      {view === 'settlement' && (signedAccountId ? <ArcadeSettlement key={signedAccountId} hash={hash} /> : <div className="arena-container"><button type="button" className="btn-primary" onClick={() => void connectWallet()} disabled={loading}>Connect NEAR Wallet</button></div>)}
 
       {view === 'play' &&
         (signedAccountId ? (
