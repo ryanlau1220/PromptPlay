@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowDown, ArrowUpRight, Coins, Cpu, Gamepad2, Lock } from 'lucide-react'
+import { ArrowDown, ArrowUpRight, ChevronLeft, ChevronRight, Coins, Cpu, Gamepad2, Lock } from 'lucide-react'
 import { GAME, TOKEN, base64, commitment } from '../lib/game'
 import { ArcadeScene } from './ArcadeScene'
 import { useSession } from './Session'
@@ -22,6 +22,7 @@ const steps = [
 export function ArcadeLobby() {
   const { config, configStatus } = useSession()
   const intro = useRef<HTMLElement>(null)
+  const gallery = useRef<HTMLDivElement>(null)
   const [selected, setSelected] = useState<number | null>(null)
   const [example, setExample] = useState<{ salt: string; hash: string } | null>(null)
   const [hashError, setHashError] = useState(false)
@@ -38,6 +39,13 @@ export function ArcadeLobby() {
       window.removeEventListener('hashchange', scrollToSection)
     }
   }, [])
+
+  function scrollGames(direction: number) {
+    const rail = gallery.current
+    if (!rail) return
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    rail.scrollBy({ left: direction * rail.clientWidth * 0.8, behavior: reduced ? 'instant' : 'smooth' })
+  }
 
   function showCommitment(choice: number) {
     if (choice === selected) return
@@ -137,8 +145,12 @@ export function ArcadeLobby() {
             <h2 id="games-title" className="section-title">Choose a game</h2>
             <p>Practice games run locally and award no PCC.</p>
           </div>
+          <div className="story-gallery-controls">
+            <button type="button" className="btn-ghost" aria-label="Previous games" aria-controls="story-game-gallery" onClick={() => scrollGames(-1)}><ChevronLeft size={20} /></button>
+            <button type="button" className="btn-ghost" aria-label="Next games" aria-controls="story-game-gallery" onClick={() => scrollGames(1)}><ChevronRight size={20} /></button>
+          </div>
         </div>
-        <div className="games-grid">
+        <div className="games-grid" id="story-game-gallery" ref={gallery}>
           <a href="#play" className="game-tile game-tile-featured"><GameArtwork id="rps" /><span><strong>Rock Paper Scissors</strong><small>TESTNET · 2 PLAYERS</small></span></a>
           {practiceGames.map(game => <a href={`#practice/${game.id}`} className="game-tile" key={game.id}><GameArtwork id={game.id} /><span><strong>{game.name}</strong><small>{game.kind}</small></span></a>)}
         </div>

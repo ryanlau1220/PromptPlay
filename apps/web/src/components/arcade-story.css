@@ -237,3 +237,45 @@
 .arcade-story :is(#loop, #games) {
   scroll-margin-block-start: 90px;
 }
+
+.story-gallery-controls {
+  display: flex;
+  gap: 8px;
+}
+
+.story-gallery-controls button {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 8px;
+}
+
+@media (min-width: 651px) {
+  .arcade-story .story-games .games-grid {
+    display: grid;
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(155px, 22%);
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    padding: 6px 6px 16px;
+  }
+
+  .story-games .game-tile {
+    scroll-snap-align: start;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view(inline)) {
+    .story-games .game-tile .game-artwork {
+      animation: story-gallery-depth linear both;
+      animation-timeline: view(inline);
+    }
+  }
+}
+
+@keyframes story-gallery-depth {
+  0% { transform: perspective(600px) rotateY(-18deg) scale(.92); }
+  50% { transform: perspective(600px) rotateY(0deg) scale(1); }
+  100% { transform: perspective(600px) rotateY(18deg) scale(.92); }
+}
