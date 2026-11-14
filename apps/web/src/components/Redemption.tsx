@@ -238,15 +238,18 @@ export function Redemption() {
     )
 
     setAnswer(response.choices[0].message.content)
-    await refresh()
+    await refresh().catch(() => setMessage('Response received. Refresh the account to see current usage and allowance.'))
   }
 
-  function copyKeyToClipboard() {
+  async function copyKeyToClipboard() {
     if (!newKey) return
-    void navigator.clipboard.writeText(newKey).then(() => {
+    try {
+      await navigator.clipboard.writeText(newKey)
       setCopiedKey(true)
       setTimeout(() => setCopiedKey(false), 2000)
-    })
+    } catch {
+      setMessage('Clipboard access is unavailable. Select and copy the displayed key manually.')
+    }
   }
 
   const snippetContent = config ? agentSnippets(API, config) : null
@@ -431,7 +434,7 @@ export function Redemption() {
                     <strong style={{ fontSize: '13px', color: 'var(--amber)' }}>
                       Copy Key Now (Shown Once)
                     </strong>
-                    <button type="button" className="btn-ghost" style={{ padding: '4px 8px', fontSize: '12px' }} onClick={copyKeyToClipboard}>
+                    <button type="button" className="btn-ghost" style={{ padding: '4px 8px', fontSize: '12px' }} onClick={() => void copyKeyToClipboard()}>
                       {copiedKey ? <Check size={14} color="var(--emerald)" /> : <Copy size={14} />}
                       <span>{copiedKey ? 'Copied' : 'Copy'}</span>
                     </button>
