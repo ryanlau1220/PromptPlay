@@ -29,7 +29,7 @@ A provider-configurable gateway exposes OpenAI-compatible endpoints. A player ca
 
 Use two separate NEAR Testnet wallet profiles with Testnet NEAR and PCC. Create a Duel Arena room, deposit both stakes, commit and reveal from the same profiles, and claim the payout. In Inference Hub, sign in, create an intent, deposit 5 PCC, authorize consumption and create a gateway key. Use the provided agent configuration with that key. Testnet gas, wallet confirmations, faucet funding, provider capacity and the operator's gateway configuration are required.
 
-The video uses real Testnet match footage and a live gateway-backed OpenCode file read. The match and agent run use different Testnet accounts, and the redemption section uses earlier verification evidence; it is not a single uninterrupted recording of the entire wallet-to-agent journey. The terminal segment presents the real agent events in a formatted view and does not expose the key.
+The video follows one winning Testnet wallet from match 12 through payout, redemption, credited allowance, live browser inference and an OpenCode file read. The 2 PCC payout includes the original 1 PCC stake; the 5 PCC redeemed came from the wallet’s accumulated balance. Transaction waits are edited, the gateway key is concealed, and the real OpenCode events are presented as a formatted trace.
 
 ## What is implemented
 
@@ -46,13 +46,14 @@ The video uses real Testnet match footage and a live gateway-backed OpenCode fil
 | RPS contract | [`game2.ryanlau1220.testnet`](https://testnet.nearblocks.io/address/game2.ryanlau1220.testnet) |
 | Shared settlement | [`arcade.ryanlau1220.testnet`](https://testnet.nearblocks.io/address/arcade.ryanlau1220.testnet) |
 | Redemption escrow | [`redeem.ryanlau1220.testnet`](https://testnet.nearblocks.io/address/redeem.ryanlau1220.testnet) |
+| Video journey, match 12 | [2 PCC payout](https://testnet.nearblocks.io/txns/2Dt3N1aaxc8UUwgYF83NaZQXUAWtVYGPKH11yDPdd116) and [5 PCC redemption](https://testnet.nearblocks.io/txns/5e2p2dzLFktTJ1Xe4Fpitx1TAWeDfS3VNb95Axmt6ycK) for `arcade-a.ryanlau1220.testnet`; approved and consumed escrow, then browser inference and an OpenCode file read. |
 | Continuous browser test, match 11 | [2 PCC payout](https://testnet.nearblocks.io/txns/H8tfJDLCQdYxjeqdkqt9nXdCnir7Ce7AYwATHS8Y1MNA) and [5 PCC redemption](https://testnet.nearblocks.io/txns/9AB2LdfgLbppe5k4wLMRFMDNq4vyeGpYEetMYdYtx3GR), both for `arcade-a.ryanlau1220.testnet`. The escrow record is approved and consumed. The same browser test recorded replay rejection, browser inference and an OpenCode file read; allowance changed from `9.668900` to `9.667329` units during the agent run. |
 | Current demo match 10 | [Payout transaction](https://testnet.nearblocks.io/txns/GVGyAX3Cyqy1eSYkmvQCrt7JjNNwUuyJYvyWk61KXh7M): a successful NEP-141 receipt transferred 2 PCC to `arcade-a.ryanlau1220.testnet` |
 | Separate browser redemption | [Deposit transaction](https://testnet.nearblocks.io/txns/B6BD8jpL1W199bfFdJ6qUyTjKyTEYDCCZZ2pBWzM186Q): a successful NEP-141 receipt transferred 5 PCC from the same account to the redemption escrow. This does not establish that the match 10 payout funded this deposit. |
 | Browser escrow verification | [Deposit transaction](https://testnet.nearblocks.io/txns/8scn6NncJbdW8TfAwZtDqgVpqHutbp1tUGvqZc8DCMc), with recovery, replay and live inference documented in the deployment record |
 | CI before this audit | [Passing workflow for `5bee050`](https://github.com/ryanlau1220/PromptPlay/actions/runs/43613698518); check the repository Actions tab for the final submission commit |
 
-The deployment record distinguishes browser-wallet tests, operator-signed SDK tests and isolated gateway tests. `bun run verify:testnet` checks the match 11 payout and consumed escrow, along with other recorded contract and transaction evidence, without submitting transactions. The browser runner's off-chain inference and allowance results are not independently verified by that chain-only command.
+The deployment record distinguishes browser-wallet tests, operator-signed SDK tests and isolated gateway tests. `bun run verify:testnet` checks the match 11 and 12 payouts and consumed escrows, along with other recorded contract and transaction evidence, without submitting transactions. The browser runner's off-chain inference and allowance results are not independently verified by that chain-only command.
 
 ## Why it matters
 
@@ -88,7 +89,7 @@ This is an internal review, not an independent security audit. Severity reflects
 | P1 | Provider billing, configured prices and model limits, the escrow approval key, and a single persistent SQLite ledger remain operational trust boundaries. | Retain metering limits, restricted approval, backups and reconciliation. Actual upstream charges and availability remain external; do not reset the ledger. |
 | P1 | The issuer can mint PCC, and a finalized Testnet access-key query found a full-access key on each deployed contract account. | Documented administrative trust: the relevant key holders can redeploy contract code. The backend approval key is restricted to the escrow `approve` method; do not describe the contracts as immutable. |
 | P1 | Shared arcade results are player assertions; a refusing or disagreeing player can delay resolution until the timeout. | Documented limitation. Either participant can resolve after the deadline and funded stakes are refundable; this does not prove fair play. |
-| P2 | The match 11 browser test verified continuous winner-to-redemption-to-agent execution, but did not record a continuous video. | Chain state, payout and deposit receipts are reproducible with `bun run verify:testnet`; off-chain inference evidence is the runner trace. The existing video uses separate footage. |
+| P2 | Match 11 verified the continuous journey without recording it. | The match 12 video now follows the same wallet throughout; chain receipts are reproducible with `bun run verify:testnet`, while inference and agent events are off-chain runner evidence. |
 
 ## Boundaries and known limitations
 
