@@ -117,6 +117,9 @@ async function verifyEscrow() {
 }
 
 async function verifyBrowserJourney(journey) {
+  assert.equal(journey.gameContract, evidence.multiRoundRps.accountId)
+  assert.equal(journey.redemptionEscrow, evidence.redemptionEscrow.contract)
+  assert.equal(journey.winner, journey.players[0])
   const view = async (account, method, args) => {
     const result = await rpc('query', { request_type: 'call_function', finality: 'final', account_id: account,
       method_name: method, args_base64: Buffer.from(JSON.stringify(args)).toString('base64') })
