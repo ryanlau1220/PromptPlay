@@ -34,7 +34,7 @@ import {
   type Match,
   type Secret
 } from '../lib/game'
-import { useSession } from './Session'
+import { API, useSession } from './Session'
 import { MatchHistory } from './MatchHistory'
 
 const SNAP = { type: 'spring', stiffness: 420, damping: 24 } as const
@@ -199,7 +199,7 @@ export function GameRoom() {
     let last = 0
 
     const connect = () => {
-      const url = new URL(import.meta.env.VITE_API_URL || 'http://localhost:3001')
+      const url = new URL(API)
       url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
       url.pathname = `/rooms/${id}/ws`
       url.search = ''

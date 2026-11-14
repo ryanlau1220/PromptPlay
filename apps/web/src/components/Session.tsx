@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState, useCallback, type ReactNode } from 'react'
 import { useNearWallet } from 'near-connect-hooks'
 import { fromBase64 } from '../lib/game'
-export const API = import.meta.env.VITE_API_URL || 'http://localhost:3001'
+export const API = (import.meta.env.VITE_API_URL || 'http://localhost:3001').replace(/\/+$/, '')
 export type ServerConfig = {redemptionAvailable:boolean;redemptionUnitsAvailable:number|null;escrowAccount:string|null;faucetAvailable:boolean;provider:string|null;model:string|null;capabilities:{streaming:boolean;toolCalls:boolean}|null;contextTokens:number|null;microsPerUnit:number|null;maxOutputTokens:number|null;pccPerUnit:string}
 type Session = {token:string;config:ServerConfig|null;configStatus:'loading'|'ready'|'unavailable';refreshConfig:()=>Promise<void>;login:()=>Promise<string>;request:<T = unknown>(path:string,method?:string,body?:unknown,token?:string)=>Promise<T>}
 const Context=createContext<Session|null>(null)

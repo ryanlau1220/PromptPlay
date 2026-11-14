@@ -1,6 +1,7 @@
 import type { ServerConfig } from '../components/Session'
 
-export function agentSnippets(API: string, config: ServerConfig) {
+export function agentSnippets(apiUrl: string, config: ServerConfig) {
+  const API = apiUrl.replace(/\/+$/, '')
   const model = config.model
   const modelLimits = { context: config.contextTokens, output: config.maxOutputTokens }
   const agentReady = config.capabilities?.streaming === true && config.capabilities.toolCalls === true
