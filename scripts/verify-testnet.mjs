@@ -32,10 +32,10 @@ async function rpc(method, params) {
   }
   throw new Error('RPC retry limit reached')
 }
-function transferEvent(outcome, from, to, amount) {
+function transferEvent(outcome, from, to, amount, allowForwarded = false) {
   return outcome.receipts_outcome.some(receipt =>
     receipt.outcome.executor_id === evidence.computeCredit.accountId &&
-    Object.hasOwn(receipt.outcome.status, 'SuccessValue') &&
+    (Object.hasOwn(receipt.outcome.status, 'SuccessValue') || (allowForwarded && Object.hasOwn(receipt.outcome.status, 'SuccessReceiptId'))) &&
     receipt.outcome.logs.some(line => {
       if (!line.startsWith('EVENT_JSON:')) return false
       const event = JSON.parse(line.slice('EVENT_JSON:'.length))
@@ -116,6 +116,54 @@ async function verifyEscrow() {
   return { cap: settings.cap, allocated: settings.allocated, remaining: (BigInt(settings.cap) - allocated).toString() }
 }
 
+async function verifyBrowserJourney(journey) {
+  const view = async (account, method, args) => {
+    const result = await rpc('query', { request_type: 'call_function', finality: 'final', account_id: account,
+      method_name: method, args_base64: Buffer.from(JSON.stringify(args)).toString('base64') })
+    return JSON.parse(Buffer.from(result.result).toString())
+  }
+  const match = await view(journey.gameContract, 'get_match', { match_id: journey.matchId })
+  assert.equal(match.id, journey.matchId)
+  assert.equal(match.phase, 'Completed')
+  assert.equal(match.stake, journey.stakeBaseUnits)
+  assert.equal(match.winner, journey.winner)
+  assert.deepEqual(match.wins, [2, 0])
+  assert.deepEqual(match.players.map(player => player.account), journey.players)
+  assert.ok(match.players.every(player => player.funded && player.commitment && player.revealed !== null && player.claim === '0' && !player.pending))
+
+  const payout = await rpc('tx', { tx_hash: journey.payoutTransaction, sender_account_id: journey.winner, wait_until: 'FINAL' })
+  assert.equal(payout.final_execution_status, 'FINAL')
+  assert.equal(payout.transaction.signer_id, journey.winner)
+  assert.equal(payout.transaction.receiver_id, journey.gameContract)
+  assert.equal(Buffer.from(payout.status.SuccessValue, 'base64').toString(), 'true')
+  const claim = payout.transaction.actions.find(action => action.FunctionCall?.method_name === 'claim_payout')?.FunctionCall
+  assert.ok(claim, 'Missing journey claim_payout call')
+  assert.equal(JSON.parse(Buffer.from(claim.args, 'base64').toString()).match_id, journey.matchId)
+  assert.ok(transferEvent(payout, journey.gameContract, journey.winner, (BigInt(journey.stakeBaseUnits) * 2n).toString()), 'Missing journey payout receipt')
+
+  const payment = await rpc('tx', { tx_hash: journey.redemptionTransaction, sender_account_id: journey.winner, wait_until: 'FINAL' })
+  assert.equal(payment.final_execution_status, 'FINAL')
+  assert.ok(Object.hasOwn(payment.status, 'SuccessValue'))
+  assert.equal(payment.transaction.signer_id, journey.winner)
+  assert.equal(payment.transaction.receiver_id, evidence.computeCredit.accountId)
+  const transfer = payment.transaction.actions.find(action => action.FunctionCall?.method_name === 'ft_transfer_call')?.FunctionCall
+  assert.ok(transfer, 'Missing journey redemption transfer')
+  const args = JSON.parse(Buffer.from(transfer.args, 'base64').toString())
+  assert.equal(args.receiver_id, journey.redemptionEscrow)
+  assert.equal(args.amount, journey.redemptionAmountBaseUnits)
+  assert.equal(args.msg, journey.redemptionDepositId)
+  assert.equal(JSON.parse(Buffer.from(payment.status.SuccessValue, 'base64').toString()), journey.redemptionAmountBaseUnits)
+  assert.ok(transferEvent(payment, journey.winner, journey.redemptionEscrow, journey.redemptionAmountBaseUnits, true), 'Missing journey deposit receipt')
+  const deposit = await view(journey.redemptionEscrow, 'get_deposit', { account: journey.winner, id: journey.redemptionDepositId })
+  assert.equal(deposit.account, journey.winner)
+  assert.equal(deposit.amount, journey.redemptionAmountBaseUnits)
+  assert.equal(deposit.units, '1')
+  assert.equal(deposit.approved, true)
+  assert.equal(deposit.status, 'Consumed')
+  return { matchId: match.id, winner: match.winner, payoutTransaction: journey.payoutTransaction,
+    redemptionTransaction: journey.redemptionTransaction, redemptionStatus: deposit.status }
+}
+
 try {
   const status = await rpc('status', [])
   assert.equal(status.chain_id, 'testnet', 'RPC must be connected to NEAR Testnet')
@@ -162,9 +210,10 @@ try {
     }
 
     const arcadeMatches = await Promise.all([evidence.arcadeSettlement.sdkVerifiedMatch, evidence.arcadeSettlement.browserVerifiedMatch].map(verifyArcadeMatch))
-    console.log(JSON.stringify({ checkedAt: new Date().toISOString(), network: status.chain_id, contracts, matches, arcadeMatches, multiRoundMatch:multiMatch.id, escrowCapacity: await verifyEscrow(),
+    const browserJourney = await verifyBrowserJourney(evidence.browserJourneyAudit)
+    console.log(JSON.stringify({ checkedAt: new Date().toISOString(), network: status.chain_id, contracts, matches, arcadeMatches, multiRoundMatch:multiMatch.id, browserJourney, escrowCapacity: await verifyEscrow(),
       operatorPayments: payments.map(payment => ({ transaction: payment.transferTransaction, amountBaseUnits: payment.amountBaseUnits })),
-      limitations: 'Read-only chain evidence; does not reproduce browser wallet interactions, infer linkage between match and payment, or verify a live inference request.' }, null, 2))
+      limitations: 'Read-only chain evidence verifies the recorded match, payout and escrow state; it does not reproduce browser interactions, trace specific token units between transactions, or verify off-chain inference usage.' }, null, 2))
   }
 } catch (error) {
   console.error('Testnet evidence verification failed:', error instanceof Error ? error.message : String(error))

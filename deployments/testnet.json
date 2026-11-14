@@ -1,4 +1,21 @@
 {
+  "browserJourneyAudit": {
+    "network": "testnet",
+    "gameContract": "game2.ryanlau1220.testnet",
+    "matchId": "11",
+    "players": ["arcade-a.ryanlau1220.testnet", "arcade-b.ryanlau1220.testnet"],
+    "winner": "arcade-a.ryanlau1220.testnet",
+    "stakeBaseUnits": "1000000",
+    "payoutTransaction": "H8tfJDLCQdYxjeqdkqt9nXdCnir7Ce7AYwATHS8Y1MNA",
+    "redemptionEscrow": "redeem.ryanlau1220.testnet",
+    "redemptionDepositId": "EMRSnbsAdL23zA93zp7Zo4HsZZFsDA7h",
+    "redemptionTransaction": "9AB2LdfgLbppe5k4wLMRFMDNq4vyeGpYEetMYdYtx3GR",
+    "redemptionAmountBaseUnits": "5000000",
+    "redemptionStatus": "Consumed",
+    "allowanceBeforeAgentMicrounits": 9668900,
+    "allowanceAfterAgentMicrounits": 9667329,
+    "scope": "Two Meteor browser wallets; winning wallet deposited and consumed PCC, replay was rejected, browser inference and OpenCode file read completed. Chain state and PCC transfer receipts independently verified; agent usage and allowance are server-side runner evidence."
+  },
   "multiRoundRps": {
     "accountId": "game2.ryanlau1220.testnet",
     "deploymentTransaction": "9hseGNWCKBoTds2aSnoevBQJ6n3aZ7Xusvr2dLexmf1h",
