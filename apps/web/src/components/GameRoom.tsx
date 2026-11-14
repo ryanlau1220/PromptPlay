@@ -537,7 +537,7 @@ export function GameRoom() {
               {['Funding', 'Committing', 'Revealing'].includes(room.phase) && (
                 <div className="match-timer-badge">
                   <Clock size={16} />
-                  <span>{timeLeft}s</span>
+                  <span>{timeLeft > 0 ? `${timeLeft}s` : 'Check match deadline'}</span>
                 </div>
               )}
               <button type="button" className="btn-ghost" style={{ fontSize: '12px', padding: '6px 12px' }} onClick={copyInvite}>
