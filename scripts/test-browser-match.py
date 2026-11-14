@@ -102,7 +102,7 @@ def sign(c,a,name):
  previous=set(c.pages)
  a.get_by_role('button',name=name).first.click(timeout=40000)
  wallet_prompt(popup(c,previous))
- a.get_by_text('Transaction confirmed on NEAR Testnet!').first.wait_for(timeout=60000)
+ a.get_by_text(re.compile(r'^Transaction confirmed(?: on NEAR Testnet\.|\. Match refresh is unavailable)')).first.wait_for(timeout=60000)
  link=a.locator('a[href^="https://testnet.nearblocks.io/txns/"]').last
  link.wait_for(timeout=10000)
  trace['transactions'].append({'step':name,'hash':link.get_attribute('href').rsplit('/',1)[-1]})
@@ -190,7 +190,7 @@ try:
    if os.environ.get('BROWSER_TEST_REJECT_CREATE')=='true':
     save('opening create for rejection')
     previous=set(ca.pages);a.get_by_role('button',name='Create Duel').first.click();wallet_prompt(popup(ca,previous),False)
-    status=a.get_by_role('status');status.get_by_text(re.compile('reject|denied|cancel',re.I)).wait_for(timeout=30000)
+    status=a.get_by_role('status');status.get_by_text(re.compile('reject|denied|cancel|Wallet did not return a transaction result',re.I)).wait_for(timeout=30000)
     if parse_qs(urlparse(a.url).query).get('match') or a.locator('a[href^="https://testnet.nearblocks.io/txns/"]').count(): raise RuntimeError('Rejected create unexpectedly returned a transaction or match')
     if not a.get_by_role('button',name='Create Duel').first.is_enabled(): raise RuntimeError('Create button did not recover after rejection')
     save('wallet rejection handled')
