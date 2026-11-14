@@ -79,7 +79,9 @@ Contract builds and sandbox tests require the Rust/Wasm tools above; sandbox tes
 
 `bun run test:browser` makes Testnet transactions using two pre-funded Meteor 0.8.11 profiles and Python Playwright 1.64.1 with Chromium. Set `METEOR_TEST_PROFILE_DIR` (containing `profile-0` and `profile-1`), `METEOR_PASSWORD_FILE`, `METEOR_EXTENSION_PATH`, `TESTNET_PLAYER_A`, and `TESTNET_PLAYER_B`; set `BROWSER_TEST_HEADED=true` when a visible browser is needed. With a funded, enabled gateway and OpenCode, `BROWSER_TEST_REDEEM=true` also exercises redemption, browser inference and an OpenCode file read. See [the runner](scripts/test-browser-match.py) for recovery options. Keep the extension at the path used to create the profiles. If interrupted, preserve the profiles and inspect the chain before retrying.
 
-CI runs checks, app tests and the web build separately from contract builds and tests. The repository has no project license at present.
+CI runs checks, app tests and the web build separately from contract builds and tests. The project is available under the [MIT License](LICENSE).
+
+The project uses TanStack Start, React, Bun, Elysia, near-api-js, near-sdk and NEAR's fungible-token standards. The PCC implementation is adapted from the MIT/Apache-2.0 [NEAR FT example](https://github.com/near-examples/FT); other dependencies are listed in the package manifests and lockfiles. AI coding tools, including Codex, assisted development.
 
 ## Gateway and safety boundaries
 

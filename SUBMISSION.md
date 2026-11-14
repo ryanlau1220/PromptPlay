@@ -108,6 +108,8 @@ The [official submission page](https://nearhackathon.com/#submit) requests a pro
 - **Repository:** https://github.com/ryanlau1220/PromptPlay
 - **Website:** https://promptplay-web.ryanlau1220.workers.dev
 - **Team lead, contact email, team size and prize wallet:** supply or confirm before submitting; the Testnet accounts above are deployment accounts, not a confirmed prize wallet.
+- **Other hackathon entries:** the organizer permits at most two independent projects per person and requires each README to name the other; confirm whether this applies to any team member.
+- **License:** [MIT](LICENSE).
 - **Public X demo-post link:** add after the maintainer publishes the demo. The repository video file alone is not the requested public post.
 - **Submission status:** prepared here; no X post or official form submission was made by this document.
 
