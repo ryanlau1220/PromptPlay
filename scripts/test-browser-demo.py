@@ -78,5 +78,19 @@ with sync_playwright() as playwright:
             expect(lit).to_have_attribute("aria-label", first_pad)
             page.get_by_role("button", name=first_pad).click()
             expect(page.get_by_text("Round 2 ready")).to_be_visible()
+            page.goto(web.split("#", 1)[0] + "#practice/2048")
+            expect(page.get_by_role("heading", name="2048")).to_be_visible()
+            assert page.evaluate("""() => {
+                const event = new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true })
+                document.querySelector('.practice-page h1').dispatchEvent(event)
+                return !event.defaultPrevented
+            }""")
+            move = page.get_by_role("button", name="Move down")
+            move.focus()
+            assert page.evaluate("""() => {
+                const event = new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true })
+                document.activeElement.dispatchEvent(event)
+                return event.defaultPrevented
+            }""")
             assert not errors, errors
             print(f"{width}px ({motion}): wallet-free demo passed")
