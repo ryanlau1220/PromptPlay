@@ -104,3 +104,15 @@ with sync_playwright() as playwright:
                 print("All eleven practice games fit at 320px")
             assert not errors, errors
             print(f"{width}px ({motion}): wallet-free demo passed")
+
+    with playwright.chromium.launch() as browser:
+        page = browser.new_page()
+        page.goto(web)
+        expect(page.get_by_role("heading", name="Play while your coding agent runs.")).to_be_visible()
+        page.route("**/*ComputeDemo*.{js,tsx}", lambda route: route.abort())
+        page.get_by_role("link", name="Play the wallet-free demo").click()
+        expect(page.get_by_role("heading", name="Arcade screen unavailable")).to_be_visible()
+        page.unroute("**/*ComputeDemo*.{js,tsx}")
+        page.get_by_role("button", name="Reload screen").click()
+        expect(page.get_by_role("heading", name="Practice the compute loop")).to_be_visible()
+        print("A failed demo download can recover without losing the route")
