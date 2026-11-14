@@ -1702,3 +1702,19 @@ button:disabled:is(button, .btn-primary, .btn-accent, .move-card-btn) {
 .app-skip-link:focus {
   transform: none;
 }
+
+.practice-agreement {
+  margin-block-start: 20px;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.practice-agreement summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.practice-agreement .btn-ghost {
+  margin-block-start: 6px;
+}
