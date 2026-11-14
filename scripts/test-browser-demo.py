@@ -19,6 +19,13 @@ with sync_playwright() as playwright:
             assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
             page.get_by_role("button", name="Claim", exact=True).click()
             expect(page.get_by_text("10 PCC claimed", exact=True)).to_be_visible()
+            if motion == "no-preference":
+                expand = page.get_by_role("button", name="Expand workspace")
+                if expand.is_visible():
+                    expand.click()
+                    page.get_by_role("button", name="Exit fullscreen").click()
+                    expect(expand).to_be_visible()
+                    print("Workspace fullscreen enter and exit passed")
             page.get_by_role("button", name="Next games").click()
             page.wait_for_function("document.querySelector('#story-game-gallery').scrollLeft > 0")
             page.get_by_role("link", name="Play the wallet-free demo").click()
@@ -31,5 +38,14 @@ with sync_playwright() as playwright:
             page.get_by_role("button", name="Run a mock inference request").click()
             expect(page.get_by_text("0.999994 units", exact=True)).to_be_visible()
             assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+            expect(page.get_by_role("heading", name="Mock request complete")).to_be_focused()
+            page.get_by_text("Simulate redemption demand", exact=True).click()
+            slider = page.get_by_role("slider")
+            slider.press("End")
+            expect(page.get_by_text("50 requests unmet", exact=False)).to_be_visible()
+            page.get_by_role("button", name="Restart demo").click()
+            expect(page.get_by_role("heading", name="Choose your move")).to_be_focused()
+            page.get_by_role("link", name="Open Testnet duel").click()
+            expect(page.get_by_role("heading", name="Enter Duel Arena")).to_be_visible()
             assert not errors, errors
             print(f"{width}px ({motion}): wallet-free demo passed")
