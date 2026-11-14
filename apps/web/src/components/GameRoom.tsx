@@ -2,7 +2,7 @@ import { useNearWallet } from 'near-connect-hooks'
 import { getTransactionLastResult } from 'near-api-js'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import confetti from 'canvas-confetti'
-import { motion } from 'framer-motion'
+import { motion, useReducedMotion } from 'framer-motion'
 import {
   Gamepad2,
   Copy,
@@ -40,6 +40,7 @@ import { MatchHistory } from './MatchHistory'
 const SNAP = { type: 'spring', stiffness: 420, damping: 24 } as const
 
 export function GameRoom() {
+  const reducedMotion = useReducedMotion()
   const { signedAccountId: account, callFunctionRaw, viewFunction } = useNearWallet()
   const chainView = useRef(viewFunction)
   useEffect(() => { chainView.current = viewFunction }, [viewFunction])
@@ -138,6 +139,7 @@ export function GameRoom() {
       if (confettiFired.current !== room.id) {
         confettiFired.current = room.id
         confetti({
+          disableForReducedMotion: true,
           particleCount: 80,
           spread: 70,
           origin: { y: 0.6 },
@@ -650,15 +652,15 @@ export function GameRoom() {
                       className={`move-card-btn ${selected ? 'selected' : ''} ${pending && selected ? 'locking' : ''}`}
                       disabled={pending}
                       onClick={() => void action(() => choose(move.id))}
-                      initial={{ opacity: 0, y: 24, rotate: (i - 1) * -4 }}
+                      initial={reducedMotion ? false : { opacity: 0, y: 24, rotate: (i - 1) * -4 }}
                       animate={{
                         opacity: pending && !selected ? 0.35 : 1,
                         y: 0,
                         rotate: 0,
                       }}
-                      whileHover={pending ? undefined : { y: -8, scale: 1.04, transition: SNAP }}
-                      whileTap={pending ? undefined : { scale: 0.94, transition: SNAP }}
-                      transition={{ type: 'spring', stiffness: 380, damping: 24, delay: i * 0.06 }}
+                      whileHover={pending || reducedMotion ? undefined : { y: -8, scale: 1.04, transition: SNAP }}
+                      whileTap={pending || reducedMotion ? undefined : { scale: 0.94, transition: SNAP }}
+                      transition={reducedMotion ? { duration: 0 } : { type: 'spring', stiffness: 380, damping: 24, delay: i * 0.06 }}
                     >
                       <span className="move-keycap" aria-hidden="true">{i + 1}</span>
                       <img src={move.icon} alt="" />
@@ -673,13 +675,13 @@ export function GameRoom() {
           {me && room.phase === 'Committing' && me.commitment && (
             <motion.div
               style={{ textAlign: 'center', padding: '24px 0', background: 'var(--surface-card)', borderRadius: '16px' }}
-              initial={{ opacity: 0, scale: 0.92 }}
+              initial={reducedMotion ? false : { opacity: 0, scale: 0.92 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={SNAP}
             >
               <motion.div
                 style={{ display: 'inline-block', marginBottom: '8px' }}
-                initial={{ y: -14, rotate: -20 }}
+                initial={reducedMotion ? false : { y: -14, rotate: -20 }}
                 animate={{ y: 0, rotate: 0 }}
                 transition={{ type: 'spring', stiffness: 600, damping: 14, delay: 0.08 }}
               >
