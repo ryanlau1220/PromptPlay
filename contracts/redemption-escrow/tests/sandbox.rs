@@ -1,9 +1,15 @@
 use near_api::types::{AccessKeyPermission, transaction::actions::FunctionCallPermission};
 use near_api::{AccountId, NearGas, NearToken};
 use near_sdk::serde_json::{Value, json};
+
+// Each sandbox starts a full NEAR node. Keep these integration tests from
+// competing for the limited resources available on CI runners.
+static SANDBOX_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
 #[tokio::test]
 async fn capacity_rejection_refunds_and_consumed_pcc_reaches_treasury() -> testresult::TestResult<()>
 {
+    let _guard = SANDBOX_LOCK.lock().await;
     let sandbox = near_sandbox::Sandbox::start_sandbox().await?;
     let network = near_api::NetworkConfig::from_rpc_url("sandbox", sandbox.rpc_addr.parse()?);
     let signer = near_api::Signer::from_secret_key(
@@ -173,6 +179,7 @@ async fn capacity_rejection_refunds_and_consumed_pcc_reaches_treasury() -> testr
 
 #[tokio::test]
 async fn gateway_redeems_against_real_sandbox_contracts() -> testresult::TestResult<()> {
+    let _guard = SANDBOX_LOCK.lock().await;
     let sandbox = near_sandbox::Sandbox::start_sandbox().await?;
     let network = near_api::NetworkConfig::from_rpc_url("sandbox", sandbox.rpc_addr.parse()?);
     let genesis = near_sandbox::config::DEFAULT_GENESIS_ACCOUNT_PRIVATE_KEY;
