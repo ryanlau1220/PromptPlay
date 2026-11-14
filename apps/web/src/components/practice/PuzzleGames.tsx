@@ -16,11 +16,61 @@ export function Minesweeper() {
   function select(i: number, flag = flagMode) { if (win || lost || opened.has(i)) return; if (flag) { const next = new Set(flags); if (next.has(i)) next.delete(i); else next.add(i); setFlags(next); return } if (flags.has(i)) return; const field = bombs ?? makeMines(i); if (!bombs) setBombs(field); if (field.has(i)) { setLost(true); return } setOpened(uncover(i, field, opened, flags)) }
   return <><p className="practice-status">{lost ? 'Mine hit' : win ? 'Field cleared!' : `${MINES} mines · ${flags.size} flags`}</p><button type="button" className={`practice-mode ${flagMode ? 'active' : ''}`} onClick={() => setFlagMode(!flagMode)}>⚑ {flagMode ? 'Flag mode on' : 'Flag mode off'}</button><div className="practice-grid mine-grid">{Array.from({length:SIZE}, (_, i) => { const isOpen = opened.has(i), mine = bombs?.has(i), count = bombs ? adjacent(i,8,8,true).filter(n => bombs.has(n)).length : 0; return <button type="button" key={positionKeys[i]} className={`practice-cell mine-cell ${isOpen ? 'revealed' : ''}`} onClick={() => select(i)} onContextMenu={(e) => { e.preventDefault(); select(i, true) }} aria-label={`Cell ${i+1}: ${flags.has(i) ? 'flagged' : isOpen ? `${count} adjacent mines` : 'covered'}`}>{lost && mine ? '✹' : flags.has(i) ? '⚑' : isOpen && count ? count : ''}</button> })}</div></>
 }
+const sequencePads = [
+  { color: 'cyan', symbol: '●', name: 'Circle' },
+  { color: 'pink', symbol: '▲', name: 'Triangle' },
+  { color: 'amber', symbol: '■', name: 'Square' },
+  { color: 'green', symbol: '◆', name: 'Diamond' },
+]
+
 export function Sequence() {
-  const [sequence, setSequence] = useState<number[]>(() => [Math.floor(Math.random()*4)]), [phase, setPhase] = useState<'show'|'input'|'lost'>('show'), [lit, setLit] = useState<number | null>(null), [position, setPosition] = useState(0)
-  useEffect(() => { if (phase !== 'show') return; const timers: number[] = []; sequence.forEach((n, i) => { timers.push(window.setTimeout(() => setLit(n), 700 + i * 750)); timers.push(window.setTimeout(() => setLit(null), 1150 + i * 750)) }); timers.push(window.setTimeout(() => { setPosition(0); setPhase('input') }, 700 + sequence.length * 750)); return () => timers.forEach(clearTimeout) }, [phase, sequence])
-  function pick(i: number) { if (phase !== 'input') return; if (sequence[position] !== i) { setPhase('lost'); return } if (position + 1 === sequence.length) { setSequence([...sequence, Math.floor(Math.random()*4)]); setPhase('show') } else setPosition(position + 1) }
-  return <><p className="practice-status">{phase === 'lost' ? `Game over · ${sequence.length - 1} rounds` : phase === 'show' ? `Round ${sequence.length} · watch` : `Round ${sequence.length} · your turn`}</p><div className="practice-grid sequence-grid">{['cyan','pink','amber','green'].map((color, i) => <button type="button" key={color} className={`sequence-pad ${color} ${lit === i ? 'lit' : ''}`} onClick={() => pick(i)} disabled={phase !== 'input'} aria-label={`Sequence ${color}`} />)}</div></>
+  const [sequence, setSequence] = useState<number[]>(() => [Math.floor(Math.random() * 4)])
+  const [phase, setPhase] = useState<'ready' | 'show' | 'input' | 'lost'>('ready')
+  const [lit, setLit] = useState<number | null>(null)
+  const [position, setPosition] = useState(0)
+
+  useEffect(() => {
+    if (phase !== 'show') return
+    const timers = sequence.flatMap((pad, index) => [
+      window.setTimeout(() => setLit(pad), 700 + index * 950),
+      window.setTimeout(() => setLit(null), 1450 + index * 950),
+    ])
+    timers.push(window.setTimeout(() => {
+      setPosition(0)
+      setPhase('input')
+    }, 700 + sequence.length * 950))
+    return () => timers.forEach(clearTimeout)
+  }, [phase, sequence])
+
+  function pick(index: number) {
+    if (phase !== 'input') return
+    if (sequence[position] !== index) {
+      setPhase('lost')
+    } else if (position + 1 === sequence.length) {
+      setSequence([...sequence, Math.floor(Math.random() * 4)])
+      setPhase('ready')
+    } else {
+      setPosition(position + 1)
+    }
+  }
+
+  return (
+    <>
+      <output className="practice-status">{phase === 'lost' ? `Game over · ${sequence.length - 1} rounds completed`
+        : phase === 'show' ? `Round ${sequence.length} · ${lit === null ? 'Watch the pads' : sequencePads[lit].name}`
+          : phase === 'input' ? `Round ${sequence.length} · Repeat the sequence` : `Round ${sequence.length} ready`}</output>
+      {phase === 'ready' && <button type="button" className="btn-primary" onClick={() => setPhase('show')}>Show sequence</button>}
+      {phase === 'input' && <button type="button" className="btn-ghost" onClick={() => setPhase('show')}>Replay sequence</button>}
+      <div className="practice-grid sequence-grid">
+        {sequencePads.map(({ color, symbol, name }, index) => (
+          <button type="button" key={color} className={`sequence-pad ${color} ${lit === index ? 'lit' : ''}`}
+            onClick={() => pick(index)} disabled={phase !== 'input'} aria-label={name}>
+            <span aria-hidden="true">{symbol}</span>
+          </button>
+        ))}
+      </div>
+    </>
+  )
 }
 export function Codebreaker() {
   const [secret] = useState(() => shuffle(['1','2','3','4','5','6']).slice(0,4).join('')), [guess, setGuess] = useState(''), [history, setHistory] = useState<Array<{guess:string;exact:number;misplaced:number}>>([]), [error, setError] = useState('')

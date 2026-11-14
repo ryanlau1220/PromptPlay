@@ -1718,3 +1718,12 @@ button:disabled:is(button, .btn-primary, .btn-accent, .move-card-btn) {
 .practice-agreement .btn-ghost {
   margin-block-start: 6px;
 }
+
+.sequence-pad span {
+  font-size: clamp(28px, 8vw, 50px);
+}
+
+.sequence-pad.lit {
+  outline: 3px solid var(--text);
+  outline-offset: -5px;
+}
