@@ -21,7 +21,7 @@
 
   --text: #f1f5f9;
   --text-muted: #8492a6;
-  --text-dim: #4e5b72;
+  --text-dim: #8997ad;
 
   --cyan: #00f0ff;
   --cyan-glow: rgba(0, 240, 255, 0.28);
@@ -37,7 +37,7 @@
   --button-primary-shadow: 0 4px 18px rgba(0, 240, 255, 0.35);
 
   --button-accent-bg: #ff2a6d;
-  --button-accent-text: #ffffff;
+  --button-accent-text: #050a14;
   --button-accent-shadow: 0 4px 18px rgba(255, 42, 109, 0.35);
 
   --badge-bg: rgba(0, 240, 255, 0.08);
@@ -66,22 +66,22 @@
 
   --text: #0f172a;
   --text-muted: #475569;
-  --text-dim: #94a3b8;
+  --text-dim: #52637a;
 
-  --cyan: #0284c7;
+  --cyan: #075985;
   --cyan-glow: rgba(2, 132, 199, 0.2);
   --crimson: #e11d48;
   --crimson-glow: rgba(225, 29, 72, 0.2);
-  --amber: #d97706;
+  --amber: #a33d00;
   --amber-glow: rgba(217, 119, 6, 0.2);
-  --emerald: #059669;
+  --emerald: #047857;
   --emerald-glow: rgba(5, 150, 105, 0.2);
 
-  --button-primary-bg: #0284c7;
+  --button-primary-bg: #0369a1;
   --button-primary-text: #ffffff;
   --button-primary-shadow: 0 4px 14px rgba(2, 132, 199, 0.25);
 
-  --button-accent-bg: #e11d48;
+  --button-accent-bg: #be123c;
   --button-accent-text: #ffffff;
   --button-accent-shadow: 0 4px 14px rgba(225, 29, 72, 0.25);
 
