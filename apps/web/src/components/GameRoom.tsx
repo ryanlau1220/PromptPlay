@@ -48,6 +48,7 @@ export function GameRoom() {
   const [opponent, setOpponent] = useState('')
   const [stake, setStake] = useState('5')
   const [id, setId] = useState(() => new URLSearchParams(window.location.search).get('match') ?? '')
+  const [matchInput, setMatchInput] = useState(id)
   const socket = useRef<WebSocket | null>(null)
   const [loadedRoom, setRoom] = useState<Match | null>(null)
   const [roomRead, setRoomRead] = useState<{ id: string; status: 'missing' | 'unavailable' } | null>(null)
@@ -324,10 +325,20 @@ export function GameRoom() {
     })
     const matchId = String(result)
     if (!/^\d+$/.test(matchId)) throw new Error('Match created; verify transaction hash in explorer.')
-    setRoom(null)
-    setId(matchId)
-    window.history.replaceState(null, '', `?match=${matchId}#play`)
+    openMatch(matchId)
     // The room reader starts as soon as the confirmed match ID is set.
+  }
+
+  function openMatch(matchId: string) {
+    setMatchInput(matchId)
+    setRoomRead(null)
+    if (id === matchId) {
+      void refresh(matchId).catch(() => setRoomRead({ id: matchId, status: 'unavailable' }))
+    } else {
+      setRoom(null)
+      setId(matchId)
+    }
+    window.history.replaceState(null, '', `?match=${matchId}#play`)
   }
 
   async function fund() {
@@ -431,7 +442,7 @@ export function GameRoom() {
   return (
     <div className="arena-container">
       {room && <div>Round {room.round} · {room.players[0].account}: {room.wins[0]} — {room.players[1].account}: {room.wins[1]} {me && !['Completed','Cancelled'].includes(room.phase) && <button type="button" disabled={notificationBusy || notificationMatch === room.id} onClick={()=>void subscribeToMatch()}>{notificationMatch === room.id ? 'Notifications enabled' : 'Notify me'}</button>}</div>}
-      <MatchHistory key={account} account={account} onSelect={matchId=>{setRoom(null);setId(matchId);window.history.replaceState(null,'',`?match=${matchId}#play`)}} />
+      <MatchHistory key={account} account={account} onSelect={openMatch} />
       {/* ARENA TOPBAR */}
       <div className="arena-topbar">
         <a href="#arcade" className="back-btn">
@@ -853,33 +864,35 @@ export function GameRoom() {
               <span>Join Existing Duel</span>
             </h3>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+            <form onSubmit={event => {
+              event.preventDefault()
+              if (/^\d{1,20}$/.test(matchInput) && BigInt(matchInput) <= 2n ** 64n - 1n) {
+                openMatch(BigInt(matchInput).toString())
+              }
+            }} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
               <label className="field-label">
                 <span>Match ID</span>
                 <input
                   className="input-field"
                   disabled={pending}
-                  value={id}
-                  onChange={(e) => setId(e.target.value.trim())}
+                  value={matchInput}
+                  onChange={(e) => setMatchInput(e.target.value.trim())}
                   inputMode="numeric"
                   placeholder="e.g. 0"
                 />
               </label>
 
-              <button type="button"
+              <button type="submit"
                 className="btn-ghost"
-                disabled={pending || !id}
-                onClick={() => {
-                  setRoomRead(null)
-                  void refresh(id).catch(() => setRoomRead({ id, status: 'unavailable' }))
-                }}
+                disabled={pending || !/^\d{1,20}$/.test(matchInput) || BigInt(matchInput) > 2n ** 64n - 1n}
                 style={{ width: '100%' }}
               >
                 <span>Load Match</span>
                 <ArrowRight size={14} />
               </button>
 
-              {id && !room && (
+              {matchInput && (!/^\d{1,20}$/.test(matchInput) || BigInt(matchInput) > 2n ** 64n - 1n) && <p>Enter a valid match ID.</p>}
+              {matchInput === id && id && !room && (
                 <p style={{ color: 'var(--crimson)', fontSize: '13px', margin: 0 }}>
                   {!/^\d{1,20}$/.test(id) || BigInt(id) > 2n ** 64n - 1n
                     ? 'Enter a valid match ID.'
@@ -890,7 +903,7 @@ export function GameRoom() {
                         : `Loading match #${id}…`}
                 </p>
               )}
-            </div>
+            </form>
           </div>
         </div>
       )}
