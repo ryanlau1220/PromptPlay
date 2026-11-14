@@ -312,8 +312,9 @@ export function ArcadeSettlement({ hash }: { hash: string }) {
               disabled={pending || me.pending}
               onClick={() =>
                 void action(async () => {
-                  if ((await call(CONTRACT, 'claim_payout', { match_id: match.id }, '1')) !== true)
-                    throw new Error('Payout failed; claim remains available for retry.')
+                  const paid = await call(CONTRACT, 'claim_payout', { match_id: match.id }, '1')
+                  if (paid === false) throw new Error('PCC transfer failed. The contract restored the claim. Refresh before retrying.')
+                  if (paid !== true) throw new Error('Payout status is unknown. Check the explorer and refresh before retrying.')
                 })
               }
             >

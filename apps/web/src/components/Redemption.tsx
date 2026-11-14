@@ -50,6 +50,7 @@ export function Redemption() {
   const [intentHistory, setIntentHistory] = useState<Array<{id:string}>>([])
   const [keys, setKeys] = useState<KeyItem[]>([])
   const [newKey, setNewKey] = useState('')
+  const newKeyId = useRef('')
   const [copiedKey, setCopiedKey] = useState(false)
   const [copiedSnippet, setCopiedSnippet] = useState(false)
   const [activeSnippetTab, setActiveSnippetTab] = useState<'opencode' | 'pi' | 'codex' | 'curl'>('opencode')
@@ -222,7 +223,8 @@ export function Redemption() {
 
   async function createKey() {
     if(!balance)throw new Error('No gateway allowance remains.')
-    const result = await request<{key:string}>('/api/keys', 'POST', { quota: Math.min(balance,1_000_000_000) })
+    const result = await request<{id:string;key:string}>('/api/keys', 'POST', { quota: Math.min(balance,1_000_000_000) })
+    newKeyId.current = result.id
     setNewKey(result.key)
     await refresh()
   }
@@ -486,11 +488,18 @@ export function Redemption() {
                     <button type="button"
                       className="btn-disconnect"
                       disabled={busy}
+                      aria-label={`Revoke key ${k.id.slice(0, 12)}`}
                       title="Revoke key"
                       onClick={() =>
                         void action(async () => {
                           await request(`/api/keys/${encodeURIComponent(k.id)}`, 'DELETE')
-                          await refresh()
+                          setKeys(current => current.filter(key => key.id !== k.id))
+                          if (newKeyId.current === k.id) {
+                            newKeyId.current = ''
+                            setNewKey('')
+                          }
+                          setMessage('Gateway key revoked.')
+                          await refresh().catch(() => setMessage('Gateway key revoked. Refresh the account to update the key list.'))
                         })
                       }
                     >
