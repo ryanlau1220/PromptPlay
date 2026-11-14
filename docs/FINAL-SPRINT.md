@@ -2,7 +2,7 @@
 
 ## Practice in under a minute
 
-Open the arcade and choose **Try the compute loop · no wallet**. Choose Paper, then Rock for a reproducible win. Claim the simulated pot, redeem 5 simulated PCC, and run the mock request to see the allowance debit. **Play Tic-Tac-Toe** opens a separate practice game with a deterministic opponent. Practice runs locally in the browser and awards no PCC. The separate Testnet agreement room requires two funded wallets to agree on a result. The RPS contract independently checks committed moves.
+Open the arcade and choose **Play the wallet-free demo**. Choose Paper, then Rock for a reproducible win. Claim the simulated pot, redeem 5 simulated PCC, and run the mock request to see the allowance debit. **Tic-Tac-Toe** in the game gallery opens a separate practice game with a deterministic opponent. Practice runs locally in the browser and awards no PCC. The separate Testnet agreement room requires two funded wallets to agree on a result. The RPS contract independently checks committed moves.
 
 ## Follow one real Testnet payout into inference
 
@@ -48,7 +48,7 @@ The next operator check is the real Testnet walkthrough against the intended pub
 | P1.2–P1.3 | The Inference Hub shows Testnet supply, redemption capacity, allowance and recorded usage. Each RPS room shows deposited, unsettled, pending, claimable and paid PCC. The walkthrough describes the fixed rate and who funds inference. |
 | P1.4–P1.5 | Loaded match history shows completed matches, wins and paid stakes. Rooms show invitation, opponent readiness and RPC refresh states. Progress depends on on-chain outcomes and is scoped to loaded history. |
 | P1.6 | Practice and shared settlement screens describe the separate mutual-agreement model and its trust boundary. |
-| P1.7 and P2.4 | Added accessible input labels and status announcements, mobile-friendly wrapping, and concise match feedback. Runtime browser layout verification is pending. |
+| P1.7 and P2.4 | Added accessible input labels, status announcements, fullscreen controls, a scroll-snap gallery with button navigation, and reduced-motion fallbacks. Runtime browser layout verification is pending. |
 | P2.2 | Match summaries aggregate paid PCC across loaded contract records. Gateway totals aggregate credited, available, reserved, and charged microunits across its persistent ledger. Run `bun scripts/summarize-rps.ts` for chain settlement totals for the active multi-round RPS contract at a single finalized block. The command reports its coverage and separates paid and unsettled PCC. It excludes the legacy RPS and shared agreement contracts. The checked snapshot at block 277641039 covered all 5 matches in the active contract: 4 completed, 1 cancelled, 8 PCC deposited, 8 PCC paid including refunds, and 0 PCC unsettled. |
 | P2.3 | The wallet-free demo includes a demand slider. The scenarios below show the fixed-rate economics at three demand levels. |
 | P2.5 | Reviewed NEAR AI Cloud and NEAR Intents below. Testnet escrow and the existing gateway remain the demo path. |
