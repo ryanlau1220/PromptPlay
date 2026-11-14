@@ -1629,6 +1629,7 @@ button:disabled:is(button, .btn-primary, .btn-accent, .move-card-btn) {
 
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
+  .status-toast, .network-badge i, .agent-status-dot { animation: none; }
 }
 
 .arcade-expand {

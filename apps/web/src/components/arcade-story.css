@@ -2,11 +2,6 @@
   --story-radius: 22px;
 }
 
-.arcade-story #loop,
-.arcade-story #games {
-  scroll-margin-top: 100px;
-}
-
 .story-intro {
   position: relative;
   display: grid;
@@ -211,13 +206,8 @@
   to { transform: scale(1); }
 }
 
-.story-intro {
-  position: relative;
-  isolation: isolate;
-}
-
 @media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
-  .story-intro::before {
+  .story-intro::after {
     position: absolute;
     z-index: -1;
     inset: 0;
@@ -229,7 +219,7 @@
     transition: opacity 280ms ease;
   }
 
-  .story-intro:hover::before {
+  .story-intro:hover::after {
     opacity: 1;
   }
 }
