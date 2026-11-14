@@ -7,6 +7,7 @@ import { SessionProvider } from '../components/Session'
 import { GAME, TOKEN } from '../lib/game'
 import { Gamepad2, Cpu, ExternalLink } from 'lucide-react'
 
+const ComputeDemo = lazy(() => import('../components/ComputeDemo').then((m) => ({ default: m.ComputeDemo })))
 const ArcadeLobby = lazy(() => import('../components/ArcadeLobby').then((m) => ({ default: m.ArcadeLobby })))
 const GameRoom = lazy(() => import('../components/GameRoom').then((m) => ({ default: m.GameRoom })))
 const PracticeArcade = lazy(() => import('../components/practice/PracticeArcade').then((m) => ({ default: m.PracticeArcade })))
@@ -69,7 +70,7 @@ function Content() {
   }, [theme])
 
   const [hash, setHash] = useState(() => window.location.hash)
-  const view = hash === '#play' ? 'play' : hash === '#redeem' ? 'redeem' : hash.startsWith('#practice/') ? 'practice' : hash.startsWith('#arcade-duel') ? 'settlement' : 'arcade'
+  const view = hash === '#compute-demo' ? 'demo' : hash === '#play' ? 'play' : hash === '#redeem' ? 'redeem' : hash.startsWith('#practice/') ? 'practice' : hash.startsWith('#arcade-duel') ? 'settlement' : 'arcade'
 
   useEffect(() => {
     const sync = () => setHash(window.location.hash)
@@ -82,13 +83,14 @@ function Content() {
       <div className="cyber-grid-bg" />
 
       <Navbar
-        view={view === 'practice' || view === 'settlement' ? 'arcade' : view}
+        view={view === 'practice' || view === 'settlement' || view === 'demo' ? 'arcade' : view}
         theme={theme}
         onToggleTheme={() => setTheme(theme === 'light' ? 'dark' : 'light')}
       />
 
       <Suspense fallback={<output className="arena-container">Loading arcade…</output>}>
       {view === 'arcade' && <ArcadeLobby />}
+      {view === 'demo' && <ComputeDemo />}
       {view === 'practice' && <PracticeArcade id={hash.slice('#practice/'.length)} />}
       {view === 'settlement' && (signedAccountId ? <ArcadeSettlement hash={hash} /> : <div className="arena-container"><button type="button" className="btn-primary" onClick={() => void connectWallet()} disabled={loading}>Connect NEAR Wallet</button></div>)}
 

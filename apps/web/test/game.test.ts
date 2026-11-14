@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import { initialDemoDuel, playDemoRound } from '../src/lib/compute-demo'
 import { amount, commitment, confirmStakeTransfer, matchEconomy, pcc, type Match } from '../src/lib/game'
 describe('game client encoding', () => {
   test('matches the Rust commitment byte encoding', async () => {
@@ -37,4 +38,13 @@ describe('game client encoding', () => {
       expect(() => confirmStakeTransfer(value, '5000000')).toThrow('uncertain')
     }
   })
+})
+
+test('offline RPS opponent adapts to the previous move and stops after two wins', () => {
+  const first = playDemoRound(initialDemoDuel, 1)
+  expect(first).toMatchObject({ wins: 1, losses: 0, previous: 1 })
+  const final = playDemoRound(first, 0)
+  expect(final).toMatchObject({ wins: 2, losses: 0, previous: 0 })
+  expect(final.result).toContain('counters your previous Paper')
+  expect(playDemoRound(final, 1)).toBe(final)
 })

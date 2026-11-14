@@ -2,7 +2,7 @@
 
 ## Practice in under a minute
 
-Open the arcade and choose **Try practice · no wallet**. In Tic-Tac-Toe, play against the computer and use **Restart** for another round. Practice runs locally in the browser and awards no PCC. The separate Testnet agreement room requires two funded wallets to agree on a result. The RPS contract independently checks committed moves.
+Open the arcade and choose **Try the compute loop · no wallet**. Choose Paper, then Rock for a reproducible win. Claim the simulated pot, redeem 5 simulated PCC, and run the mock request to see the allowance debit. **Play Tic-Tac-Toe** opens a separate practice game with a deterministic opponent. Practice runs locally in the browser and awards no PCC. The separate Testnet agreement room requires two funded wallets to agree on a result. The RPS contract independently checks committed moves.
 
 ## Follow one real Testnet payout into inference
 
@@ -23,11 +23,11 @@ The baseline is upstream `main` at `85117194445e084d0897e6e11345328b2db30c4e`. T
 | --- | --- |
 | Bun 1.3.10 frozen install | Passed |
 | `bun run check` | Lint, Rust formatting and both app type checks passed |
-| `bun run test:apps` | 90 passed across web and server. Existing coverage includes escrow replay, uncertain reservations, refund recovery and metering. |
+| `bun run test:apps` | 92 passed across web and server. Existing coverage includes escrow replay, uncertain reservations, refund recovery and metering. |
 | `bun run build:web` | Passed |
 | `bun run demo:mock` | Passed. First claim credited, replay credited nothing, and mock usage reduced allowance from 1,000,000 to 999,994 microunits. |
 | Local service smoke | Web HTTP 200, backend health and Testnet config, and initial room WebSocket resync passed. Local faucet and live provider were disabled. |
-| Contract builds and unit suites | All four Wasm builds completed. All 37 contract unit tests passed. The full suite stopped at the RPS sandbox binary download with a connection refusal. |
+| Contract builds and unit suites | All four Wasm builds completed. All 37 contract unit tests passed. The Rust downloader could not connect. A direct download succeeded, but the sandbox executable requires a file-descriptor limit of 65,535 and the workspace hard limit is 16,384. |
 | Archival Testnet verifier | The original full verifier passed. A full rerun of the extended verifier timed out on the alternate RPC. The new escrow code hash and settings were verified separately on Testnet. |
 | Chromium smoke | Environment denied Chromium's socket creation. |
 | Fresh wallet-to-live-provider journey | Requires funded wallet profiles, an eligible account and the operator's gateway configuration. Public hosting availability remains unverified. |
@@ -44,14 +44,14 @@ The next operator check is the real Testnet walkthrough against the intended pub
 | P0.5 | App and contract unit suites cover conservation, refunds, replay, failed callbacks, duplicate claims and gateway reservations. Full sandbox coverage requires the sandbox binary. |
 | P0.6 | Lint, type checks, app tests, production web build, deterministic mock and read-only Testnet checks were run. |
 | P0.7 | The production web build and local HTTP, CORS and WebSocket checks passed. Public endpoint URLs and live provider access are operator inputs. |
-| P1.1 and P2.1 | The existing Tic-Tac-Toe computer opponent now chooses a winning move or blocks an immediate threat, then explains the decision. It is a reproducible rule-based opponent with zero external inference cost. An LLM-controlled or wallet-owning opponent remains deferred. |
+| P1.1 and P2.1 | The existing Tic-Tac-Toe computer opponent now chooses a winning move or blocks an immediate threat, then explains the decision. It is a reproducible rule-based opponent with zero external inference cost. The wallet-free RPS demo also adapts to the previous move and explains its choice. Both opponents use local rules and require no paid inference or wallet custody. |
 | P1.2–P1.3 | The Inference Hub shows Testnet supply, redemption capacity, allowance and recorded usage. Each RPS room shows deposited, unsettled, pending, claimable and paid PCC. The walkthrough describes the fixed rate and who funds inference. |
 | P1.4–P1.5 | Loaded match history shows completed matches, wins and paid stakes. Rooms show invitation, opponent readiness and RPC refresh states. Progress depends on on-chain outcomes and is scoped to loaded history. |
 | P1.6 | Practice and shared settlement screens describe the separate mutual-agreement model and its trust boundary. |
 | P1.7 and P2.4 | Added accessible input labels and status announcements, mobile-friendly wrapping, and concise match feedback. Runtime browser layout verification is pending. |
-| P2.2 | Match summaries aggregate paid PCC from loaded contract records. Project-wide statistics require a defined index coverage window and verified indexing completeness. |
+| P2.2 | Match summaries aggregate paid PCC across loaded contract records. Gateway totals aggregate credited, available, reserved, and charged microunits across its persistent ledger. Project-wide chain settlement totals still require verified full match coverage. |
 | P2.3 | The scenarios below document the fixed-rate economics under three demand levels. |
-| P2.5 | Existing Testnet escrow, wallet auth and inference metering provide the evidence for the current loop. A second settlement path or inference attestation integration remains deferred. |
+| P2.5 | Reviewed NEAR AI Cloud and NEAR Intents below. Testnet escrow and the existing gateway remain the demo path. |
 
 ### Illustrative capacity scenarios
 
@@ -70,3 +70,10 @@ bun scripts/check-demo.mjs WEB_URL API_URL
 ```
 
 The script checks the web response, backend health, CORS, Testnet configuration and WebSocket resync. A configured model is evidence of configuration only. To prove live inference, perform walkthrough steps 5–6 with an eligible wallet on the same deployment.
+
+### NEAR integration follow-up
+
+- [NEAR AI Cloud](https://docs.near.ai/cloud/quickstart) documents an OpenAI-compatible provider path and independently verifiable inference. The existing gateway already accepts an OpenAI-compatible upstream. A provider trial needs an authorized funded account, verified model rates and capability checks. Displaying independently verifiable inference would also require retaining the inference identifier and verifying its attestation. The browser mock carries no provider identity or attestation.
+- [NEAR Intents](https://docs.near-intents.org/) provides a cross-chain quote, swap and status flow. The judge journey already starts and ends with Testnet PCC, so a swap does not serve a demonstrated need in this sprint.
+
+For an operator replay on the intended deployment, run the smoke command above with the actual public origins. Then run the signed browser journey with the existing two funded Meteor profiles and the operator's configured gateway and persistent ledger. Record the room ID, successful payout and escrow transaction hashes, and the allowance and recorded usage before and after one inference request. Environment variable names and recovery instructions are in the README. Keep the provider credentials, wallet profiles and reveal secrets on the operator machine.

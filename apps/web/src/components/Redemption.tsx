@@ -51,6 +51,8 @@ export function Redemption() {
   const [copiedSnippet, setCopiedSnippet] = useState(false)
   const [activeSnippetTab, setActiveSnippetTab] = useState<'opencode' | 'pi' | 'codex' | 'curl'>('opencode')
 
+  const [totals, setTotals] = useState<{ credited: number; available: number; reserved: number; charged: number; settledRequests: number } | null>(null)
+
   const [usage, setUsage] = useState<
     Array<{
       id: string
@@ -439,6 +441,15 @@ export function Redemption() {
                   </div>
                 ))}
               </div>
+
+              <details>
+                <summary>Gateway ledger totals</summary>
+                <p>Microunits across this gateway's ledger. Settled charges may include operator reconciliations.</p>
+                <button className="btn-ghost" type="button" disabled={busy} onClick={() => void action(async () => {
+                  setTotals(await request<NonNullable<typeof totals>>('/api/inference/totals'))
+                })}>Refresh ledger totals</button>
+                {totals && <p>{totals.credited} credited · {totals.available} available · {totals.reserved} reserved · {totals.charged} charged across {totals.settledRequests} settled requests</p>}
+              </details>
 
               {/* IN-BROWSER PROMPT PLAYGROUND */}
               {newKey && (

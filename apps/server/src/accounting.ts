@@ -69,6 +69,18 @@ export class Accounting {
       this.db.query("UPDATE accounts SET balance = balance + ? WHERE id = ?").run(req.reserved - used, req.account_id);
     }).immediate();
   }
+  totals() {
+    const { credited, available, reserved, charged, settledRequests } = this.db.query(`
+      SELECT
+        (SELECT COALESCE(SUM(amount), 0) FROM receipts) AS credited,
+        (SELECT COALESCE(SUM(balance), 0) FROM accounts) AS available,
+        COALESCE(SUM(CASE WHEN state = 'reserved' THEN reserved ELSE 0 END), 0) AS reserved,
+        COALESCE(SUM(CASE WHEN state = 'settled' THEN charged ELSE 0 END), 0) AS charged,
+        COUNT(CASE WHEN state = 'settled' THEN 1 END) AS settledRequests
+      FROM requests
+    `).get() as { credited: number; available: number; reserved: number; charged: number; settledRequests: number }
+    return { credited, available, reserved, charged, settledRequests }
+  }
   issuanceLimit(): number { return this.spendingCap }
   usage(accountId: string) {
     return this.db.query("SELECT id, reserved, charged, input_tokens, output_tokens, state FROM requests WHERE account_id = ? ORDER BY rowid DESC LIMIT 100").all(accountId) as Array<{id:string; reserved:number; charged:number|null; input_tokens:number|null; output_tokens:number|null; state:string}>

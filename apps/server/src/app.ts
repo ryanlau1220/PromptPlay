@@ -52,6 +52,12 @@ export function createApp({auth, redemption, ledger, allowRedemption, origin, ke
     .delete('/api/auth/session',({headers,set})=>{const raw=token(headers.authorization);if(!account(headers.authorization)){set.status=401;return {error:'Unauthorized'}};auth.revoke(raw);return {ok:true}})
     .get('/api/faucet',({headers,set})=>{const who=account(headers.authorization);if(!who){set.status=401;return {error:'Unauthorized'}};if(!faucet){set.status=503;return {error:'Faucet unavailable'}};return {claim:faucet.status(who)}})
     .post('/api/faucet',async({headers,set})=>{const who=account(headers.authorization);if(!who){set.status=401;return {error:'Unauthorized'}};if(!faucet){set.status=503;return {error:'Faucet unavailable'}};if(limited()){set.status=429;return {error:'Try again later'}};return {claim:await faucet.claim(who)}})
+    .get('/api/inference/totals',({headers,set})=>{
+      const who=account(headers.authorization)
+      if(!who){set.status=401;return {error:'Unauthorized'}}
+      if(limited()){set.status=429;return {error:'Try again later'}}
+      return ledger.totals()
+    })
     .get('/api/inference/usage',({headers,set})=>{const who=account(headers.authorization);if(!who){set.status=401;return {error:'Unauthorized'}};return {requests:ledger.usage(who)}})
     .get('/api/keys',({headers,set})=>{const who=account(headers.authorization);if(!who){set.status=401;return {error:'Unauthorized'}};return {keys:keys.list(who)}})
     .post('/api/keys',({headers,body,set})=>{const who=account(headers.authorization);if(!who){set.status=401;return {error:'Unauthorized'}};if(limited()){set.status=429;return {error:'Try again later'}};return keys.create(who,body.quota)}, {body:t.Object({quota:t.Integer({minimum:1,maximum:1000000000})})})

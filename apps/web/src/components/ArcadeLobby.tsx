@@ -136,7 +136,8 @@ export function ArcadeLobby() {
         <p>Try a solo game immediately, or challenge a friend on NEAR Testnet. In a funded RPS duel, the winner claims both players’ stakes. The faucet supplies starter PCC from its pre-funded allocation.</p>
         <p>Claimed PCC goes to your wallet. At the Inference Hub, eligible wallets can redeem 5 PCC for one operator-funded gateway unit and use it in the playground or a compatible coding agent.</p>
         <div className="promptplay-quickstart-actions">
-          <a className="btn-primary" href="#practice/tic-tac-toe">Try practice · no wallet</a>
+          <a className="btn-primary" href="#compute-demo">Try the compute loop · no wallet</a>
+          <a className="btn-ghost" href="#practice/tic-tac-toe">Play Tic-Tac-Toe</a>
           <a className="btn-ghost" href="#play">Start a Testnet duel</a>
           <a className="btn-ghost" href="#redeem">Open Inference Hub</a>
         </div>

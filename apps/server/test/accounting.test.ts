@@ -18,6 +18,18 @@ describe("allowance accounting", () => {
     l.settle("one", 15); expect(l.balance("alice")).toBe(45);
     expect(() => l.settle("one", 15)).toThrow();
   });
+  test("summarizes credited, available, reserved and charged allowance", () => {
+    const db = new Database(":memory:");
+    const ledger = new Accounting(db, 100);
+    ledger.creditReceipt("r", "i", "alice", 80);
+    ledger.reserve("used", "alice", 20);
+    ledger.settle("used", 7);
+    ledger.reserve("pending", "alice", 10);
+    ledger.reserve("released", "alice", 5);
+    ledger.release("released");
+    expect(ledger.totals()).toEqual({credited:80,available:63,reserved:10,charged:7,settledRequests:1});
+    db.close();
+  });
   test("enforces project cap and releases definite failures", () => {
     const l = new Accounting(new Database(":memory:"), 50);
     l.creditReceipt("r1", "i1", "alice", 60); l.creditReceipt("r2", "i2", "bob", 60);
