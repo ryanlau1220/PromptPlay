@@ -11,7 +11,14 @@ const server = Bun.serve({
       const filePath = resolve(assets, `.${path}`)
       if (!filePath.startsWith(`${assets}${sep}`)) return new Response('Not found', { status: 404 })
       const file = Bun.file(filePath)
-      if (await file.exists()) return new Response(file)
+      if (await file.exists()) {
+        const cacheControl = path.startsWith('/assets/')
+          ? 'public, max-age=31536000, immutable'
+          : path === '/push-worker.js'
+            ? 'no-cache'
+            : 'public, max-age=3600'
+        return new Response(file, { headers: { 'cache-control': cacheControl } })
+      }
       return new Response('Not found', { status: 404 })
     }
     return app.fetch(request)
