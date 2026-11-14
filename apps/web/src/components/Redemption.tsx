@@ -546,13 +546,18 @@ export function Redemption() {
               <button type="button"
                 className="btn-ghost"
                 style={{ fontSize: '12px', padding: '6px 12px' }}
-                disabled={!snippetContent?.[activeSnippetTab]}
-                onClick={() => {
-                  void navigator.clipboard.writeText(snippetContent?.[activeSnippetTab] ?? '').then(() => {
+                disabled={busy || !snippetContent?.[activeSnippetTab]}
+                onClick={() => void action(async () => {
+                  const snippet = snippetContent?.[activeSnippetTab]
+                  if (!snippet) return
+                  try {
+                    await navigator.clipboard.writeText(snippet)
                     setCopiedSnippet(true)
                     setTimeout(() => setCopiedSnippet(false), 2000)
-                  })
-                }}
+                  } catch {
+                    setMessage('Clipboard access is unavailable. Select and copy the configuration manually.')
+                  }
+                })}
               >
                 {copiedSnippet ? <Check size={14} color="var(--emerald)" /> : <Copy size={14} />}
                 <span>{copiedSnippet ? 'Copied' : 'Copy Snippet'}</span>

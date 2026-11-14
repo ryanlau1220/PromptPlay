@@ -25,7 +25,13 @@ export function SessionProvider({children}:{children:ReactNode}){
   useEffect(()=>{setSession(previous=>previous?.account===account?previous:null)},[account])
   const request = useCallback(async <T = unknown,>(path:string,method='GET',body?:unknown,auth=token):Promise<T> => {
     const res=await fetch(`${API}${path}`,{method,headers:{...(body?{'content-type':'application/json'}:{}),...(auth?{authorization:`Bearer ${auth}`}:{})},body:body?JSON.stringify(body):undefined})
-    const data=await res.json();if(res.status===401 && auth && auth===token)setSession(null);if(!res.ok)throw new Error(typeof data.error==='string'?data.error:typeof data.error?.message==='string'?data.error.message:'Request failed.');return data as T
+    if(res.status===401 && auth && auth===token)setSession(null)
+    const data=await res.json().catch(error=>{
+      if(res.ok)throw error
+      return null
+    })
+    if(!res.ok)throw new Error(typeof data?.error==='string'?data.error:typeof data?.error?.message==='string'?data.error.message:`Gateway returned HTTP ${res.status}.`)
+    return data as T
   }, [token])
   async function login(){
     const c=await request<{id:string;message:string;recipient:string;nonce:string}>('/api/auth/challenge','POST');const signed=await signNEP413Message({message:c.message,recipient:c.recipient,nonce:fromBase64(c.nonce)})
