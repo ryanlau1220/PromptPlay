@@ -185,7 +185,11 @@ export function Redemption() {
     await request(`/api/redemptions/${encodeURIComponent(intent.id)}/approve`, 'POST')
     const result = await callFunctionRaw({contractId:config.escrowAccount,method:'consume',args:{id:intent.id},gas:'30000000000000',deposit:'0'})
     if (result.transaction?.hash) setEscrowTx({ account, hash: result.transaction.hash })
-    const state = await refresh().catch(() => null)
+    let state = await refresh().catch(() => null)
+    for (let attempt = 0; attempt < 8 && state?.deposit?.status !== 'Consumed'; attempt++) {
+      await new Promise(resolve => setTimeout(resolve, 1500))
+      state = await refresh().catch(() => null)
+    }
     if (state?.deposit?.status !== 'Consumed') {
       setMessage('Consume status is pending or unavailable. Check the escrow transaction and refresh before retrying.')
       return
