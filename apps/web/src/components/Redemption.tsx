@@ -40,6 +40,7 @@ export function Redemption() {
   const chainView = useRef(viewFunction)
   useEffect(() => { chainView.current = viewFunction }, [viewFunction])
   const [supply, setSupply] = useState<string | null>(null)
+  const [accountUnavailable, setAccountUnavailable] = useState(false)
   const [balance, setBalance] = useState<number | null>(null)
   const [intent, setIntent] = useState<Intent | null>(null)
   const [depositHash, setDepositHash] = useState('')
@@ -92,6 +93,7 @@ export function Redemption() {
     setBalance(b.units)
     setKeys(k.keys)
     setUsage(u.requests)
+    setAccountUnavailable(false)
 
     // Existing gateway allowance remains usable when escrow is not configured.
     if (!config?.escrowAccount) {
@@ -124,7 +126,10 @@ export function Redemption() {
   }, [account])
 
   useEffect(() => {
-    if (session) void refresh(session).catch(() => setMessage('Could not load your inference account.'))
+    if (session) void refresh(session).catch(() => {
+      setAccountUnavailable(true)
+      setMessage('Could not load your inference account. Use Refresh account to retry.')
+    })
   }, [session, refresh])
 
   async function action(fn: () => Promise<void>) {
@@ -266,7 +271,7 @@ export function Redemption() {
             {balance === null ? '—' : (balance / 1_000_000).toFixed(4)}{' '}
             <small style={{ fontSize: '14px', color: 'var(--text-muted)' }}>UNITS</small>
           </span>
-          {balance === null && <span className="hint">Sign challenge to inspect</span>}
+          {balance === null && <span className="hint">{session ? 'Allowance unavailable' : 'Sign challenge to inspect'}</span>}
         </div>
 
         <div className="telemetry-card highlight-amber">
@@ -329,6 +334,18 @@ export function Redemption() {
         </div>
       ) : (
         <>
+          <div className="promptplay-quickstart-actions">
+            <button type="button" className="btn-ghost" disabled={busy} onClick={() => void action(async () => {
+              try {
+                await refresh()
+                await refreshConfig()
+              } catch (error) {
+                setAccountUnavailable(true)
+                throw error
+              }
+            })}>Refresh account</button>
+            {accountUnavailable && <output>Account status may be out of date.</output>}
+          </div>
           <div className="redemption-pipeline-grid">
             {/* REDEEM CREDITS CARD */}
             <div className="terminal-card">
