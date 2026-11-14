@@ -12,13 +12,20 @@ async function rpc(method, params) {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ jsonrpc: '2.0', id: ++requestId, method, params }),
-      signal: AbortSignal.timeout(30000)
+      signal: AbortSignal.timeout(15000)
+    }).catch(error => {
+      if (attempt === 4) throw new Error(`RPC ${method}: ${error.message}`, { cause: error })
+      return null
     })
+    if (response === null) {
+      await new Promise(resolve => setTimeout(resolve, 1000 * 2 ** attempt))
+      continue
+    }
     if ([429, 500, 502, 503, 504].includes(response.status) && attempt < 4) {
       await new Promise(resolve => setTimeout(resolve, 1000 * 2 ** attempt))
       continue
     }
-    if (!response.ok) throw new Error(`RPC HTTP ${response.status}`)
+    if (!response.ok) throw new Error(`RPC ${method} returned HTTP ${response.status}`)
     const result = await response.json()
     if (result.error) throw new Error(`RPC ${method}: ${result.error.message}`)
     return result.result
@@ -119,18 +126,21 @@ try {
     }, '../contracts/redemption-escrow/target/deployed/redemption_escrow.wasm')
     console.log(JSON.stringify({ network: status.chain_id, contract, escrowCapacity: await verifyEscrow() }, null, 2))
   } else {
-    const contracts = [
-      await verifyCode(evidence.computeCredit, '../contracts/compute-credit/target/reproducible/compute_credit.wasm'),
-      await verifyCode(evidence.rpsGame, '../contracts/rps-game/target/reproducible/rps_game.wasm'),
-      await verifyCode(evidence.multiRoundRps, '../contracts/rps-game/target/deployed/rps_game.wasm'),
-      await verifyCode(evidence.arcadeSettlement, '../contracts/arcade-settlement/target/deployed/arcade_settlement.wasm'),
-      await verifyCode({
+    const contracts = await Promise.all([
+      verifyCode(evidence.computeCredit, '../contracts/compute-credit/target/reproducible/compute_credit.wasm'),
+      verifyCode(evidence.rpsGame, '../contracts/rps-game/target/reproducible/rps_game.wasm'),
+      verifyCode(evidence.multiRoundRps, '../contracts/rps-game/target/deployed/rps_game.wasm'),
+      verifyCode(evidence.arcadeSettlement, '../contracts/arcade-settlement/target/deployed/arcade_settlement.wasm'),
+      verifyCode({
         accountId: evidence.redemptionEscrow.contract,
         wasmSha256: evidence.redemptionEscrow.sha256
       }, '../contracts/redemption-escrow/target/deployed/redemption_escrow.wasm')
-    ]
+    ])
+    const recordedMatches = [evidence.rpsGame.verifiedMatch, evidence.rpsGame.meteorBrowserMatch, evidence.rpsGame.meteorBrowserTie, evidence.rpsGame.journeyMatch, evidence.rpsGame.automatedMeteorMatch, evidence.rpsGame.automatedMeteorTie, evidence.rpsGame.automatedMeteorRestart, evidence.rpsGame.automatedBrowserRedemption, evidence.rpsGame.upgradedBrowserMatch]
     const matches = []
-    for (const match of [evidence.rpsGame.verifiedMatch, evidence.rpsGame.meteorBrowserMatch, evidence.rpsGame.meteorBrowserTie, evidence.rpsGame.journeyMatch, evidence.rpsGame.automatedMeteorMatch, evidence.rpsGame.automatedMeteorTie, evidence.rpsGame.automatedMeteorRestart, evidence.rpsGame.automatedBrowserRedemption, evidence.rpsGame.upgradedBrowserMatch]) matches.push(await verifyMatch(match))
+    for (let offset = 0; offset < recordedMatches.length; offset += 3) {
+      matches.push(...await Promise.all(recordedMatches.slice(offset, offset + 3).map(verifyMatch)))
+    }
     const multi = evidence.multiRoundRps
     const multiQuery = await rpc('query', {request_type:'call_function',finality:'final',account_id:multi.accountId,method_name:'get_match',args_base64:Buffer.from(JSON.stringify({match_id:multi.pushVerificationMatch})).toString('base64')})
     const multiMatch = JSON.parse(Buffer.from(multiQuery.result).toString())
