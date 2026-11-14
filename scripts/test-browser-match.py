@@ -6,6 +6,7 @@ from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 
 web=os.environ.get('BROWSER_TEST_WEB_URL','http://localhost:3000').rstrip('/')
+api=os.environ.get('BROWSER_TEST_API_URL','http://127.0.0.1:3001').rstrip('/')
 extension=Path(os.environ['METEOR_EXTENSION_PATH']).resolve()
 ids=[os.environ['TESTNET_PLAYER_A'],os.environ['TESTNET_PLAYER_B']]
 assert len(set(ids)) == 2 and all(x.endswith('.testnet') for x in ids)
@@ -34,7 +35,7 @@ class RejectionComplete(Exception): pass
 def save(step):
  trace['steps'].append(step);(base/'trace.json').write_text(json.dumps(trace,indent=2));print(step,flush=True)
 def chain_call(method,params):
- request=Request(os.environ.get('NEAR_RPC_URL','https://archival-rpc.testnet.near.org'),data=json.dumps({'jsonrpc':'2.0','id':1,'method':method,'params':params}).encode(),headers={'content-type':'application/json'})
+ request=Request(os.environ.get('NEAR_RPC_URL','https://archival-rpc.testnet.fastnear.com'),data=json.dumps({'jsonrpc':'2.0','id':1,'method':method,'params':params}).encode(),headers={'content-type':'application/json'})
  for attempt in range(4):
   try:
    with urlopen(request,timeout=30) as response: result=json.load(response)
@@ -118,7 +119,7 @@ try:
  if restart_server:
   start_server();save('test-owned server started')
  if redeem:
-  with urlopen('http://127.0.0.1:3001/config',timeout=10) as response: provider_config=json.load(response)
+  with urlopen(api+'/config',timeout=10) as response: provider_config=json.load(response)
   if not provider_config.get('redemptionAvailable') or not provider_config.get('redemptionUnitsAvailable') or not all(provider_config.get('capabilities',{}).get(name) for name in ('streaming','toolCalls')): raise RuntimeError('A live redemption provider with available capacity and agent capabilities is required')
   if not shutil.which(os.environ.get('OPENCODE_BIN','opencode')): raise RuntimeError('OpenCode is required; set OPENCODE_BIN')
  if not resume and not redemption_rejection:
@@ -279,20 +280,20 @@ try:
     a.get_by_text('200 OK — Model Response:',exact=False).wait_for(timeout=90000)
     balance_before=balance_response.value.json()['units']
     authorization=balance_response.value.request.headers['authorization']
-    replay_request=Request('http://127.0.0.1:3001/api/redemptions/'+saved['id']+'/claim',data=b'{}',headers={'authorization':authorization,'content-type':'application/json'})
+    replay_request=Request(api+'/api/redemptions/'+saved['id']+'/claim',data=b'{}',headers={'authorization':authorization,'content-type':'application/json'})
     with urlopen(replay_request,timeout=30) as response: replay=json.load(response)
     if replay.get('credited') is not False: raise RuntimeError('Redemption replay did not remain idempotent')
     save('redemption replay did not credit twice')
     save('browser inference completed')
-    with urlopen('http://127.0.0.1:3001/config',timeout=10) as response: config=json.load(response)
+    with urlopen(api+'/config',timeout=10) as response: config=json.load(response)
     executable=os.environ.get('OPENCODE_BIN','opencode')
     with tempfile.TemporaryDirectory(prefix='promptplay-agent-') as folder:
      Path(folder,'marker.txt').write_text('PROMPTPLAY_BROWSER_AGENT_OK\n')
-     agent_config={'provider':{'promptplay':{'npm':'@ai-sdk/openai-compatible','name':'PromptPlay','options':{'baseURL':'http://127.0.0.1:3001/v1','apiKey':'{env:PROMPTPLAY_API_KEY}'},'models':{config['model']:{'name':config['model'],'limit':{'context':config['contextTokens'],'output':config['maxOutputTokens']},'tool_call':True}}}}}
+     agent_config={'provider':{'promptplay':{'npm':'@ai-sdk/openai-compatible','name':'PromptPlay','options':{'baseURL':api+'/v1','apiKey':'{env:PROMPTPLAY_API_KEY}'},'models':{config['model']:{'name':config['model'],'limit':{'context':config['contextTokens'],'output':config['maxOutputTokens']},'tool_call':True}}}}}
      env={**os.environ,'INFERENCE_API_KEY':'','PROMPTPLAY_API_KEY':gateway_key,'OPENCODE_CONFIG_CONTENT':json.dumps(agent_config),'OPENCODE_DISABLE_MODELS_FETCH':'true','XDG_CONFIG_HOME':folder+'/config','XDG_DATA_HOME':folder+'/data','XDG_STATE_HOME':folder+'/state','XDG_CACHE_HOME':folder+'/cache'}
      result=subprocess.run([executable,'run','--pure','--auto','--format','json','--dir',folder,'-m','promptplay/'+config['model'],'Read marker.txt using your file tool and reply with its exact content.'],cwd=folder,env=env,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,timeout=120)
      if result.returncode!=0 or 'PROMPTPLAY_BROWSER_AGENT_OK' not in result.stdout or not re.search(r'tool_use|tool-use|"tool":"read"',result.stdout,re.I): raise RuntimeError('OpenCode gateway file-read check failed')
-    with urlopen(Request('http://127.0.0.1:3001/api/inference/balance',headers={'authorization':authorization}),timeout=10) as response: balance_after=json.load(response)['units']
+    with urlopen(Request(api+'/api/inference/balance',headers={'authorization':authorization}),timeout=10) as response: balance_after=json.load(response)['units']
     if balance_after>=balance_before: raise RuntimeError('OpenCode usage did not settle against the allowance')
     trace['allowanceBeforeAgent']=balance_before;trace['allowanceAfterAgent']=balance_after
     save('OpenCode file read completed')
