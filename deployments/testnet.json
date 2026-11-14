@@ -1,4 +1,20 @@
 {
+  "browserVideoJourney": {
+    "network": "testnet",
+    "gameContract": "game2.ryanlau1220.testnet",
+    "matchId": "12",
+    "players": ["arcade-a.ryanlau1220.testnet", "arcade-b.ryanlau1220.testnet"],
+    "winner": "arcade-a.ryanlau1220.testnet",
+    "stakeBaseUnits": "1000000",
+    "payoutTransaction": "2Dt3N1aaxc8UUwgYF83NaZQXUAWtVYGPKH11yDPdd116",
+    "redemptionEscrow": "redeem.ryanlau1220.testnet",
+    "redemptionDepositId": "SGixC7iNd9dmMpRWNa6QbPAJORSTtqB7",
+    "redemptionTransaction": "5e2p2dzLFktTJ1Xe4Fpitx1TAWeDfS3VNb95Axmt6ycK",
+    "redemptionAmountBaseUnits": "5000000",
+    "allowanceBeforeAgentMicrounits": 10667287,
+    "allowanceAfterAgentMicrounits": 10665756,
+    "scope": "Recorded same-winner browser journey; 2 PCC payout includes the 1 PCC stake, and 5 PCC redemption uses accumulated balance. Browser inference and OpenCode file read are off-chain runner evidence."
+  },
   "browserJourneyAudit": {
     "network": "testnet",
     "gameContract": "game2.ryanlau1220.testnet",

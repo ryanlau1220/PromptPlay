@@ -214,7 +214,8 @@ try {
 
     const arcadeMatches = await Promise.all([evidence.arcadeSettlement.sdkVerifiedMatch, evidence.arcadeSettlement.browserVerifiedMatch].map(verifyArcadeMatch))
     const browserJourney = await verifyBrowserJourney(evidence.browserJourneyAudit)
-    console.log(JSON.stringify({ checkedAt: new Date().toISOString(), network: status.chain_id, contracts, matches, arcadeMatches, multiRoundMatch:multiMatch.id, browserJourney, escrowCapacity: await verifyEscrow(),
+    const browserVideoJourney = await verifyBrowserJourney(evidence.browserVideoJourney)
+    console.log(JSON.stringify({ checkedAt: new Date().toISOString(), network: status.chain_id, contracts, matches, arcadeMatches, multiRoundMatch:multiMatch.id, browserJourney, browserVideoJourney, escrowCapacity: await verifyEscrow(),
       operatorPayments: payments.map(payment => ({ transaction: payment.transferTransaction, amountBaseUnits: payment.amountBaseUnits })),
       limitations: 'Read-only chain evidence verifies the recorded match, payout and escrow state; it does not reproduce browser interactions, trace specific token units between transactions, or verify off-chain inference usage.' }, null, 2))
   }
