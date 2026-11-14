@@ -1,5 +1,5 @@
 import { useNearWallet } from 'near-connect-hooks'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Moon, Sun, Terminal, Gamepad2, Cpu, Wallet as WalletIcon, LogOut } from 'lucide-react'
 import { pcc, TOKEN } from '../lib/game'
 import { Brand } from './Brand'
@@ -12,6 +12,8 @@ type NavbarProps = {
 
 export function Navbar({ view, theme, onToggleTheme }: NavbarProps) {
   const { signedAccountId, loading, signIn, signOut, viewFunction } = useNearWallet()
+  const chainView = useRef(viewFunction)
+  useEffect(() => { chainView.current = viewFunction }, [viewFunction])
   const [balance, setBalance] = useState<string | null>(null)
   const [error, setError] = useState('')
 
@@ -21,7 +23,7 @@ export function Navbar({ view, theme, onToggleTheme }: NavbarProps) {
     if (!signedAccountId) return
 
     function readBalance() {
-      viewFunction({ contractId: TOKEN, method: 'ft_balance_of', args: { account_id: signedAccountId } })
+      chainView.current({ contractId: TOKEN, method: 'ft_balance_of', args: { account_id: signedAccountId } })
         .then((result: unknown) => {
           if (active) {
             setBalance(pcc(String(result)))
@@ -41,7 +43,7 @@ export function Navbar({ view, theme, onToggleTheme }: NavbarProps) {
       window.removeEventListener('promptplay:balance', readBalance)
       clearInterval(timer)
     }
-  }, [signedAccountId, viewFunction])
+  }, [signedAccountId])
 
   async function connect() {
     try {
@@ -114,6 +116,7 @@ export function Navbar({ view, theme, onToggleTheme }: NavbarProps) {
                 className="btn-disconnect"
                 type="button"
                 onClick={disconnect}
+                aria-label="Disconnect wallet"
                 title="Disconnect wallet"
               >
                 <LogOut size={14} />

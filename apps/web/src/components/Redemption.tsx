@@ -37,6 +37,8 @@ export function Redemption() {
   const { signedAccountId: account, callFunctionRaw, viewFunction } = useNearWallet()
   const { config, configStatus, refreshConfig, token: session, login, request } = useSession()
 
+  const chainView = useRef(viewFunction)
+  useEffect(() => { chainView.current = viewFunction }, [viewFunction])
   const [supply, setSupply] = useState<string | null>(null)
   const [balance, setBalance] = useState<number | null>(null)
   const [intent, setIntent] = useState<Intent | null>(null)
@@ -75,11 +77,11 @@ export function Redemption() {
 
   useEffect(() => {
     let active = true
-    void viewFunction({ contractId: TOKEN, method: 'ft_total_supply', args: {} })
+    void chainView.current({ contractId: TOKEN, method: 'ft_total_supply', args: {} })
       .then(result => { if (active) setSupply(pcc(String(result))) })
       .catch(() => { if (active) setSupply(null) })
     return () => { active = false }
-  }, [viewFunction])
+  }, [])
 
   const refresh = useCallback(async (token = session) => {
     const [b, k, u] = await Promise.all([
