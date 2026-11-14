@@ -41,6 +41,8 @@ const SNAP = { type: 'spring', stiffness: 420, damping: 24 } as const
 
 export function GameRoom() {
   const { signedAccountId: account, callFunctionRaw, viewFunction } = useNearWallet()
+  const chainView = useRef(viewFunction)
+  useEffect(() => { chainView.current = viewFunction }, [viewFunction])
   const { config, token, login, request } = useSession()
 
   const [opponent, setOpponent] = useState('')
@@ -68,13 +70,13 @@ export function GameRoom() {
   const confettiFired = useRef<string | null>(null)
 
   const checkRegistration = useCallback(async () => {
-    const value = await viewFunction({
+    const value = await chainView.current({
       contractId: TOKEN,
       method: 'storage_balance_of',
       args: { account_id: account }
     })
     setRegistered(value !== null)
-  }, [account, viewFunction])
+  }, [account])
 
   useEffect(() => {
     setRegistered(null)
@@ -149,14 +151,14 @@ export function GameRoom() {
       setRoom(null)
       return
     }
-    const state = (await viewFunction({
+    const state = (await chainView.current({
       contractId: GAME,
       method: 'get_match',
       args: { match_id: matchId }
     })) as Match | null
     setRoom(state)
     setRoomRead(state ? null : { id: matchId, status: 'missing' })
-  }, [id, viewFunction])
+  }, [id])
 
   useEffect(() => {
     if (!/^\d+$/.test(id) || BigInt(id) > 2n ** 64n - 1n) {
@@ -166,7 +168,7 @@ export function GameRoom() {
     let stopped = false
     async function read() {
       try {
-        const state = (await viewFunction({
+        const state = (await chainView.current({
           contractId: GAME,
           method: 'get_match',
           args: { match_id: id }
@@ -185,7 +187,7 @@ export function GameRoom() {
       stopped = true
       clearInterval(timer)
     }
-  }, [id, viewFunction])
+  }, [id])
 
   useEffect(() => {
     if (!/^\d+$/.test(id) || BigInt(id) > 2n ** 64n - 1n) return
@@ -205,7 +207,7 @@ export function GameRoom() {
         try {
           if (JSON.parse(String(event.data)).type === 'resync_required' && Date.now() - last > 1500) {
             last = Date.now()
-            void refresh(id).catch(() => setMessage('Could not refresh match.'))
+            void refresh(id).catch(() => setRoomRead({ id, status: 'unavailable' }))
           }
         } catch {
           /* Ignore malformed */

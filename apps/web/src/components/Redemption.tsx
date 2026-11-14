@@ -101,14 +101,13 @@ export function Redemption() {
     const list=await request<{intents:Array<{id:string;rejected:number}>}>('/api/redemptions','GET',undefined,token)
     setIntentHistory(list.intents)
     const data=saved ? JSON.parse(saved) as {id:string;submitted?:boolean;hash?:string} : null
-    const id=data?.id ?? list.intents.find(item=>!item.rejected)?.id
+    const id=data?.id
     if(id){
       const state=await request<{deposit:Intent['deposit'];reservation:Intent['reservation'];rejected:boolean}>(`/api/redemptions/${encodeURIComponent(id)}`,'GET',undefined,token)
       if((state.reservation==='refunded' || state.rejected) && !state.deposit){localStorage.removeItem(slot);setIntent(null);setSubmitted(false);setDepositHash('');await refreshConfig();return}
       setIntent({id,account_id:account,...state})
       setDepositHash(data?.hash??'')
       setSubmitted(data?.submitted === true || state.deposit!==null)
-      if(!saved)localStorage.setItem(slot,JSON.stringify({id,submitted:state.deposit!==null}))
       return state
     }
 
@@ -147,6 +146,18 @@ export function Redemption() {
     setIntent({id:created.id,account_id:account,deposit:null,reservation:null,rejected:false})
     setSubmitted(false)
     setDepositHash('')
+    await refresh()
+  }
+
+  async function recover(id: string) {
+    const saved = localStorage.getItem(slot)
+    const current = saved ? JSON.parse(saved) as { id: string } : null
+    if (id !== current?.id) {
+      localStorage.setItem(slot, JSON.stringify({ id, submitted: true }))
+      setIntent(null)
+      setSubmitted(true)
+      setDepositHash('')
+    }
     await refresh()
   }
 
@@ -358,7 +369,24 @@ export function Redemption() {
                   </button>
                 </div>
               )}
-              {!intent && config.escrowAccount && <details><summary>Recover a deposit</summary>{intentHistory.slice(0,5).map(item=><button key={item.id} type="button" className="btn-ghost" disabled={busy} onClick={()=>void action(async()=>{localStorage.setItem(slot,JSON.stringify({id:item.id,submitted:true}));await refresh()})}>{item.id.slice(0,12)}…</button>)}<input className="input-field" value={recoveryId} onChange={e=>setRecoveryId(e.target.value.trim())} aria-label="Deposit ID" placeholder="Deposit ID" /><button type="button" className="btn-ghost" disabled={busy || !/^[A-Za-z0-9_-]{32,64}$/.test(recoveryId)} onClick={()=>void action(async()=>{localStorage.setItem(slot,JSON.stringify({id:recoveryId,submitted:true}));await refresh()})}>Open deposit</button></details>}
+              {config.escrowAccount && (
+                <details>
+                  <summary>Recover a deposit</summary>
+                  <p>Choose an earlier deposit or enter its ID. If you already sent PCC, check wallet history before making another transfer.</p>
+                  <div className="promptplay-quickstart-actions">
+                    {intentHistory.slice(0, 5).map(item => (
+                      <button key={item.id} type="button" className="btn-ghost" disabled={busy || intent?.id === item.id} onClick={() => void action(() => recover(item.id))}>
+                        Open {item.id.slice(0, 12)}…
+                      </button>
+                    ))}
+                  </div>
+                  <label className="field-label">
+                    Deposit ID
+                    <input className="input-field" value={recoveryId} onChange={e => setRecoveryId(e.target.value.trim())} />
+                  </label>
+                  <button type="button" className="btn-ghost" disabled={busy || !/^[A-Za-z0-9_-]{32,64}$/.test(recoveryId)} onClick={() => void action(() => recover(recoveryId))}>Open deposit</button>
+                </details>
+              )}
 
               {intent && intent.reservation !== 'credited' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
