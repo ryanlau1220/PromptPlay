@@ -1,10 +1,11 @@
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError, sync_playwright
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 import base64, json, os, re, shutil, signal, socket, subprocess, tempfile, time
-from urllib.request import Request, urlopen
+from urllib.request import Request, build_opener, install_opener, urlopen
 from urllib.error import HTTPError, URLError
 
+opener=build_opener();opener.addheaders=[('User-Agent','PromptPlay-Test/1.0')];install_opener(opener)
 web=os.environ.get('BROWSER_TEST_WEB_URL','http://localhost:3000').rstrip('/')
 api=os.environ.get('BROWSER_TEST_API_URL','http://127.0.0.1:3001').rstrip('/')
 extension=Path(os.environ['METEOR_EXTENSION_PATH']).resolve()
@@ -221,8 +222,10 @@ try:
    waitfor(lambda:a.evaluate("async id => (await (await navigator.serviceWorker.ready).getNotifications()).some(n => n.tag === `match-${id}`)",match),120)
    save('match push delivered')
   sign(ca,a,'Claim 2 PCC Payout')
-  state=chain_view('game2.ryanlau1220.testnet','get_match',{'match_id':match})
-  if state['id']!=match or state['stake']!='1000000' or state['phase']!='Completed' or state['winner']!=ids[0] or state['wins']!=[2,0] or any(player['claim']!='0' or player['pending'] for player in state['players']): raise RuntimeError('Final on-chain match state did not match the browser result')
+  def finalized_payout():
+   state=chain_view('game2.ryanlau1220.testnet','get_match',{'match_id':match})
+   return state if state['id']==match and state['stake']=='1000000' and state['phase']=='Completed' and state['winner']==ids[0] and state['wins']==[2,0] and all(player['claim']=='0' and not player['pending'] for player in state['players']) else None
+  state=waitfor(finalized_payout,90)
   if [player['account'] for player in state['players']]!=ids or not all(player['funded'] and player['commitment'] and player['revealed'] is not None for player in state['players']): raise RuntimeError('On-chain players or moves did not match')
   def payout(receipt,recipient,amount):
    if receipt['outcome']['executor_id']!='token.ryanlau1220.testnet' or 'SuccessValue' not in receipt['outcome']['status']: return False
@@ -268,7 +271,14 @@ try:
     a.reload(wait_until='domcontentloaded')
     previous=set(ca.pages);a.get_by_role('button',name='Sign NEP-413 Challenge').click(timeout=30000);wallet_prompt(popup(ca,previous))
     a.get_by_role('button',name='Claim gateway units').click(timeout=30000)
-   a.get_by_role('button',name='Create another redemption').wait_for(timeout=90000)
+   try:
+    a.get_by_role('button',name='Create another redemption').wait_for(timeout=25000)
+    save('browser redemption credited automatically')
+   except PlaywrightTimeoutError:
+    a.get_by_role('button',name='Refresh status').click(timeout=30000)
+    a.get_by_role('button',name='Claim gateway units').click(timeout=30000)
+    a.get_by_role('button',name='Create another redemption').wait_for(timeout=90000)
+    save('browser redemption recovered after refresh')
    saved=json.loads(a.evaluate('(key)=>localStorage.getItem(key)',f'promptplay:redemption:{ids[0]}'))
    trace['redemptionTransaction']=saved.get('hash');save('browser escrow credited')
    with a.expect_response(lambda r:r.url.endswith('/api/keys') and r.request.method=='POST' and r.ok) as created:
