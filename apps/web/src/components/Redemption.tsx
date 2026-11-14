@@ -109,6 +109,7 @@ export function Redemption() {
       setDepositHash(data?.hash??'')
       setSubmitted(data?.submitted === true || state.deposit!==null)
       if(!saved)localStorage.setItem(slot,JSON.stringify({id,submitted:state.deposit!==null}))
+      return state
     }
 
   }, [session, request, slot, refreshConfig, account, config?.escrowAccount])
@@ -155,8 +156,9 @@ export function Redemption() {
     setSubmitted(true)
     const result=await callFunctionRaw({contractId:TOKEN,method:'ft_transfer_call',args:{receiver_id:config.escrowAccount,amount:'5000000',memo:null,msg:intent.id},gas:'100000000000000',deposit:'1'})
     if(result.transaction?.hash){setDepositHash(result.transaction.hash);localStorage.setItem(slot,JSON.stringify({id:intent.id,submitted:true,hash:result.transaction.hash}))}
-    await refresh()
-    setMessage('Deposit submitted. Refresh until it appears on-chain.')
+    window.dispatchEvent(new Event('promptplay:balance'))
+    setMessage('Deposit submitted. Check the transaction and refresh the escrow status before sending again.')
+    await refresh().catch(() => setMessage('Deposit submitted. Escrow status is unavailable. Check the transaction before retrying.'))
   }
 
   async function approveAndConsume() {
@@ -164,15 +166,21 @@ export function Redemption() {
     await request(`/api/redemptions/${encodeURIComponent(intent.id)}/approve`, 'POST')
     const result = await callFunctionRaw({contractId:config.escrowAccount,method:'consume',args:{id:intent.id},gas:'30000000000000',deposit:'0'})
     if (result.transaction?.hash) setEscrowTx({ account, hash: result.transaction.hash })
+    const state = await refresh().catch(() => null)
+    if (state?.deposit?.status !== 'Consumed') {
+      setMessage('Consume status is pending or unavailable. Check the escrow transaction and refresh before retrying.')
+      return
+    }
     await claim()
   }
 
   async function claim() {
     if (!intent) return
     const { credited } = await request<{ credited: boolean }>(`/api/redemptions/${encodeURIComponent(intent.id)}/claim`, 'POST')
-    await refresh(); await refreshConfig()
     window.dispatchEvent(new Event('promptplay:balance'))
-    setMessage(credited ? 'Gateway units credited.' : 'This deposit was already credited.')
+    const detail = credited ? 'Gateway units credited.' : 'This deposit was already credited.'
+    setMessage(detail)
+    await Promise.all([refresh(), refreshConfig()]).catch(() => setMessage(`${detail} Refresh to see the updated allowance.`))
   }
 
   async function refund() {
