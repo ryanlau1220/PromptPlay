@@ -87,6 +87,9 @@ function Content() {
 
   return (
     <main className="app-shell">
+      <button type="button" className="app-skip-link" onClick={() => document.getElementById('arcade-content')?.focus()}>
+        Skip to content
+      </button>
       <div className="cyber-grid-bg" />
 
       <Navbar
@@ -95,6 +98,7 @@ function Content() {
         onToggleTheme={() => setTheme(theme === 'light' ? 'dark' : 'light')}
       />
 
+      <div id="arcade-content" tabIndex={-1}>
       <Suspense fallback={<output className="arena-container">Loading arcade…</output>}>
       {view === 'arcade' && <ArcadeLobby />}
       {view === 'demo' && <ComputeDemo />}
@@ -138,6 +142,7 @@ function Content() {
         ))}
 
       </Suspense>
+      </div>
 
       {walletError && <div className="status-toast" role="alert">{walletError}</div>}
 

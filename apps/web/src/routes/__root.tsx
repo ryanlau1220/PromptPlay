@@ -13,7 +13,19 @@ export const Route = createRootRoute({
         content: 'width=device-width, initial-scale=1',
       },
       {
-        title: 'PromptPlay — Your agent codes. You play.',
+        title: 'PromptPlay | Testnet arcade and AI compute',
+      },
+      {
+        name: 'description',
+        content: 'Play a wallet-free arcade demo or compete for compute credits in a NEAR Testnet duel.',
+      },
+      {
+        property: 'og:title',
+        content: 'PromptPlay | Testnet arcade and AI compute',
+      },
+      {
+        property: 'og:description',
+        content: 'Play a wallet-free arcade demo or compete for compute credits in a NEAR Testnet duel.',
       },
     ],
     links: [

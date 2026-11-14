@@ -1685,3 +1685,20 @@ button:disabled:is(button, .btn-primary, .btn-accent, .move-card-btn) {
   gap: 8px;
   margin-block: 8px;
 }
+
+.app-skip-link {
+  border: 1px solid var(--cyan);
+  cursor: pointer;
+  position: fixed;
+  z-index: 1200;
+  inset: 8px auto auto 8px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: var(--surface-card);
+  color: var(--text);
+  transform: translateY(calc(-100% - 16px));
+}
+
+.app-skip-link:focus {
+  transform: none;
+}
