@@ -25,3 +25,18 @@ test('does not index unfinalized transactions or another contract’s logs',asyn
  finality='FINAL';executor='other.testnet';await index.ingest(hash,'alice.testnet')
  expect(index.events('7')).toHaveLength(0);db.close()
 })
+
+test('continues backfill with the provider cursor and restarts after the last page',async()=>{
+ const db=new Database(':memory:'),hash='a'.repeat(44),receipt='b'.repeat(44),requests:string[]=[]
+ const rpc={viewTransactionStatus:async()=>({final_execution_status:'FINAL',transaction:{hash,signer_id:'alice.testnet'},receipts_outcome:[{id:receipt,outcome:{executor_id:'game.testnet',status:{SuccessValue:''},logs:[]}}]})} as unknown as JsonRpcProvider
+ const original=globalThis.fetch
+ globalThis.fetch=(async input=>{
+  const url=String(input);if(url.includes('/v1/txns/'))return new Response(JSON.stringify({txns:[{signer_account_id:'alice.testnet'}]}))
+  requests.push(url)
+  return new Response(JSON.stringify(requests.length===1?{cursor:'next+/=',txns:Array(25).fill({transaction_hash:hash,receipt_id:receipt})}:{cursor:null,txns:[]}))
+ }) as typeof fetch
+ try{
+  const index=new MatchEvents(db,rpc,'game.testnet');await index.sync();await index.sync();await index.sync()
+  expect(requests[0]).not.toContain('cursor=');expect(requests[1]).toContain('cursor=next%2B%2F%3D');expect(requests[2]).not.toContain('cursor=')
+ }finally{globalThis.fetch=original;db.close()}
+})

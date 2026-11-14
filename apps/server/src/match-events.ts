@@ -8,14 +8,15 @@ type MatchEvent = {standard:string;version:string;event:string;data:Array<{seque
 /** NearBlocks discovers receipts; the archival NEAR RPC verifies every finalized event. */
 export class MatchEvents {
   constructor(private db:Database,private rpc:JsonRpcProvider,private contract:string,private source='https://api-testnet.nearblocks.io'){
-    db.exec(`CREATE TABLE IF NOT EXISTS rps_events (match_id TEXT NOT NULL, sequence INTEGER NOT NULL, event TEXT NOT NULL, payload TEXT NOT NULL, tx_hash TEXT NOT NULL, PRIMARY KEY(match_id,sequence)); CREATE TABLE IF NOT EXISTS rps_indexed_receipts(receipt_id TEXT PRIMARY KEY); CREATE TABLE IF NOT EXISTS rps_index_cursor(id INTEGER PRIMARY KEY CHECK(id=1), page INTEGER NOT NULL); INSERT OR IGNORE INTO rps_index_cursor VALUES (1,1);`)
+    db.exec(`CREATE TABLE IF NOT EXISTS rps_events (match_id TEXT NOT NULL, sequence INTEGER NOT NULL, event TEXT NOT NULL, payload TEXT NOT NULL, tx_hash TEXT NOT NULL, PRIMARY KEY(match_id,sequence)); CREATE TABLE IF NOT EXISTS rps_indexed_receipts(receipt_id TEXT PRIMARY KEY); DROP TABLE IF EXISTS rps_index_cursor; CREATE TABLE IF NOT EXISTS rps_backfill_cursor(id INTEGER PRIMARY KEY CHECK(id=1), cursor TEXT); INSERT OR IGNORE INTO rps_backfill_cursor VALUES (1,NULL);`)
   }
   async sync(){
-    const {page}=this.db.query('SELECT page FROM rps_index_cursor WHERE id=1').get() as {page:number}
-    const response=await fetch(`${this.source}/v1/account/${encodeURIComponent(this.contract)}/txns?page=${page}&per_page=25`,{signal:AbortSignal.timeout(15000)})
+    const {cursor}=this.db.query('SELECT cursor FROM rps_backfill_cursor WHERE id=1').get() as {cursor:string|null}
+    const response=await fetch(`${this.source}/v1/account/${encodeURIComponent(this.contract)}/txns?per_page=25${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`,{signal:AbortSignal.timeout(15000)})
     if(!response.ok)throw new Error('History index is unavailable')
-    const data=await response.json() as {txns?:Candidate[]}
+    const data=await response.json() as {txns?:Candidate[];cursor?:string|null}
     if(!Array.isArray(data.txns))throw new Error('Invalid history response')
+    if(data.cursor != null && (typeof data.cursor!=='string' || data.cursor.length>1024))throw new Error('Invalid history cursor')
     for(const row of data.txns){
       if(!/^[1-9A-HJ-NP-Za-km-z]{32,50}$/.test(row.receipt_id)||!/^[1-9A-HJ-NP-Za-km-z]{32,50}$/.test(row.transaction_hash))throw new Error('Invalid history candidate')
       if(this.db.query('SELECT 1 FROM rps_indexed_receipts WHERE receipt_id=?').get(row.receipt_id))continue
@@ -38,7 +39,7 @@ export class MatchEvents {
       if(!receipt || receipt.outcome.executor_id!==this.contract || !receipt.outcome.status || typeof receipt.outcome.status!=='object' || !('SuccessValue' in receipt.outcome.status || 'SuccessReceiptId' in receipt.outcome.status))throw new Error('History receipt is not finalized')
       this.record(row.transaction_hash,receipt)
     }
-    this.db.query('UPDATE rps_index_cursor SET page=? WHERE id=1').run(data.txns.length===25 ? page+1 : 1)
+    this.db.query('UPDATE rps_backfill_cursor SET cursor=? WHERE id=1').run(data.txns.length===25 ? data.cursor ?? null : null)
   }
   async ingest(hash:string,signer:string){
     if(!/^[1-9A-HJ-NP-Za-km-z]{32,50}$/.test(hash)||!/^[a-z0-9._-]{2,64}$/.test(signer))throw new Error('Invalid transaction')
