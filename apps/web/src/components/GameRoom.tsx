@@ -229,8 +229,13 @@ export function GameRoom() {
   }, [id, refresh])
 
   async function callFunction(params: Parameters<typeof callFunctionRaw>[0]) {
-    const outcome = await callFunctionRaw(params)
+    const outcome = await callFunctionRaw(params).catch(() => {
+      throw new Error('Wallet did not return a transaction result. Check wallet history and refresh the match before retrying.')
+    })
     if (outcome.transaction?.hash) setTxHash(outcome.transaction.hash)
+    if (outcome.status && typeof outcome.status === 'object' && 'Failure' in outcome.status) {
+      throw new Error('Testnet reported a failed transaction. Check the explorer and refresh the match before retrying.')
+    }
     if (!outcome.status || typeof outcome.status !== 'object' || !('SuccessValue' in outcome.status)) {
       throw new Error('Transaction was not confirmed on-chain. Refresh match state before retrying.')
     }
@@ -257,7 +262,11 @@ export function GameRoom() {
       await fn()
       window.dispatchEvent(new Event('promptplay:balance'))
       if (socket.current?.readyState === WebSocket.OPEN) {
-        socket.current.send(JSON.stringify({ type: 'resync' }))
+        try {
+          socket.current.send(JSON.stringify({ type: 'resync' }))
+        } catch {
+          // The periodic Testnet read also refreshes the room.
+        }
       }
       setMessage('Transaction confirmed on NEAR Testnet.')
       if (refreshAfter) {

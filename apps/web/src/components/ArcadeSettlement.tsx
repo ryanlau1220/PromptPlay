@@ -73,8 +73,13 @@ export function ArcadeSettlement({ hash }: { hash: string }) {
     args: Record<string, unknown>,
     deposit: string,
   ): Promise<unknown> {
-    const result = await callFunctionRaw({ contractId, method, args, gas: '100000000000000', deposit })
+    const result = await callFunctionRaw({ contractId, method, args, gas: '100000000000000', deposit }).catch(() => {
+      throw new Error('Wallet did not return a transaction result. Check wallet history and refresh the match before retrying.')
+    })
     if (result.transaction?.hash) setTxHash(result.transaction.hash)
+    if (result.status && typeof result.status === 'object' && 'Failure' in result.status) {
+      throw new Error('Testnet reported a failed transaction. Check the explorer and refresh the match before retrying.')
+    }
     if (!result.status || typeof result.status !== 'object' || !('SuccessValue' in result.status))
       throw new Error('Transaction not confirmed. Check wallet history before retrying.')
     return getTransactionLastResult(result)
