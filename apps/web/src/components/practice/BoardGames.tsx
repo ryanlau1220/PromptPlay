@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { adjacent, drop, move2048, shuffle, slide, winner } from './games'
+import { adjacent, drop, move2048, shuffle, slide, ticTacToeReply, winner } from './games'
 
 // These fixed positions identify board cells, rather than reorderable items.
 const positionKeys = Array.from({length: 100}, (_, position) => `position-${position}`)
@@ -15,10 +15,14 @@ function botMove(board: Cell[], width: number, height: number, run: number): Cel
   return shuffle(threats.length ? threats : choices)[0] ?? board
 }
 export function TicTacToe() {
-  const [board, setBoard] = useState<Cell[]>(Array(9).fill(null))
+  const [{ board, reason }, setPosition] = useState<{ board: Cell[]; reason: string }>({ board: Array(9).fill(null), reason: '' })
   const result = winner(board, 3, 3, 3), over = !!result || board.every(Boolean)
-  function play(i: number) { if (over || board[i]) return; const next = [...board]; next[i] = 'X'; setBoard(winner(next, 3, 3, 3) || next.every(Boolean) ? next : botMove(next, 3, 3, 3)) }
-  return <><p className="practice-status">{result ? result === 'X' ? 'You win!' : 'Computer wins' : over ? 'Draw' : 'Your turn · X'}</p><div className="practice-grid tictactoe">{board.map((cell, i) => <button type="button" key={positionKeys[i]} className={`practice-cell mark-${cell ?? 'empty'}`} aria-label={`Row ${Math.floor(i / 3) + 1}, column ${i % 3 + 1}: ${cell ?? 'empty'}`} disabled={over || !!cell} onClick={() => play(i)}>{cell}</button>)}</div></>
+  function play(i: number) {
+    if (over || board[i]) return
+    const next = board.map((cell, index) => index === i ? 'X' : cell)
+    setPosition(ticTacToeReply(next))
+  }
+  return <><p className="practice-status">{result ? result === 'X' ? 'You win!' : 'Computer wins' : over ? 'Draw' : 'Your turn · X'}</p>{reason && <output>{reason}</output>}<div className="practice-grid tictactoe">{board.map((cell, i) => <button type="button" key={positionKeys[i]} className={`practice-cell mark-${cell ?? 'empty'}`} aria-label={`Row ${Math.floor(i / 3) + 1}, column ${i % 3 + 1}: ${cell ?? 'empty'}`} disabled={over || !!cell} onClick={() => play(i)}>{cell}</button>)}</div></>
 }
 export function ConnectFour() {
   const [board, setBoard] = useState<Cell[]>(Array(42).fill(null))

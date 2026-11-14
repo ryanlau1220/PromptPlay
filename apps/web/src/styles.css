@@ -1594,3 +1594,12 @@ button:disabled:is(button, .btn-primary, .btn-accent, .move-card-btn) {
   flex-wrap: wrap;
   gap: 12px;
 }
+
+.match-hud-header,
+.match-hud-header > div {
+  flex-wrap: wrap;
+}
+
+.fighter-name {
+  overflow-wrap: anywhere;
+}

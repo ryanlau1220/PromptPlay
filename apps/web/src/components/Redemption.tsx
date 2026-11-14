@@ -15,7 +15,7 @@ import {
   Lock,
   ArrowRight
 } from 'lucide-react'
-import { TOKEN } from '../lib/game'
+import { pcc, TOKEN } from '../lib/game'
 import { API, useSession } from './Session'
 import { agentSnippets } from '../lib/agent-config'
 
@@ -34,9 +34,10 @@ type KeyItem = {
 }
 
 export function Redemption() {
-  const { signedAccountId: account, callFunctionRaw } = useNearWallet()
+  const { signedAccountId: account, callFunctionRaw, viewFunction } = useNearWallet()
   const { config, configStatus, refreshConfig, token: session, login, request } = useSession()
 
+  const [supply, setSupply] = useState<string | null>(null)
   const [balance, setBalance] = useState<number | null>(null)
   const [intent, setIntent] = useState<Intent | null>(null)
   const [depositHash, setDepositHash] = useState('')
@@ -69,6 +70,14 @@ export function Redemption() {
 
   const slot = `promptplay:redemption:${account}`
   useEffect(()=>{const timer=window.setInterval(()=>setNow(Date.now()),1000);return ()=>window.clearInterval(timer)},[])
+
+  useEffect(() => {
+    let active = true
+    void viewFunction({ contractId: TOKEN, method: 'ft_total_supply', args: {} })
+      .then(result => { if (active) setSupply(pcc(String(result))) })
+      .catch(() => { if (active) setSupply(null) })
+    return () => { active = false }
+  }, [viewFunction])
 
   const refresh = useCallback(async (token = session) => {
     const [b, k, u] = await Promise.all([
@@ -238,6 +247,7 @@ export function Redemption() {
           <span className="label">CONVERSION RATE</span>
           <span className="value">5 PCC : 1 UNIT</span>
           <span className="hint">1,000,000 µ-units</span>
+          {config?.redemptionUnitsAvailable != null && <span className="hint">{config.redemptionUnitsAvailable} units available to redeem</span>}
         </div>
 
         <div className="telemetry-card">
@@ -252,7 +262,9 @@ export function Redemption() {
               }}
             />
             <span style={{ fontSize: '20px' }}>
-              {!config ? (configStatus === 'unavailable' ? 'UNREACHABLE' : 'CONNECTING') : config.model ? 'ENABLED' : 'DISABLED'}
+              {supply !== null && <p>Testnet token supply · {supply} PCC across all wallets and contract balances</p>}
+
+      {!config ? (configStatus === 'unavailable' ? 'UNREACHABLE' : 'CONNECTING') : config.model ? 'ENABLED' : 'DISABLED'}
             </span>
           </span>
           <span className="hint">
@@ -445,6 +457,7 @@ export function Redemption() {
                     rows={3}
                     value={prompt}
                     onChange={(e) => setPrompt(e.target.value)}
+                    aria-label="Inference prompt"
                     placeholder="Enter test prompt for live metered completion..."
                   />
 

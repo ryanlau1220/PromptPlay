@@ -28,6 +28,7 @@ import {
   commitment,
   confirmStakeTransfer,
   fromBase64,
+  matchEconomy,
   pcc,
   secretKey,
   type Match,
@@ -47,6 +48,8 @@ export function GameRoom() {
   const [id, setId] = useState(() => new URLSearchParams(window.location.search).get('match') ?? '')
   const socket = useRef<WebSocket | null>(null)
   const [loadedRoom, setRoom] = useState<Match | null>(null)
+  const [roomRead, setRoomRead] = useState<{ id: string; status: 'missing' | 'unavailable' } | null>(null)
+  const readStatus = roomRead?.id === id ? roomRead.status : null
   const room = loadedRoom?.id === id ? loadedRoom : null
 
   const [pending, setPending] = useState(false)
@@ -81,6 +84,7 @@ export function GameRoom() {
   }, [checkRegistration])
 
   const me = room?.players.find((p) => p.account === account)
+  const economy = room ? matchEconomy(room) : null
 
   const syncEvents = useCallback(async () => {
     if (!account || indexing.current) return
@@ -151,6 +155,7 @@ export function GameRoom() {
       args: { match_id: matchId }
     })) as Match | null
     setRoom(state)
+    setRoomRead(state ? null : { id: matchId, status: 'missing' })
   }, [id, viewFunction])
 
   useEffect(() => {
@@ -166,9 +171,12 @@ export function GameRoom() {
           method: 'get_match',
           args: { match_id: id }
         })) as Match | null
-        if (!stopped) setRoom(state)
+        if (!stopped) {
+          setRoom(state)
+          setRoomRead(state ? null : { id, status: 'missing' })
+        }
       } catch {
-        if (!stopped) setMessage('Could not load match. Verify RPC connection.')
+        if (!stopped) setRoomRead({ id, status: 'unavailable' })
       }
     }
     void read()
@@ -308,7 +316,7 @@ export function GameRoom() {
     setRoom(null)
     setId(matchId)
     window.history.replaceState(null, '', `?match=${matchId}#play`)
-    await refresh(matchId)
+    // The room reader starts as soon as the confirmed match ID is set.
   }
 
   async function fund() {
@@ -406,7 +414,7 @@ export function GameRoom() {
     void navigator.clipboard.writeText(url.toString()).then(() => {
       setCopiedLink(true)
       setTimeout(() => setCopiedLink(false), 2500)
-    })
+    }).catch(() => setMessage('Could not copy the invite. Share the match ID from the room header.'))
   }
 
   return (
@@ -514,6 +522,19 @@ export function GameRoom() {
               </button>
             </div>
           </div>
+
+          {economy && (
+            <section aria-label="Testnet match settlement">
+              <p>{pcc(economy.funded.toString())} PCC deposited · {pcc(economy.held.toString())} PCC unsettled · {pcc(economy.paid.toString())} PCC paid</p>
+              {(economy.claimable > 0n || economy.pending > 0n) && (
+                <p>{pcc(economy.claimable.toString())} PCC claimable · {pcc(economy.pending.toString())} PCC in transfer</p>
+              )}
+            </section>
+          )}
+          {readStatus === 'unavailable' && <p>Showing the last available match state. The room will retry the Testnet connection.</p>}
+          {!me && <p>You are viewing this match. Only the two listed players can deposit, play or claim a payout.</p>}
+          {me?.funded && room.phase === 'Funding' && <p>Your stake is in escrow. Share the invite if the opponent still needs the room link.</p>}
+          {me?.revealed != null && room.phase === 'Revealing' && <p>Move revealed. Wait for your opponent or resolve the match after the deadline.</p>}
 
           {/* VERSUS HUD ROW */}
           <div className="versus-grid">
@@ -739,7 +760,7 @@ export function GameRoom() {
                   }
                 >
                   <Clock size={16} />
-                  <span>Resolve Timeout & Liquidate Escrow</span>
+                  <span>Resolve expired match</span>
                 </button>
               </div>
             )}
@@ -837,7 +858,10 @@ export function GameRoom() {
               <button type="button"
                 className="btn-ghost"
                 disabled={pending || !id}
-                onClick={() => void refresh(id)}
+                onClick={() => {
+                  setRoomRead(null)
+                  void refresh(id).catch(() => setRoomRead({ id, status: 'unavailable' }))
+                }}
                 style={{ width: '100%' }}
               >
                 <span>Load Match</span>
@@ -846,7 +870,13 @@ export function GameRoom() {
 
               {id && !room && (
                 <p style={{ color: 'var(--crimson)', fontSize: '13px', margin: 0 }}>
-                  Match #{id} not found. Verify the match ID or check the contract explorer.
+                  {!/^\d{1,20}$/.test(id) || BigInt(id) > 2n ** 64n - 1n
+                    ? 'Enter a valid match ID.'
+                    : readStatus === 'missing'
+                      ? `Match #${id} was not found on Testnet.`
+                      : readStatus === 'unavailable'
+                        ? 'Could not reach Testnet. Retry loading the match.'
+                        : `Loading match #${id}…`}
                 </p>
               )}
             </div>

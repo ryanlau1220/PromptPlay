@@ -96,41 +96,66 @@ async function verifyArcadeMatch(recorded) {
   return { id: match.id, players: recorded.players, outcome: match.outcome, blockHeight: query.block_height }
 }
 
+async function verifyEscrow() {
+  const escrow = evidence.redemptionEscrow
+  const escrowQuery = await rpc('query', {
+    request_type: 'call_function', finality: 'final', account_id: escrow.contract,
+    method_name: 'settings', args_base64: Buffer.from('{}').toString('base64')
+  })
+  const settings = JSON.parse(Buffer.from(escrowQuery.result).toString())
+  for (const field of ['token', 'owner', 'treasury', 'cap']) assert.equal(settings[field], escrow[field])
+  const allocated = BigInt(settings.allocated)
+  assert.ok(allocated >= 0n && allocated <= BigInt(settings.cap), 'Invalid escrow allocation')
+  return { cap: settings.cap, allocated: settings.allocated, remaining: (BigInt(settings.cap) - allocated).toString() }
+}
+
 try {
   const status = await rpc('status', [])
   assert.equal(status.chain_id, 'testnet', 'RPC must be connected to NEAR Testnet')
-  const contracts = [
-    await verifyCode(evidence.computeCredit, '../contracts/compute-credit/target/reproducible/compute_credit.wasm'),
-    await verifyCode(evidence.rpsGame, '../contracts/rps-game/target/reproducible/rps_game.wasm'),
-    await verifyCode(evidence.multiRoundRps, '../contracts/rps-game/target/deployed/rps_game.wasm'),
-    await verifyCode(evidence.arcadeSettlement, '../contracts/arcade-settlement/target/near/arcade_settlement.wasm')
-  ]
-  const matches = []
-  for (const match of [evidence.rpsGame.verifiedMatch, evidence.rpsGame.meteorBrowserMatch, evidence.rpsGame.meteorBrowserTie, evidence.rpsGame.journeyMatch, evidence.rpsGame.automatedMeteorMatch, evidence.rpsGame.automatedMeteorTie, evidence.rpsGame.automatedMeteorRestart, evidence.rpsGame.automatedBrowserRedemption, evidence.rpsGame.upgradedBrowserMatch]) matches.push(await verifyMatch(match))
-  const multi = evidence.multiRoundRps
-  const multiQuery = await rpc('query', {request_type:'call_function',finality:'final',account_id:multi.accountId,method_name:'get_match',args_base64:Buffer.from(JSON.stringify({match_id:multi.pushVerificationMatch})).toString('base64')})
-  const multiMatch = JSON.parse(Buffer.from(multiQuery.result).toString())
-  assert.equal(multiMatch.phase,'Completed');assert.deepEqual(multiMatch.wins,[2,0]);assert.equal(multiMatch.winner,multiMatch.players[0].account)
-  assert.ok(multiMatch.players.every(player=>player.claim==='0' && !player.pending))
-  const multiPayout=await rpc('tx',{tx_hash:multi.pushVerificationPayout,sender_account_id:multiMatch.winner,wait_until:'FINAL'})
-  assert.equal(multiPayout.final_execution_status,'FINAL');assert.equal(multiPayout.transaction.receiver_id,multi.accountId)
-  assert.ok(transferEvent(multiPayout,multi.accountId,multiMatch.winner,(BigInt(multiMatch.stake)*2n).toString()),'Missing multi-round payout')
+  if (process.argv.includes('--escrow-only')) {
+    const escrow = evidence.redemptionEscrow
+    const contract = await verifyCode({
+      accountId: escrow.contract, wasmSha256: escrow.sha256
+    }, '../contracts/redemption-escrow/target/deployed/redemption_escrow.wasm')
+    console.log(JSON.stringify({ network: status.chain_id, contract, escrowCapacity: await verifyEscrow() }, null, 2))
+  } else {
+    const contracts = [
+      await verifyCode(evidence.computeCredit, '../contracts/compute-credit/target/reproducible/compute_credit.wasm'),
+      await verifyCode(evidence.rpsGame, '../contracts/rps-game/target/reproducible/rps_game.wasm'),
+      await verifyCode(evidence.multiRoundRps, '../contracts/rps-game/target/deployed/rps_game.wasm'),
+      await verifyCode(evidence.arcadeSettlement, '../contracts/arcade-settlement/target/deployed/arcade_settlement.wasm'),
+      await verifyCode({
+        accountId: evidence.redemptionEscrow.contract,
+        wasmSha256: evidence.redemptionEscrow.sha256
+      }, '../contracts/redemption-escrow/target/deployed/redemption_escrow.wasm')
+    ]
+    const matches = []
+    for (const match of [evidence.rpsGame.verifiedMatch, evidence.rpsGame.meteorBrowserMatch, evidence.rpsGame.meteorBrowserTie, evidence.rpsGame.journeyMatch, evidence.rpsGame.automatedMeteorMatch, evidence.rpsGame.automatedMeteorTie, evidence.rpsGame.automatedMeteorRestart, evidence.rpsGame.automatedBrowserRedemption, evidence.rpsGame.upgradedBrowserMatch]) matches.push(await verifyMatch(match))
+    const multi = evidence.multiRoundRps
+    const multiQuery = await rpc('query', {request_type:'call_function',finality:'final',account_id:multi.accountId,method_name:'get_match',args_base64:Buffer.from(JSON.stringify({match_id:multi.pushVerificationMatch})).toString('base64')})
+    const multiMatch = JSON.parse(Buffer.from(multiQuery.result).toString())
+    assert.equal(multiMatch.phase,'Completed');assert.deepEqual(multiMatch.wins,[2,0]);assert.equal(multiMatch.winner,multiMatch.players[0].account)
+    assert.ok(multiMatch.players.every(player=>player.claim==='0' && !player.pending))
+    const multiPayout=await rpc('tx',{tx_hash:multi.pushVerificationPayout,sender_account_id:multiMatch.winner,wait_until:'FINAL'})
+    assert.equal(multiPayout.final_execution_status,'FINAL');assert.equal(multiPayout.transaction.receiver_id,multi.accountId)
+    assert.ok(transferEvent(multiPayout,multi.accountId,multiMatch.winner,(BigInt(multiMatch.stake)*2n).toString()),'Missing multi-round payout')
 
-  const payments = [evidence.redemptionTreasury.openCodeGatewaySmokeTest, evidence.redemptionTreasury.localOperatorGatewaySmokeTest, evidence.redemptionTreasury.journeyPayment, evidence.redemptionTreasury.browserRecoveryPayment, evidence.redemptionTreasury.upgradedBrowserPayment]
-  for (const payment of payments) {
-    const sender = payment.account ?? evidence.rpsGame.verifiedMatch.winner
-    const tx = await rpc('tx', { tx_hash: payment.transferTransaction, sender_account_id: sender, wait_until: 'FINAL' })
-    assert.equal(tx.final_execution_status, 'FINAL')
-    assert.ok(Object.hasOwn(tx.status, 'SuccessValue'))
-    assert.equal(tx.transaction.signer_id, sender)
-    assert.equal(tx.transaction.receiver_id, evidence.computeCredit.accountId)
-    assert.ok(transferEvent(tx, sender, evidence.redemptionTreasury.accountId, payment.amountBaseUnits), 'Missing successful PCC treasury transfer receipt')
+    const payments = [evidence.redemptionTreasury.openCodeGatewaySmokeTest, evidence.redemptionTreasury.localOperatorGatewaySmokeTest, evidence.redemptionTreasury.journeyPayment, evidence.redemptionTreasury.browserRecoveryPayment, evidence.redemptionTreasury.upgradedBrowserPayment]
+    for (const payment of payments) {
+      const sender = payment.account ?? evidence.rpsGame.verifiedMatch.winner
+      const tx = await rpc('tx', { tx_hash: payment.transferTransaction, sender_account_id: sender, wait_until: 'FINAL' })
+      assert.equal(tx.final_execution_status, 'FINAL')
+      assert.ok(Object.hasOwn(tx.status, 'SuccessValue'))
+      assert.equal(tx.transaction.signer_id, sender)
+      assert.equal(tx.transaction.receiver_id, evidence.computeCredit.accountId)
+      assert.ok(transferEvent(tx, sender, evidence.redemptionTreasury.accountId, payment.amountBaseUnits), 'Missing successful PCC treasury transfer receipt')
+    }
+
+    const arcadeMatches = await Promise.all([evidence.arcadeSettlement.sdkVerifiedMatch, evidence.arcadeSettlement.browserVerifiedMatch].map(verifyArcadeMatch))
+    console.log(JSON.stringify({ checkedAt: new Date().toISOString(), network: status.chain_id, contracts, matches, arcadeMatches, multiRoundMatch:multiMatch.id, escrowCapacity: await verifyEscrow(),
+      operatorPayments: payments.map(payment => ({ transaction: payment.transferTransaction, amountBaseUnits: payment.amountBaseUnits })),
+      limitations: 'Read-only chain evidence; does not reproduce browser wallet interactions, infer linkage between match and payment, or verify a live inference request.' }, null, 2))
   }
-
-  const arcadeMatches = await Promise.all([evidence.arcadeSettlement.sdkVerifiedMatch, evidence.arcadeSettlement.browserVerifiedMatch].map(verifyArcadeMatch))
-  console.log(JSON.stringify({ checkedAt: new Date().toISOString(), network: status.chain_id, contracts, matches, arcadeMatches, multiRoundMatch:multiMatch.id,
-    operatorPayments: payments.map(payment => ({ transaction: payment.transferTransaction, amountBaseUnits: payment.amountBaseUnits })),
-    limitations: 'Read-only chain evidence; does not reproduce browser wallet interactions, infer linkage between match and payment, or verify a live inference request.' }, null, 2))
 } catch (error) {
   console.error('Testnet evidence verification failed:', error instanceof Error ? error.message : String(error))
   process.exitCode = 1

@@ -1,6 +1,6 @@
 import { useNearWallet } from 'near-connect-hooks'
 import { useState } from 'react'
-import { GAME, pcc, type Match } from '../lib/game'
+import { GAME, matchEconomy, pcc, type Match } from '../lib/game'
 import { useSession } from './Session'
 
 export function MatchHistory({account,onSelect}:{account:string;onSelect:(id:string)=>void}) {
@@ -32,8 +32,12 @@ export function MatchHistory({account,onSelect}:{account:string;onSelect:(id:str
   }
   const wins=matches.filter(match=>match.winner===account).length
   const losses=matches.filter(match=>match.winner && match.winner!==account).length
+  const completed=matches.filter(match=>match.phase==='Completed').length
+  const settled=matches.reduce((total,match)=>total+matchEconomy(match).paid,0n)
   return <details><summary>Match history</summary>
     <p>{wins} wins · {losses} losses · {matches.length} matches loaded</p>
+    {matches.length > 0 && <p>{completed} completed · {pcc(settled.toString())} PCC paid to players across loaded matches, including refunds</p>}
+    {wins > 0 && <p>{wins === 1 ? 'First Testnet win' : `${wins} Testnet wins`} recorded in loaded history.</p>}
     {matches.map(match=><div key={match.id}><button type="button" className="btn-ghost" onClick={()=>onSelect(match.id)}>#{match.id} · {match.phase} · {pcc(match.stake)} PCC</button><button type="button" className="btn-ghost" disabled={busy} onClick={()=>void loadEvents(match.id)}>Events</button></div>)}
     {eventMatch && <div>Match #{eventMatch}: {events.length===0 ? 'No indexed events yet.' : events.map(event=><a key={event.sequence} href={`https://testnet.nearblocks.io/txns/${event.tx_hash}`} target="_blank" rel="noreferrer">{event.sequence} · {event.event} </a>)}</div>}
     {(cursor===null || cursor>0n) && <button type="button" className="btn-ghost" disabled={busy} onClick={()=>void load()}>{busy?'Loading…':cursor===null?'Load history':'Load more'}</button>}

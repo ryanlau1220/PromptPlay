@@ -22,3 +22,19 @@ export async function commitment(account:string, matchId:string, round:number, c
   view.setBigUint64(pos,BigInt(matchId),true); pos += 8; view.setUint32(pos,round,true); pos += 4; data[pos++] = choice; data.set(secret,pos)
   return base64(new Uint8Array(await crypto.subtle.digest('SHA-256',data)))
 }
+
+// Funded flags are historical. Terminal matches hold only outstanding claims and transfers.
+export function matchEconomy(match: Match) {
+  const stake = BigInt(match.stake)
+  const funded = stake * BigInt(match.players.filter(player => player.funded).length)
+  if (match.phase !== 'Completed' && match.phase !== 'Cancelled') {
+    return { funded, held: funded, claimable: 0n, pending: 0n, paid: 0n }
+  }
+  const allocations = match.players.map(player =>
+    match.winner ? (player.account === match.winner ? funded : 0n) : (player.funded ? stake : 0n),
+  )
+  const claimable = match.players.reduce((total, player) => total + BigInt(player.claim), 0n)
+  const pending = match.players.reduce((total, player, index) =>
+    total + (player.pending ? allocations[index] : 0n), 0n)
+  return { funded, held: claimable + pending, claimable, pending, paid: funded - claimable - pending }
+}

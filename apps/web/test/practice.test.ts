@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { adjacent, codeFeedback, drop, gameAssetLicenses, move2048, practiceGames, slide, winner } from '../src/components/practice/games'
+import { adjacent, codeFeedback, drop, gameAssetLicenses, move2048, practiceGames, slide, ticTacToeReply, winner } from '../src/components/practice/games'
 
 describe('practice game rules', () => {
   test('catalog has eleven distinct playable identifiers', () => {
@@ -22,6 +22,12 @@ describe('practice game rules', () => {
     expect(winner(['X',null,'O',null,'X','O',null,null,'X'],3,3,3)).toBe('X')
     expect(winner([null,'X','X','X',null,null,null,null,null],3,3,3)).toBeNull()
     expect(winner(Array(42).fill(null).map((_,i) => [3,9,15,21].includes(i) ? 'O' : null),7,6,4)).toBe('O')
+  })
+  test('computer takes a win, blocks a threat and stops on terminal positions', () => {
+    expect(ticTacToeReply(['O','O',null,'X','X',null,null,null,null]).board[2]).toBe('O')
+    expect(ticTacToeReply(['X','X',null,null,'O',null,null,null,null]).board[2]).toBe('O')
+    const terminal = ['X','X','X',null,'O',null,null,null,'O']
+    expect(ticTacToeReply(terminal).board).toBe(terminal)
   })
   test('drops to the bottom and rejects a full column', () => {
     let board: (string|null)[] = Array(42).fill(null)

@@ -66,3 +66,15 @@ export function codeFeedback(secret: string, guess: string) {
   for (const digit of remainingGuess) { const i = remainingSecret.indexOf(digit); if (i !== -1) { misplaced++; remainingSecret.splice(i, 1) } }
   return { exact, misplaced }
 }
+
+export function ticTacToeReply(board: (string | null)[]) {
+  const positions = [4, 0, 2, 6, 8, 1, 3, 5, 7].filter(index => board[index] === null)
+  const move = (index: number, mark: string) => board.map((cell, i) => i === index ? mark : cell)
+  if (positions.length === 0 || winner(board, 3, 3, 3)) return { board, reason: '' }
+  const win = positions.find(index => winner(move(index, 'O'), 3, 3, 3) === 'O')
+  if (win !== undefined) return { board: move(win, 'O'), reason: 'Computer completed a line.' }
+  const block = positions.find(index => winner(move(index, 'X'), 3, 3, 3) === 'X')
+  if (block !== undefined) return { board: move(block, 'O'), reason: 'Computer blocked your next winning move.' }
+  const next = positions[0]
+  return { board: move(next, 'O'), reason: next === 4 ? 'Computer took the center.' : 'Computer took the first available corner or edge.' }
+}

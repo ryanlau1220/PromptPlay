@@ -23,12 +23,50 @@ The baseline is upstream `main` at `85117194445e084d0897e6e11345328b2db30c4e`. T
 | --- | --- |
 | Bun 1.3.10 frozen install | Passed |
 | `bun run check` | Lint, Rust formatting and both app type checks passed |
-| `bun run test:apps` | 88 passed across web and server. Existing coverage includes escrow replay, uncertain reservations, refund recovery and metering. |
+| `bun run test:apps` | 90 passed across web and server. Existing coverage includes escrow replay, uncertain reservations, refund recovery and metering. |
 | `bun run build:web` | Passed |
 | `bun run demo:mock` | Passed. First claim credited, replay credited nothing, and mock usage reduced allowance from 1,000,000 to 999,994 microunits. |
 | Local service smoke | Web HTTP 200, backend health and Testnet config, and initial room WebSocket resync passed. Local faucet and live provider were disabled. |
-| Contract suite and archival Testnet verifier | Invoked. Completion remained unconfirmed when this handoff was written. |
+| Contract builds and unit suites | All four Wasm builds completed. All 37 contract unit tests passed. The full suite stopped at the RPS sandbox binary download with a connection refusal. |
+| Archival Testnet verifier | The original full verifier passed. A full rerun of the extended verifier timed out on the alternate RPC. The new escrow code hash and settings were verified separately on Testnet. |
 | Chromium smoke | Environment denied Chromium's socket creation. |
 | Fresh wallet-to-live-provider journey | Requires funded wallet profiles, an eligible account and the operator's gateway configuration. Public hosting availability remains unverified. |
 
 The next operator check is the real Testnet walkthrough against the intended public web and API URLs. Use the existing wallet profiles, operator configuration and persistent ledger. See the [README](../README.md#test-and-verify) for the full test commands.
+
+## Backlog status
+
+| Item | Branch outcome |
+| --- | --- |
+| P0.1 | The walkthrough covers wallet and funding prerequisites, stake acceptance, reveal recovery, transfer confirmation, redemption and inference. A fresh signed run still needs the operator's wallet profiles and gateway. |
+| P0.2–P0.3 | The lobby opens directly into wallet-free practice or Testnet. Claim, conversion, allowance and proof links are visible at the relevant steps. |
+| P0.4 | Match reads distinguish loading, missing room and RPC failure. Funded players can see when the opponent is next. Payouts and redemption recover from confirmed failures or interrupted requests through existing claim and refresh paths. |
+| P0.5 | App and contract unit suites cover conservation, refunds, replay, failed callbacks, duplicate claims and gateway reservations. Full sandbox coverage requires the sandbox binary. |
+| P0.6 | Lint, type checks, app tests, production web build, deterministic mock and read-only Testnet checks were run. |
+| P0.7 | The production web build and local HTTP, CORS and WebSocket checks passed. Public endpoint URLs and live provider access are operator inputs. |
+| P1.1 and P2.1 | The existing Tic-Tac-Toe computer opponent now chooses a winning move or blocks an immediate threat, then explains the decision. It is a reproducible rule-based opponent with zero external inference cost. An LLM-controlled or wallet-owning opponent remains deferred. |
+| P1.2–P1.3 | The Inference Hub shows Testnet supply, redemption capacity, allowance and recorded usage. Each RPS room shows deposited, unsettled, pending, claimable and paid PCC. The walkthrough describes the fixed rate and who funds inference. |
+| P1.4–P1.5 | Loaded match history shows completed matches, wins and paid stakes. Rooms show invitation, opponent readiness and RPC refresh states. Progress depends on on-chain outcomes and is scoped to loaded history. |
+| P1.6 | Practice and shared settlement screens describe the separate mutual-agreement model and its trust boundary. |
+| P1.7 and P2.4 | Added accessible input labels and status announcements, mobile-friendly wrapping, and concise match feedback. Runtime browser layout verification is pending. |
+| P2.2 | Match summaries aggregate paid PCC from loaded contract records. Project-wide statistics require a defined index coverage window and verified indexing completeness. |
+| P2.3 | The scenarios below document the fixed-rate economics under three demand levels. |
+| P2.5 | Existing Testnet escrow, wallet auth and inference metering provide the evidence for the current loop. A second settlement path or inference attestation integration remains deferred. |
+
+### Illustrative capacity scenarios
+
+Assume 500 PCC distributed from a pre-funded faucet, one unit for every 5 PCC, 50 remaining redemption units, and no capacity replenishment. These values are scenario assumptions. A 5 PCC stake on each side moves 10 PCC into escrow and returns 10 PCC to the winner upon a successful claim, with zero issuance from gameplay.
+
+| Redemption demand | PCC received by redemption escrow | Units funded | Units left | Unmet requests |
+| --- | ---: | ---: | ---: | ---: |
+| 10 requests | 50 | 10 | 40 | 0 |
+| 50 requests | 250 | 50 | 0 | 0 |
+| 80 requests | 250 | 50 | 0 | 30 |
+
+The example assumes each accepted redemption completes. The 250 PCC transferred in the last two cases does not imply a reduction in issued token supply. Inference spending depends on provider usage and the operator's funding. For a deployment smoke check without signing, run:
+
+```sh
+bun scripts/check-demo.mjs WEB_URL API_URL
+```
+
+The script checks the web response, backend health, CORS, Testnet configuration and WebSocket resync. A configured model is evidence of configuration only. To prove live inference, perform walkthrough steps 5–6 with an eligible wallet on the same deployment.
