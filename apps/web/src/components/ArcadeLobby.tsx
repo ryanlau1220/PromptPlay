@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ArrowDown, ArrowUpRight, Coins, Cpu, Gamepad2, Lock } from 'lucide-react'
 import { GAME, TOKEN, base64, commitment } from '../lib/game'
 import { ArcadeScene } from './ArcadeScene'
@@ -21,6 +21,7 @@ const steps = [
 
 export function ArcadeLobby() {
   const { config, configStatus } = useSession()
+  const intro = useRef<HTMLElement>(null)
   const [selected, setSelected] = useState<number | null>(null)
   const [example, setExample] = useState<{ salt: string; hash: string } | null>(null)
   const [hashError, setHashError] = useState(false)
@@ -57,10 +58,25 @@ export function ArcadeLobby() {
 
   return (
     <div className="lobby-container arcade-story">
-      <section className="story-intro" aria-labelledby="quickstart-title">
+      <section
+        ref={intro}
+        className="story-intro"
+        aria-labelledby="quickstart-title"
+        onPointerMove={event => {
+          if (event.pointerType !== 'mouse' || !intro.current ||
+              window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+          const rect = event.currentTarget.getBoundingClientRect()
+          intro.current.style.setProperty('--story-light-x', `${event.clientX - rect.left}px`)
+          intro.current.style.setProperty('--story-light-y', `${event.clientY - rect.top}px`)
+        }}
+        onPointerLeave={() => {
+          intro.current?.style.removeProperty('--story-light-x')
+          intro.current?.style.removeProperty('--story-light-y')
+        }}
+      >
         <div className="story-intro-copy">
           <h1 id="quickstart-title">
-            <span>Play while your</span>
+            <span>Play while your </span>
             <span>coding agent runs.</span>
           </h1>
           <p>Take a break with a quick game, or stake PromptPlay Compute Credits (PCC) in a Testnet duel. Redeem eligible credits to run AI inference.</p>

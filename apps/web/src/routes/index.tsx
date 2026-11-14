@@ -73,7 +73,14 @@ function Content() {
   const view = hash === '#compute-demo' ? 'demo' : hash === '#play' ? 'play' : hash === '#redeem' ? 'redeem' : hash.startsWith('#practice/') ? 'practice' : hash.startsWith('#arcade-duel') ? 'settlement' : 'arcade'
 
   useEffect(() => {
-    const sync = () => setHash(window.location.hash)
+    const sync = () => {
+      const next = window.location.hash
+      setWalletError('')
+      setHash(next)
+      if (next !== '#games' && next !== '#loop') {
+        window.scrollTo({ top: 0, behavior: 'instant' })
+      }
+    }
     window.addEventListener('hashchange', sync)
     return () => window.removeEventListener('hashchange', sync)
   }, [])
