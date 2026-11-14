@@ -5,6 +5,7 @@ COPY apps/web/package.json apps/web/package.json
 COPY apps/server/package.json apps/server/package.json
 RUN bun install --frozen-lockfile
 COPY apps/server/src ./apps/server/src
+COPY apps/web/src/lib/game.ts ./apps/web/src/lib/game.ts
 WORKDIR /app/apps/server
 ENV HOST=0.0.0.0 PORT=3001 DATABASE_PATH=/data/promptplay.sqlite
 EXPOSE 3001

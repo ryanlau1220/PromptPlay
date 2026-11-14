@@ -1,0 +1,27 @@
+services:
+  server:
+    build:
+      context: .
+      dockerfile: apps/server/Dockerfile
+    restart: unless-stopped
+    env_file: .env.production
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3001
+      DATABASE_PATH: /data/promptplay.sqlite
+      FAUCET_KEY_PATH: /run/secrets/faucet-key.json
+      ESCROW_KEY_PATH: /run/secrets/escrow-key.json
+    ports:
+      - '127.0.0.1:32181:3001'
+    volumes:
+      - ./data:/data
+      - ./secrets/faucet-key.json:/run/secrets/faucet-key.json:ro
+      - ./secrets/escrow-key.json:/run/secrets/escrow-key.json:ro
+  tunnel:
+    image: cloudflare/cloudflared:2026.10.0
+    user: '1001:1001'
+    restart: unless-stopped
+    network_mode: host
+    command: tunnel --no-autoupdate --protocol quic run --token-file /run/secrets/tunnel-token
+    volumes:
+      - ./secrets/tunnel-token:/run/secrets/tunnel-token:ro
