@@ -1,0 +1,212 @@
+.arcade-story {
+  --story-radius: 22px;
+}
+
+.arcade-story #loop,
+.arcade-story #games {
+  scroll-margin-top: 100px;
+}
+
+.story-intro {
+  position: relative;
+  display: grid;
+  gap: clamp(34px, 6vw, 76px);
+  isolation: isolate;
+  padding: clamp(24px, 5vw, 58px) 0 clamp(28px, 6vw, 70px);
+}
+
+.story-intro::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0 -12px auto;
+  height: min(85%, 580px);
+  border-radius: var(--story-radius);
+  background: radial-gradient(ellipse at 70% 24%, color-mix(in srgb, var(--cyan) 17%, transparent), transparent 52%),
+    radial-gradient(ellipse at 20% 56%, color-mix(in srgb, var(--crimson) 13%, transparent), transparent 62%);
+  pointer-events: none;
+  content: '';
+}
+
+.story-intro h1 {
+  margin: 0;
+  color: var(--text);
+  font: 800 clamp(44px, 8vw, 116px)/.94 var(--font-display);
+  letter-spacing: -.07em;
+}
+
+.story-intro h1 span {
+  display: block;
+}
+
+.story-intro h1 span:last-child {
+  color: var(--cyan);
+}
+
+.story-intro p,
+.story-gateway p {
+  max-width: 54ch;
+  margin: 22px 0;
+  color: var(--text-muted);
+  font-size: clamp(15px, 2vw, 19px);
+  line-height: 1.6;
+}
+
+.story-down {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 20px;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.story-preview .arcade-hero {
+  margin-top: 0;
+  border-radius: var(--story-radius);
+}
+
+.story-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.story-step {
+  min-width: 0;
+  padding: clamp(20px, 3vw, 36px);
+  border: 1px solid var(--border);
+  border-radius: var(--story-radius);
+  background: var(--surface-card);
+}
+
+.story-step svg,
+.story-step strong {
+  color: var(--cyan);
+}
+
+.story-step:nth-child(2) svg,
+.story-step:nth-child(2) strong {
+  color: var(--amber);
+}
+
+.story-step:nth-child(3) svg,
+.story-step:nth-child(3) strong {
+  color: var(--emerald);
+}
+
+.story-step h3 {
+  margin: 16px 0 8px;
+  font: 750 clamp(23px, 3vw, 34px)/1.1 var(--font-display);
+}
+
+.story-step p,
+.story-commit p,
+.story-games p {
+  color: var(--text-muted);
+  line-height: 1.55;
+}
+
+.story-commit {
+  margin-top: 18px;
+  padding: 16px 20px;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--story-radius) * .75);
+  background: var(--surface-card);
+}
+
+.story-commit summary {
+  min-height: 36px;
+  color: var(--text);
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.story-commit summary svg {
+  display: inline;
+  margin: 0 5px;
+  vertical-align: middle;
+}
+
+.story-commit .sandbox-code-preview {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.story-gateway {
+  display: grid;
+  justify-items: start;
+  padding: clamp(22px, 5vw, 54px);
+  border: 1px solid var(--border);
+  border-radius: var(--story-radius);
+  margin-top: clamp(32px, 6vw, 72px);
+  background: var(--surface-card);
+}
+
+.arcade-story :is(a, button, summary):focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 4px;
+}
+
+@media (max-width: 650px) {
+  .story-steps {
+    grid-template-columns: 1fr;
+  }
+
+  .arcade-story .story-games .games-grid {
+    display: grid;
+    grid-auto-columns: minmax(118px, 39%);
+    grid-auto-flow: column;
+    grid-template-columns: none;
+    padding: 5px 6px 14px;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+  }
+
+  .story-games .game-tile {
+    scroll-snap-align: start;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .story-intro h1 span {
+    animation: story-title-enter .54s ease-out both;
+  }
+
+  .story-intro h1 span:last-child {
+    animation-delay: .1s;
+  }
+
+  @supports (animation-timeline: view()) {
+    .story-step {
+      animation: story-step-enter linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 80%;
+    }
+
+    @media (min-width: 651px) {
+      .story-preview {
+        animation: story-preview-expand linear both;
+        animation-timeline: view();
+        animation-range: entry 0% entry 90%;
+      }
+    }
+  }
+}
+
+@keyframes story-title-enter {
+  from { opacity: .3; transform: translateY(.18em); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes story-step-enter {
+  from { opacity: .72; transform: translateY(12px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes story-preview-expand {
+  from { transform: scale(.965); }
+  to { transform: scale(1); }
+}

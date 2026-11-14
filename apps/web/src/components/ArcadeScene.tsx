@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { ArrowRight, Check, CircleDollarSign, Code2, Gamepad2, LockKeyhole, ShieldCheck, Swords, Users, PanelLeft, Plus, Folder, Settings2 } from 'lucide-react'
 import { practiceGames } from './practice/games'
 import { GameArtwork } from './practice/GameArtwork'
 
 const phases = ['select', 'invite', 'deposit', 'commit', 'reveal', 'claim'] as const
+const phaseLabels = ['Choose', 'Invite', 'Stake', 'Commit', 'Reveal', 'Claim']
 type Phase = typeof phases[number]
 
 function AgentTerminal({ started, reduced }: { started: boolean; reduced: boolean | null }) {
@@ -47,17 +48,10 @@ function PhaseScreen({ phase }: { phase: Phase }) {
   return <div className="demo-screen"><span className="demo-eyebrow">MATCH COMPLETE</span><div className="demo-icon demo-win"><CircleDollarSign size={31} /></div><strong>10 PCC claimed</strong><div className="demo-commit"><Check size={14} /> Payout confirmed</div><div className="demo-replay">BACK TO ARCADE <ArrowRight size={13} /></div></div>
 }
 
-function GameTerminal({ started }: { started: boolean }) {
+function GameTerminal() {
   const reduced = useReducedMotion()
   const [index, setIndex] = useState(0)
-  useEffect(() => {
-    if (reduced || !started) return
-    let timer: number
-    function advance() { if (document.hidden) timer = window.setTimeout(advance, 1000); else setIndex((current) => (current + 1) % phases.length) }
-    timer = window.setTimeout(advance, index === 0 ? 9000 : 3800)
-    return () => clearTimeout(timer)
-  }, [reduced, started, index])
-  const phase = reduced ? 'select' : phases[index]
+  const phase = phases[index]
   return (
     <div className="hero-window hero-game">
       <div className="hero-window-bar"><div className="hero-window-title"><Gamepad2 size={15} /> arcade</div><span className="hero-window-badge">SIMULATED</span></div>
@@ -68,7 +62,13 @@ function GameTerminal({ started }: { started: boolean }) {
           </motion.div>
         </AnimatePresence>
       </section>
-      <div className="hero-window-bottom"><span>ARCADE / {practiceGames.length + 1}</span><div className="demo-progress" aria-hidden="true">{phases.map((step, i) => <span className={i === (reduced ? 0 : index) ? 'active' : ''} key={step} />)}</div></div>
+      <fieldset className="arcade-scene-controls" aria-label="Simulated match steps">
+        {phases.map((step, i) => (
+          <button key={step} type="button" className="btn-ghost" aria-pressed={index === i} onClick={() => setIndex(i)}>
+            {phaseLabels[i]}
+          </button>
+        ))}
+      </fieldset>
     </div>
   )
 }
@@ -79,14 +79,41 @@ export function ArcadeScene() {
   useEffect(() => {
     if (reduced) { setStarted(true); return }
     const timer = window.setTimeout(() => setStarted(true), 5000)
-    return () => window.clearTimeout(timer)
+    return () => clearTimeout(timer)
   }, [reduced])
+  const scene = useRef<HTMLElement>(null)
+  const [fullscreen, setFullscreen] = useState(false)
+  const [fullscreenError, setFullscreenError] = useState(false)
+  useEffect(() => {
+    const update = () => setFullscreen(document.fullscreenElement === scene.current)
+    document.addEventListener('fullscreenchange', update)
+    return () => document.removeEventListener('fullscreenchange', update)
+  }, [])
+
+  async function toggleFullscreen() {
+    setFullscreenError(false)
+    try {
+      if (document.fullscreenElement === scene.current) await document.exitFullscreen()
+      else await scene.current?.requestFullscreen()
+    } catch {
+      setFullscreenError(true)
+    }
+  }
+
   return (
-    <section className="arcade-hero" aria-label="PromptPlay arcade">
-      <h1 className="visually-hidden">PromptPlay arcade</h1>
+    <section ref={scene} className="arcade-hero" aria-label="PromptPlay arcade workspace">
+
       <div className="hero-shell">
-        <div className="hero-shell-bar"><PanelLeft size={15} /><span>Workspace</span><span>DEMO</span></div>
-        <div className="desktop-workspace"><aside className="desktop-rail" aria-hidden="true"><div className="desktop-rail-heading">Workspace</div><div className="desktop-rail-new"><Plus size={15} /> New task</div><div className="desktop-rail-label">Recent</div><div className="desktop-rail-task"><Code2 size={14} /> Build a product</div><div className="desktop-rail-task"><Folder size={14} /> Improve dashboard</div><div className="desktop-rail-task"><Code2 size={14} /> Refine components</div><div className="desktop-rail-task"><Code2 size={14} /> Add project tests</div><div className="desktop-rail-settings"><Settings2 size={15} /></div></aside><div className="hero-workspace"><AgentTerminal started={started} reduced={reduced} /><GameTerminal started={started} /></div></div>
+        <div className="hero-shell-bar">
+          <PanelLeft size={15} /><span>Workspace demo</span>
+          {typeof document !== 'undefined' && document.fullscreenEnabled && (
+            <button type="button" className="btn-ghost arcade-expand" onClick={() => void toggleFullscreen()}>
+              {fullscreen ? 'Exit fullscreen' : 'Expand workspace'}
+            </button>
+          )}
+        </div>
+        {fullscreenError && <output>Fullscreen is unavailable in this browser.</output>}
+        <div className="desktop-workspace"><aside className="desktop-rail" aria-hidden="true"><div className="desktop-rail-heading">Workspace</div><div className="desktop-rail-new"><Plus size={15} /> New task</div><div className="desktop-rail-label">Recent</div><div className="desktop-rail-task"><Code2 size={14} /> Build a product</div><div className="desktop-rail-task"><Folder size={14} /> Improve dashboard</div><div className="desktop-rail-task"><Code2 size={14} /> Refine components</div><div className="desktop-rail-task"><Code2 size={14} /> Add project tests</div><div className="desktop-rail-settings"><Settings2 size={15} /></div></aside><div className="hero-workspace"><AgentTerminal started={started} reduced={reduced} /><GameTerminal /></div></div>
       </div>
     </section>
   )

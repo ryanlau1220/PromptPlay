@@ -1,347 +1,143 @@
-import { useState, useEffect } from 'react'
-import type React from 'react'
-import { motion, useReducedMotion } from 'framer-motion'
-import {
-  Gamepad2,
-  ShieldCheck,
-  Lock,
-  Code2,
-  Terminal,
-  Layers,
-  Coins
-} from 'lucide-react'
-import { GAME, base64, commitment } from '../lib/game'
-import { useSession } from './Session'
+import { useEffect, useState } from 'react'
+import { ArrowDown, ArrowUpRight, Coins, Cpu, Gamepad2, Lock } from 'lucide-react'
+import { GAME, TOKEN, base64, commitment } from '../lib/game'
 import { ArcadeScene } from './ArcadeScene'
-import { practiceGames } from './practice/games'
+import { useSession } from './Session'
 import { GameArtwork } from './practice/GameArtwork'
+import { practiceGames } from './practice/games'
+import './arcade-story.css'
 
-// ─── Timing constants ──────────────────────────────────────────────────────
-const TIMING = {
-  kicker:    100,
-  title:     220,
-  cta:       380,
-  cabinet:   500,
-  loop:      900,
-  cards:    1100,
-  sandbox:  1400,
-  rest:     1700,
-} as const
+const choices = [
+  { name: 'Rock', icon: '/hands/rock.svg' },
+  { name: 'Paper', icon: '/hands/paper.svg' },
+  { name: 'Scissors', icon: '/hands/scissors.svg' },
+]
 
-// ─── Spring presets ────────────────────────────────────────────────────────
-const SPRING = {
-  bouncy:  { type: 'spring' as const, stiffness: 280, damping: 26 },
-  smooth:  { type: 'spring' as const, stiffness: 300, damping: 30 },
-  stiff:   { type: 'spring' as const, stiffness: 350, damping: 28 },
-  snappy:  { type: 'spring' as const, stiffness: 400, damping: 30 },
-} as const
-
-// ─── Section motion wrapper ────────────────────────────────────────────────
-function FadeUp({
-  show,
-  offsetY = 20,
-  spring = SPRING.smooth,
-  children,
-  style,
-}: {
-  show: boolean
-  offsetY?: number
-  spring?: typeof SPRING[keyof typeof SPRING]
-  children: React.ReactNode
-  style?: React.CSSProperties
-}) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: offsetY }}
-      animate={{ opacity: show ? 1 : 0, y: show ? 0 : offsetY }}
-      transition={spring}
-      style={style}
-    >
-      {children}
-    </motion.div>
-  )
-}
-
-// ─── Staggered list item ───────────────────────────────────────────────────
-function StaggerItem({
-  show,
-  index,
-  stagger = 0.1,
-  children,
-  className,
-  style,
-}: {
-  show: boolean
-  index: number
-  stagger?: number
-  children: React.ReactNode
-  className?: string
-  style?: React.CSSProperties
-}) {
-  return (
-    <motion.div
-      className={className}
-      style={style}
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: show ? 1 : 0, y: show ? 0 : 16 }}
-      transition={{ ...SPRING.bouncy, delay: show ? index * stagger : 0 }}
-    >
-      {children}
-    </motion.div>
-  )
-}
+const steps = [
+  { title: 'Play a duel', label: 'NEAR Testnet', icon: Gamepad2, detail: 'Both players stake PCC. A secret commitment keeps each move hidden until both players are ready to reveal.' },
+  { title: 'Claim the pot', label: 'Verified payout', icon: Coins, detail: 'Win two rounds to claim both stakes, including your own. The game contract verifies the result and pays the winner.' },
+  { title: 'Run inference', label: '5 PCC per gateway unit', icon: Cpu, detail: 'Eligible wallets can redeem PCC into operator-funded allowance for the playground or a compatible coding agent.' },
+]
 
 export function ArcadeLobby() {
-  const reduced = useReducedMotion()
-  const { config } = useSession()
-  useEffect(() => { if (window.location.hash === '#games') requestAnimationFrame(() => document.getElementById('games')?.scrollIntoView()) }, [])
-  const [stage, setStage] = useState(reduced ? 99 : 0)
-  const [simulatedChoice, setSimulatedChoice] = useState<number>(0)
-  const choices = [
-    { id: 0, name: 'Rock', icon: '/hands/rock.svg' },
-    { id: 1, name: 'Paper', icon: '/hands/paper.svg' },
-    { id: 2, name: 'Scissors', icon: '/hands/scissors.svg' },
-  ]
+  const { config, configStatus } = useSession()
+  const [selected, setSelected] = useState<number | null>(null)
   const [example, setExample] = useState<{ salt: string; hash: string } | null>(null)
-  useEffect(() => {
-    let active = true
-    const secret = crypto.getRandomValues(new Uint8Array(32))
-    setExample(null)
-    void commitment('example.testnet', '0', 1, simulatedChoice, secret).then((hash) => {
-      if (active) setExample({ salt: base64(secret), hash })
-    })
-    return () => { active = false }
-  }, [simulatedChoice])
+  const [hashError, setHashError] = useState(false)
 
-  // Page entrance cascade
   useEffect(() => {
-    if (reduced) return
-    const timers: ReturnType<typeof setTimeout>[] = []
-    timers.push(setTimeout(() => setStage(1), TIMING.kicker))
-    timers.push(setTimeout(() => setStage(2), TIMING.title))
-    timers.push(setTimeout(() => setStage(3), TIMING.cta))
-    timers.push(setTimeout(() => setStage(4), TIMING.cabinet))
-    timers.push(setTimeout(() => setStage(6), TIMING.loop))
-    timers.push(setTimeout(() => setStage(7), TIMING.cards))
-    timers.push(setTimeout(() => setStage(8), TIMING.sandbox))
-    timers.push(setTimeout(() => setStage(9), TIMING.rest))
-    return () => timers.forEach(clearTimeout)
-  }, [reduced])
+    function scrollToSection() {
+      const id = window.location.hash.slice(1)
+      if (id === 'games' || id === 'loop') document.getElementById(id)?.scrollIntoView()
+    }
+    const frame = requestAnimationFrame(scrollToSection)
+    window.addEventListener('hashchange', scrollToSection)
+    return () => {
+      cancelAnimationFrame(frame)
+      window.removeEventListener('hashchange', scrollToSection)
+    }
+  }, [])
+
+  function showCommitment(choice: number) {
+    if (choice === selected) return
+    setSelected(choice)
+    setExample(null)
+    setHashError(false)
+  }
+
+  useEffect(() => {
+    if (selected === null) return
+    let active = true
+    const salt = crypto.getRandomValues(new Uint8Array(32))
+    void commitment('example.testnet', '0', 1, selected, salt)
+      .then(hash => { if (active) setExample({ salt: base64(salt), hash }) })
+      .catch(() => { if (active) setHashError(true) })
+    return () => { active = false }
+  }, [selected])
 
   return (
-    <div className="lobby-container">
-
-      <section className="terminal-card story-section" aria-labelledby="quickstart-title">
-        <h2 id="quickstart-title">Play while your coding agent runs</h2>
-        <p>Try a solo game immediately, or challenge a friend on NEAR Testnet. In a funded RPS duel, the winner claims both players’ stakes. The faucet supplies starter PCC from its pre-funded allocation.</p>
-        <p>Claimed PCC goes to your wallet. At the Inference Hub, eligible wallets can redeem 5 PCC for one operator-funded gateway unit and use it in the playground or a compatible coding agent.</p>
-        <div className="promptplay-quickstart-actions">
-          <a className="btn-primary" href="#compute-demo">Try the compute loop · no wallet</a>
-          <a className="btn-ghost" href="#practice/tic-tac-toe">Play Tic-Tac-Toe</a>
-          <a className="btn-ghost" href="#play">Start a Testnet duel</a>
-          <a className="btn-ghost" href="#redeem">Open Inference Hub</a>
+    <div className="lobby-container arcade-story">
+      <section className="story-intro" aria-labelledby="quickstart-title">
+        <div className="story-intro-copy">
+          <h1 id="quickstart-title">
+            <span>Play while your</span>
+            <span>coding agent runs.</span>
+          </h1>
+          <p>Take a break with a quick game, or stake PromptPlay Compute Credits (PCC) in a Testnet duel. Redeem eligible credits to run AI inference.</p>
+          <div className="promptplay-quickstart-actions">
+            <a className="btn-primary" href="#compute-demo">Play the wallet-free demo <ArrowUpRight size={17} aria-hidden="true" /></a>
+            <a className="btn-ghost" href="#play">Start a Testnet duel</a>
+          </div>
+          <a className="story-down" href="#loop">See how it works <ArrowDown size={15} aria-hidden="true" /></a>
+        </div>
+        <div className="story-preview">
+          <ArcadeScene />
         </div>
       </section>
 
-      <ArcadeScene />
-
-      {/* ── FEATURED GAME ─────────────────────────────────────────────── */}
-      <section id="games" className="games-showcase" aria-labelledby="games-title">
-        <FadeUp show={stage >= 9} offsetY={20} spring={SPRING.smooth}>
-          <div className="section-heading-row">
-            <div>
-              <div className="section-kicker">
-                <Gamepad2 size={14} />
-                <span>ARCADE</span>
-              </div>
-              <h2 id="games-title" className="section-title">Games</h2>
-            </div>
-          </div>
-
-          <div className="games-grid">
-            <a href="#play" className="game-tile game-tile-featured"><GameArtwork id="rps" /><span><strong>Rock Paper Scissors</strong><small>2 PLAYERS · PCC</small></span></a>
-            {practiceGames.map(game => <a href={`#practice/${game.id}`} className="game-tile" key={game.id}><GameArtwork id={game.id} /><span><strong>{game.name}</strong><small>OFF-CHAIN · NO PCC</small></span></a>)}
-          </div>
-
-        </FadeUp>
-      </section>
-
-      {/* ── COMPUTE LOOP SECTION ──────────────────────────────────────── */}
-      <section id="loop" className="story-section" aria-labelledby="story-title">
-        <FadeUp show={stage >= 6} offsetY={20} spring={SPRING.smooth}>
-          <div className="section-kicker">
-            <Layers size={14} />
-            <span>FROM GAME STAKES TO INFERENCE</span>
-          </div>
-
-          <div className="section-heading-row">
-            <div>
-              <h2 id="story-title" className="section-title">The Compute Loop</h2>
-            </div>
-            <a href={`https://testnet.nearblocks.io/address/${GAME}`} target="_blank" rel="noreferrer" className="arena-contract-link">
-              <span>Verified Game Contract ↗</span>
-            </a>
-          </div>
-        </FadeUp>
-
-        <div className="story-grid">
-          {[
-            { num: '01', accent: 'var(--cyan)', icon: <Coins size={24} />, title: 'Stake & Escrow', metric: 'Both players stake PCC', detail: 'The winner can claim the pot' },
-            { num: '02', accent: 'var(--crimson)', icon: <Lock size={24} />, title: 'Commit & Reveal', metric: 'SHA-256 (Secret + Move)', detail: '32-Byte Client Salt' },
-            { num: '03', accent: 'var(--amber)', icon: <Terminal size={24} />, title: 'Fuel Your Agent', metric: '5 PCC ➔ 1 gateway unit', detail: config?.redemptionAvailable ? 'Redemption enabled' : 'Check access in the Inference Hub' },
-          ].map((card, i) => (
-            <StaggerItem key={card.num} show={stage >= 7} index={i} stagger={0.12}>
-              <div className="story-card" style={{ '--card-accent': card.accent } as React.CSSProperties}>
-                <div className="story-card-number">{card.num}</div>
-                <div className="story-icon-box" style={{ color: card.accent }}>{card.icon}</div>
-                <h3>{card.title}</h3>
-                <div className="story-metric">{card.metric}</div>
-                <span className="story-card-detail">{card.detail}</span>
-              </div>
-            </StaggerItem>
+      <section id="loop" className="story-section story-loop" aria-labelledby="story-title">
+        <div className="section-heading-row">
+          <h2 id="story-title" className="section-title">From game to compute</h2>
+          <a href={`https://testnet.nearblocks.io/address/${GAME}`} target="_blank" rel="noreferrer" className="arena-contract-link">Inspect the Testnet game contract ↗</a>
+        </div>
+        <ol className="story-steps">
+          {steps.map(({ title, label, detail, icon: Icon }) => (
+            <li key={title} className="story-step">
+              <Icon size={26} aria-hidden="true" />
+              <h3>{title}</h3>
+              <strong>{label}</strong>
+              <p>{detail}</p>
+            </li>
           ))}
-        </div>
+        </ol>
 
-        {/* ── INTERACTIVE SANDBOX ───────────────────────────────────── */}
-        <FadeUp show={stage >= 8} offsetY={20} spring={SPRING.smooth} style={{ marginTop: '48px' }}>
-          <div className="sandbox-card">
-            <div className="sandbox-header">
-              <div>
-                <span className="section-kicker" style={{ color: 'var(--amber)' }}>
-                  <Code2 size={14} />
-                  <span>CRYPTOGRAPHIC MOVE COMMITMENT</span>
-                </span>
-                <h4>On-Device Move Hasher</h4>
-              </div>
-              <span className="story-card-detail">Example · account example.testnet · match 0</span>
-            </div>
-
-            <div className="sandbox-selector">
-              {choices.map((choice) => (
-                <motion.button
-                  key={choice.id}
-                  type="button"
-                  className={`sandbox-move-btn ${simulatedChoice === choice.id ? 'active' : ''}`}
-                  onClick={() => setSimulatedChoice(choice.id)}
-                  whileHover={{ y: -4, scale: 1.04 }}
-                  whileTap={{ scale: 0.96 }}
-                  transition={SPRING.snappy}
-                >
-                  <img src={choice.icon} alt="" />
-                  <span>{choice.name}</span>
-                </motion.button>
-              ))}
-            </div>
-
-            <div className="sandbox-code-preview">
-              <div>Move: <strong>{choices[simulatedChoice]?.name.toUpperCase()}</strong></div>
-              <div>Salt: <span style={{ color: 'var(--text)' }}>{example?.salt ?? 'Computing…'}</span></div>
-              <div>Commit: <strong>{example?.hash ?? 'Computing…'}</strong></div>
-            </div>
-          </div>
-        </FadeUp>
-      </section>
-
-      {/* ── AGENT COMPATIBILITY ───────────────────────────────────────── */}
-      <section className="agents-section" aria-labelledby="agents-title">
-        <FadeUp show={stage >= 9} offsetY={16} spring={SPRING.smooth}>
-          <div className="section-kicker">
-            <Code2 size={14} />
-            <span>TOOL COMPATIBILITY</span>
-          </div>
-          <h2 id="agents-title" className="section-title">Drop-in Gateway Support</h2>
-
-          <div className="agent-chips-row">
-            {['OpenCode', 'Pi Agent'].map((name, i) => (
-              <motion.div
-                key={name}
-                className="agent-badge-chip"
-                initial={{ opacity: 0, x: -12 }}
-                animate={{ opacity: stage >= 9 ? 1 : 0, x: stage >= 9 ? 0 : -12 }}
-                transition={{ ...SPRING.snappy, delay: stage >= 9 ? 0.05 + i * 0.06 : 0 }}
-              >
-                <span className="chip-dot" />
-                <span>{name}</span>
-              </motion.div>
+        <details className="story-commit">
+          <summary><Lock size={17} aria-hidden="true" /> Try a move commitment</summary>
+          <p>Pick a move to generate a SHA-256 commitment in your browser. The example uses round 1 of match 0 and a fresh 32-byte secret whenever you select a different move.</p>
+          <div className="sandbox-selector">
+            {choices.map((choice, index) => (
+              <button key={choice.name} type="button" className={`sandbox-move-btn ${selected === index ? 'active' : ''}`} aria-pressed={selected === index} onClick={() => showCommitment(index)}>
+                <img src={choice.icon} alt="" />
+                <span>{choice.name}</span>
+              </button>
             ))}
           </div>
-        </FadeUp>
+          {selected !== null && (
+            <output className="sandbox-code-preview">
+              {hashError ? 'Could not calculate the commitment in this browser.' : example ? (
+                <>
+                  <div>Secret: {example.salt}</div>
+                  <div>Commitment: <strong>{example.hash}</strong></div>
+                </>
+              ) : 'Calculating commitment…'}
+            </output>
+          )}
+        </details>
       </section>
 
-      {/* ── PROTOCOL STATUS ───────────────────────────────────────────── */}
-      <section className="status-section" aria-labelledby="status-title">
-        <FadeUp show={stage >= 9} offsetY={16} spring={SPRING.smooth}>
-          <div className="section-heading-row">
-            <div>
-              <div className="section-kicker">
-                <ShieldCheck size={14} />
-                <span>PROTOCOL STATUS</span>
-              </div>
-              <h2 id="status-title" className="section-title">Project status</h2>
-            </div>
+      <section id="games" className="games-showcase story-games" aria-labelledby="games-title">
+        <div className="section-heading-row">
+          <div>
+            <h2 id="games-title" className="section-title">Choose a game</h2>
+            <p>Practice games run locally and award no PCC.</p>
           </div>
+        </div>
+        <div className="games-grid">
+          <a href="#play" className="game-tile game-tile-featured"><GameArtwork id="rps" /><span><strong>Rock Paper Scissors</strong><small>TESTNET · 2 PLAYERS</small></span></a>
+          {practiceGames.map(game => <a href={`#practice/${game.id}`} className="game-tile" key={game.id}><GameArtwork id={game.id} /><span><strong>{game.name}</strong><small>{game.kind}</small></span></a>)}
+        </div>
+      </section>
 
-          <div className="status-cols">
-            <div className="status-col">
-              <div className="status-col-header status-live-header">
-                <span className="status-dot status-dot-live" />
-                <span>Available &amp; tested</span>
-              </div>
-              <ul className="status-list">
-                {[
-                  ['Two-Player RPS · Commit-Reveal', 'On-chain escrow, non-custodial'],
-                  ['PCC NEP-141 Token + Faucet', config?.faucetAvailable ? 'Testnet faucet enabled' : 'Testnet faucet currently disabled'],
-                  ['Inference Gateway', config?.redemptionAvailable ? 'Redemption enabled' : 'Operator-only test; redemption gated'],
-                  ['OpenAI-Compatible API', '/v1/chat/completions · per-user keys'],
-                  ['Real-Time WebSocket Sync', 'Match phase & state updates'],
-                ].map(([title, sub], i) => (
-                  <motion.li
-                    key={title}
-                    className="status-item"
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: stage >= 9 ? 1 : 0, x: stage >= 9 ? 0 : -10 }}
-                    transition={{ ...SPRING.snappy, delay: stage >= 9 ? 0.1 + i * 0.07 : 0 }}
-                  >
-                    <span className="status-badge status-badge-live">✓</span>
-                    <div>
-                      <div className="status-item-title">{title}</div>
-                      <div className="status-item-sub">{sub}</div>
-                    </div>
-                  </motion.li>
-                ))}
-              </ul>
-            </div>
-
-            <div className="status-col">
-              <div className="status-col-header status-live-header">
-                <span className="status-dot status-dot-live" />
-                <span>Available &amp; tested</span>
-              </div>
-              <ul className="status-list">
-                {[
-                  ['Best-of-Two-Wins Rounds', 'Multi-round match structure'],
-                  ['Match History Projection', 'On-chain event replay & stats'],
-                  ['Match Notifications', 'Browser push when match resolves'],
-                  ['NEP-297 Contract Events', 'Structured on-chain event log'],
-                ].map(([title, sub], i) => (
-                  <motion.li
-                    key={title}
-                    className="status-item"
-                    initial={{ opacity: 0, x: 10 }}
-                    animate={{ opacity: stage >= 9 ? 1 : 0, x: stage >= 9 ? 0 : 10 }}
-                    transition={{ ...SPRING.snappy, delay: stage >= 9 ? 0.1 + i * 0.07 : 0 }}
-                  >
-                    <span className="status-badge status-badge-live">✓</span>
-                    <div>
-                      <div className="status-item-title">{title}</div>
-                      <div className="status-item-sub">{sub}</div>
-                    </div>
-                  </motion.li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </FadeUp>
+      <section className="story-gateway" aria-labelledby="agents-title">
+        <div>
+          <h2 id="agents-title" className="section-title">Use your compute allowance</h2>
+          <p>Try the inference playground or connect OpenCode or Pi through the OpenAI-compatible gateway.</p>
+          <p>{configStatus === 'loading' ? 'Checking gateway availability…' : config?.redemptionAvailable ? 'Live redemption is enabled for eligible wallets.' : configStatus === 'unavailable' ? 'The gateway status is currently unavailable.' : 'Live redemption is currently disabled.'}</p>
+        </div>
+        <div className="promptplay-quickstart-actions">
+          <a className="btn-primary" href="#redeem">Open Inference Hub</a>
+          <a className="btn-ghost" href={`https://testnet.nearblocks.io/address/${TOKEN}`} target="_blank" rel="noreferrer">View PCC on Testnet ↗</a>
+        </div>
       </section>
     </div>
   )
