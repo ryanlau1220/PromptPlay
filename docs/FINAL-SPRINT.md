@@ -48,7 +48,7 @@ The next operator check is the real Testnet walkthrough against the intended pub
 | P1.2–P1.3 | The Inference Hub shows Testnet supply, redemption capacity, allowance and recorded usage. Each RPS room shows deposited, unsettled, pending, claimable and paid PCC. The walkthrough describes the fixed rate and who funds inference. |
 | P1.4–P1.5 | Loaded match history shows completed matches, wins and paid stakes. Rooms show invitation, opponent readiness and RPC refresh states. Progress depends on on-chain outcomes and is scoped to loaded history. |
 | P1.6 | Practice and shared settlement screens describe the separate mutual-agreement model and its trust boundary. |
-| P1.7 and P2.4 | Added accessible input labels, status announcements, fullscreen controls, a scroll-snap gallery with button navigation, and reduced-motion fallbacks. Runtime browser layout verification is pending. |
+| P1.7 and P2.4 | Added accessible input labels, status announcements, fullscreen controls, a scroll-snap gallery with button navigation, and reduced-motion fallbacks. Headless Chromium verified the wallet-free journey at 390px with reduced motion and 1366px with ordinary motion. |
 | P2.2 | Match summaries aggregate paid PCC across loaded contract records. Gateway totals aggregate credited, available, reserved, and charged microunits across its persistent ledger. Run `bun scripts/summarize-rps.ts` for chain settlement totals for the active multi-round RPS contract at a single finalized block. The command reports its coverage and separates paid and unsettled PCC. It excludes the legacy RPS and shared agreement contracts. The checked snapshot at block 277641039 covered all 5 matches in the active contract: 4 completed, 1 cancelled, 8 PCC deposited, 8 PCC paid including refunds, and 0 PCC unsettled. |
 | P2.3 | The wallet-free demo includes a demand slider. The scenarios below show the fixed-rate economics at three demand levels. |
 | P2.5 | Reviewed NEAR AI Cloud and NEAR Intents below. Testnet escrow and the existing gateway remain the demo path. |
@@ -77,3 +77,7 @@ The script checks the web response, backend health, CORS, Testnet configuration 
 - [NEAR Intents](https://docs.near-intents.org/) provides a cross-chain quote, swap and status flow. The judge journey already starts and ends with Testnet PCC, so a swap does not serve a demonstrated need in this sprint.
 
 For an operator replay on the intended deployment, run the smoke command above with the actual public origins. Then run the signed browser journey with the existing two funded Meteor profiles and the operator's configured gateway and persistent ledger. Record the room ID, successful payout and escrow transaction hashes, and the allowance and recorded usage before and after one inference request. Environment variable names and recovery instructions are in the README. Keep the provider credentials, wallet profiles and reveal secrets on the operator machine.
+
+### Wallet-free browser smoke test
+
+With the web app running and Chromium installed through the Playwright setup in the README, run `python scripts/test-browser-demo.py`. Set `BROWSER_TEST_WEB_URL` to override the local web URL. The script checks the landing page, gallery, simulated payout and inference allowance at mobile and desktop widths.
