@@ -21,7 +21,22 @@ const nearConfig = {
   }
 }
 
-export const Route = createFileRoute('/')({ component: Home })
+export const Route = createFileRoute('/')({
+  component: Home,
+  errorComponent: ArcadeError,
+})
+
+function ArcadeError() {
+  return (
+    <main className="arena-container">
+      <div className="terminal-card">
+        <h1>Arcade screen unavailable</h1>
+        <p>Reload this screen. If you were in a Testnet match, keep the same browser profile so you can reveal your saved move.</p>
+        <button className="btn-primary" type="button" onClick={() => window.location.reload()}>Reload screen</button>
+      </div>
+    </main>
+  )
+}
 
 function Home() {
   const [mounted, setMounted] = useState(false)
