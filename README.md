@@ -14,14 +14,13 @@
 **PromptPlay** turns downtime while a coding agent works into an arcade where Testnet game credits can be redeemed for metered AI inference.
 
 - **Deployed Project:** [promptplay-web.ryanlau1220.workers.dev](https://promptplay-web.ryanlau1220.workers.dev)
-- **Live Demo:** [Watch the demo video](PromptPlay-DemoVideo.mp4)
-- **Submission materials:** [Submission details](SUBMISSION.md) and [Testnet deployment records](deployments/testnet.json)
+- **Live Demo:** [Watch the demo video on YouTube](https://youtu.be/jZ4YRjUisMg)
 
 <p align="center">
   <img src="apps/web/public/demo-preview.png" alt="PromptPlay project artwork showing games, PCC and AI inference" width="560" />
 </p>
 
-**Challenge:** [NEAR Hackathon](https://nearhackathon.com/)
+**Challenge:** [Track 13 - Open Innovation](https://nearhackathon.com/)
 
 > This is a Testnet prototype, not a real-money product. PCC and NEAR are Testnet assets. The 11 solo practice games do not award PCC. Live inference depends on the operator's provider, funding, gateway capacity and configuration.
 
@@ -47,7 +46,7 @@ PromptPlay connects a NEAR Testnet arcade to a provider-configurable inference g
 
 To try the simulated flow, open the [deployed arcade](https://promptplay-web.ryanlau1220.workers.dev), select **Play the wallet-free demo**, choose **Paper** then **Rock**, and follow the simulated payout, redemption and mock inference steps. For a real duel, use two separately connected Testnet wallet profiles with NEAR for gas, PCC storage registration and sufficient PCC. Keep the same browser profiles through reveal: move secrets are stored locally. The deployed faucet, when available, provides a capped Testnet allocation.
 
-The [demo video](PromptPlay-DemoVideo.mp4) follows one winning wallet from match 12 through payout, redemption, credited allowance, a live browser model response and an OpenCode file read. The 2 PCC payout includes the winner's original 1 PCC stake; the 5 PCC redeemed came from the wallet's accumulated balance. Transaction waits are edited, the key is concealed and OpenCode events are presented as a formatted trace.
+The [demo video](https://youtu.be/jZ4YRjUisMg) follows one winning wallet from match 12 through payout, redemption, credited allowance, a live browser model response and an OpenCode file read. The 2 PCC payout includes the winner's original 1 PCC stake; the 5 PCC redeemed came from the wallet's accumulated balance. Transaction waits are edited, the key is concealed and OpenCode events are presented as a formatted trace.
 
 ## Installation & Setup
 
@@ -92,7 +91,6 @@ PromptPlay/
 ├── scripts/                 # Browser, Testnet and contract verification tools
 ├── .github/workflows/       # CI workflows
 ├── PromptPlay-DemoVideo.mp4 # Recorded demonstration
-└── SUBMISSION.md            # Submission details and evidence
 ```
 
 ## System Architecture
@@ -164,7 +162,7 @@ The browser test submits Testnet transactions and requires two pre-funded Meteor
 | [Match 12 payout](https://testnet.nearblocks.io/txns/2Dt3N1aaxc8UUwgYF83NaZQXUAWtVYGPKH11yDPdd116) | `arcade-a.ryanlau1220.testnet` won and claimed a 2 PCC pot | The payout includes the winner's original 1 PCC stake. |
 | [Match 12 redemption](https://testnet.nearblocks.io/txns/5e2p2dzLFktTJ1Xe4Fpitx1TAWeDfS3VNb95Axmt6ycK) | The same wallet deposited 5 PCC into redemption escrow; the recorded deposit was approved and consumed | The 5 PCC came from the accumulated wallet balance, not solely the match payout. |
 | Live inference and OpenCode | The recorded journey shows a model response and an OpenCode file read using the same wallet's gateway allowance | These are off-chain evidence; chain checks cannot independently verify the model response or trace individual token units. |
-| Testnet verification | `bun run verify:testnet` checks recorded match, payout, deposit and consumed escrow state, including matches 11 and 12 | It does not perform a new match or inference request. See [deployment records](deployments/testnet.json) and [submission details](SUBMISSION.md). |
+| Testnet verification | `bun run verify:testnet` checks recorded match, payout, deposit and consumed escrow state, including matches 11 and 12 | It does not perform a new match or inference request. See [deployment records](deployments/testnet.json). |
 | Games and settlement | RPS has on-chain commit–reveal rules; shared settlement supports mutual agreement and timeout refunds | Practice games award no PCC; shared settlement does not independently verify their rules. |
 | Provider and gateway | Provider endpoint, model and credentials are configurable; gateway reservations and limits protect the ledger | Pricing, funding, provider availability and capabilities are external dependencies. OpenCode and Pi have been exercised, not every compatible client or provider. |
 | Contract control and review | Escrow approvals use a restricted function-call key | The PCC issuer can mint. Contract accounts had full-access keys at review, enabling their holders to replace code. Contracts have not received an independent security audit. |

@@ -1,6 +1,5 @@
 *.md
 !README.md
-!SUBMISSION.md
 .agents/
 skills-lock.json
 
